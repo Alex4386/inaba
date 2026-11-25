@@ -1,0 +1,672 @@
+# Generated with protoc-gen-openapi
+# https://github.com/google/gnostic/tree/master/cmd/protoc-gen-openapi
+
+openapi: 3.0.3
+info:
+    title: inaba-server API
+    version: v1
+paths:
+    /v1/auth/login:
+        post:
+            tags:
+                - AuthService
+            description: Sets the session cookie.
+            operationId: AuthService_Login
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/LoginRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/User'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/auth/logout:
+        post:
+            tags:
+                - AuthService
+            operationId: AuthService_Logout
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/LogoutResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/auth/me:
+        get:
+            tags:
+                - AuthService
+            operationId: AuthService_WhoAmI
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/User'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/auth/onboard:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                Creates the first account on a server that has none, and signs it in. The token
+                 comes from the onboarding link the server prints when it starts without accounts.
+                 Needs no sign-in.
+            operationId: AuthService_Onboard
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/OnboardRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/User'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/config:
+        get:
+            tags:
+                - AuthService
+            description: Needs no sign-in.
+            operationId: AuthService_GetConfig
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetConfigResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/hosts:
+        get:
+            tags:
+                - HostService
+            operationId: HostService_ListHosts
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListHostsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - HostService
+            description: Registers a host. The secret is returned only here; start the host with it.
+            operationId: HostService_CreateHost
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateHostRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateHostResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/hosts/{id}:
+        delete:
+            tags:
+                - HostService
+            operationId: HostService_DeleteHost
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteHostResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/tokens:
+        get:
+            tags:
+                - AuthService
+            operationId: AuthService_ListTokens
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListTokensResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - AuthService
+            description: Creates an API token for scripts. The secret is returned only here.
+            operationId: AuthService_CreateToken
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateTokenRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateTokenResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/tokens/{id}:
+        delete:
+            tags:
+                - AuthService
+            operationId: AuthService_RevokeToken
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RevokeTokenResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/users:
+        get:
+            tags:
+                - AdminService
+            operationId: AdminService_ListUsers
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListUsersResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - AdminService
+            description: Creates an account that signs in with a password. It starts with no permissions.
+            operationId: AdminService_CreateUser
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateUserRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/User'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/users/-/tokens:
+        get:
+            tags:
+                - AdminService
+            description: Lists every account's API tokens.
+            operationId: AdminService_ListUserTokens
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListUserTokensResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/users/-/tokens/{id}:
+        delete:
+            tags:
+                - AdminService
+            operationId: AdminService_RevokeUserToken
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RevokeTokenResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/users/{user}:
+        delete:
+            tags:
+                - AdminService
+            description: Removes an account, its sessions and its API tokens.
+            operationId: AdminService_DeleteUser
+            parameters:
+                - name: user
+                  in: path
+                  description: 'The account: its id, or the name of a password account.'
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteUserResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/users/{user}/access:
+        put:
+            tags:
+                - AdminService
+            description: Replaces what an account is allowed to do. The last administrator stays one.
+            operationId: AdminService_SetAccess
+            parameters:
+                - name: user
+                  in: path
+                  description: 'The account: its id, or the name of a password account.'
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetAccessRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/User'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/users/{user}/password:
+        put:
+            tags:
+                - AdminService
+            description: Changes a password account's password and signs it out everywhere.
+            operationId: AdminService_SetPassword
+            parameters:
+                - name: user
+                  in: path
+                  description: 'The account: its id, or the name of a password account.'
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetPasswordRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetPasswordResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/users/{user}/tokens:
+        post:
+            tags:
+                - AdminService
+            operationId: AdminService_CreateUserToken
+            parameters:
+                - name: user
+                  in: path
+                  description: 'The account the token acts as: an id, or the name of a password account.'
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateUserTokenRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateTokenResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+components:
+    schemas:
+        CreateHostRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+        CreateHostResponse:
+            type: object
+            properties:
+                host:
+                    $ref: '#/components/schemas/Host'
+                secret:
+                    type: string
+        CreateTokenRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+        CreateTokenResponse:
+            type: object
+            properties:
+                token:
+                    $ref: '#/components/schemas/Token'
+                secret:
+                    type: string
+                    description: 'Send as "Authorization: Bearer <secret>".'
+        CreateUserRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                password:
+                    type: string
+        CreateUserTokenRequest:
+            type: object
+            properties:
+                user:
+                    type: string
+                    description: 'The account the token acts as: an id, or the name of a password account.'
+                name:
+                    type: string
+        DeleteHostResponse:
+            type: object
+            properties: {}
+        DeleteUserResponse:
+            type: object
+            properties: {}
+        GetConfigResponse:
+            type: object
+            properties:
+                oidc_enabled:
+                    type: boolean
+                    description: Start OIDC sign-in by sending the browser to /auth/oidc/login.
+                oidc_name:
+                    type: string
+                ice_urls:
+                    type: array
+                    items:
+                        type: string
+                    description: STUN servers for direct connections to hosts.
+                needs_onboarding:
+                    type: boolean
+                    description: The server has no account yet; it is set up through its onboarding link.
+        GoogleProtobufAny:
+            type: object
+            properties:
+                '@type':
+                    type: string
+                    description: The type of the serialized message.
+            additionalProperties: true
+            description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
+        Host:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                online:
+                    type: boolean
+                    description: Whether the host is connected right now.
+                created_at:
+                    type: string
+                    format: date-time
+        ListHostsResponse:
+            type: object
+            properties:
+                hosts:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Host'
+        ListTokensResponse:
+            type: object
+            properties:
+                tokens:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Token'
+        ListUserTokensResponse:
+            type: object
+            properties:
+                tokens:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ListUserTokensResponse_Entry'
+        ListUserTokensResponse_Entry:
+            type: object
+            properties:
+                token:
+                    $ref: '#/components/schemas/Token'
+                user_name:
+                    type: string
+        ListUsersResponse:
+            type: object
+            properties:
+                users:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/User'
+        LoginRequest:
+            type: object
+            properties:
+                username:
+                    type: string
+                password:
+                    type: string
+        LogoutResponse:
+            type: object
+            properties: {}
+        OnboardRequest:
+            type: object
+            properties:
+                token:
+                    type: string
+                username:
+                    type: string
+                password:
+                    type: string
+                    description: At least 8 characters.
+        RevokeTokenResponse:
+            type: object
+            properties: {}
+        SetAccessRequest:
+            type: object
+            properties:
+                user:
+                    type: string
+                    description: 'The account: its id, or the name of a password account.'
+                admin:
+                    type: boolean
+                permissions:
+                    type: array
+                    items:
+                        type: integer
+                        format: enum
+        SetPasswordRequest:
+            type: object
+            properties:
+                user:
+                    type: string
+                    description: 'The account: its id, or the name of a password account.'
+                password:
+                    type: string
+        SetPasswordResponse:
+            type: object
+            properties: {}
+        Status:
+            type: object
+            properties:
+                code:
+                    type: integer
+                    description: The status code, which should be an enum value of [google.rpc.Code][google.rpc.Code].
+                    format: int32
+                message:
+                    type: string
+                    description: A developer-facing error message, which should be in English. Any user-facing error message should be localized and sent in the [google.rpc.Status.details][google.rpc.Status.details] field, or localized by the client.
+                details:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/GoogleProtobufAny'
+                    description: A list of messages that carry the error details.  There is a common set of message types for APIs to use.
+            description: 'The `Status` type defines a logical error model that is suitable for different programming environments, including REST APIs and RPC APIs. It is used by [gRPC](https://github.com/grpc). Each `Status` message contains three pieces of data: error code, error message, and error details. You can find out more about this error model and how to work with it in the [API Design Guide](https://cloud.google.com/apis/design/errors).'
+        Token:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                created_at:
+                    type: string
+                    format: date-time
+        User:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                oidc:
+                    type: boolean
+                    description: Whether the account signs in through OIDC rather than with a password.
+                admin:
+                    type: boolean
+                    description: An administrator has every permission and manages the other accounts.
+                permissions:
+                    type: array
+                    items:
+                        type: integer
+                        format: enum
+tags:
+    - name: AdminService
+      description: |-
+        Administration of the server's accounts, for administrators. The server's local
+         control socket serves it too, to whoever can open the socket.
+    - name: AuthService
+    - name: HostService

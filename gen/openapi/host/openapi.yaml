@@ -1,0 +1,783 @@
+# Generated with protoc-gen-openapi
+# https://github.com/google/gnostic/tree/master/cmd/protoc-gen-openapi
+
+openapi: 3.0.3
+info:
+    title: inaba host API
+    version: v1
+paths:
+    /projects:
+        get:
+            tags:
+                - ProjectService
+            operationId: ProjectService_ListProjects
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListProjectsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - ProjectService
+            operationId: ProjectService_CreateProject
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateProjectRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Project'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /projects/{project_id}:
+        delete:
+            tags:
+                - ProjectService
+            description: |-
+                Forgets the project. Its threads keep running and keep the id of the project that
+                 is gone; treat a thread whose project does not exist as one without a project.
+            operationId: ProjectService_DeleteProject
+            parameters:
+                - name: project_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteProjectResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /providers:
+        get:
+            tags:
+                - ThreadService
+            operationId: ThreadService_ListProviders
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListProvidersResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /threads:
+        get:
+            tags:
+                - ThreadService
+            operationId: ThreadService_ListThreads
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListThreadsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - ThreadService
+            operationId: ThreadService_CreateThread
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateThreadRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Thread'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /threads/{thread_id}:
+        get:
+            tags:
+                - ThreadService
+            operationId: ThreadService_GetThread
+            parameters:
+                - name: thread_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Thread'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        delete:
+            tags:
+                - ThreadService
+            description: Stops the thread's process and forgets the thread.
+            operationId: ThreadService_DeleteThread
+            parameters:
+                - name: thread_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteThreadResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /threads/{thread_id}/events:
+        get:
+            tags:
+                - ThreadService
+            operationId: ThreadService_ListEvents
+            parameters:
+                - name: thread_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: after_seq
+                  in: query
+                  schema:
+                    type: string
+                - name: limit
+                  in: query
+                  description: At most this many events; 0 means the server's default.
+                  schema:
+                    type: integer
+                    format: uint32
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListEventsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /threads/{thread_id}/interrupt:
+        post:
+            tags:
+                - ThreadService
+            operationId: ThreadService_Interrupt
+            parameters:
+                - name: thread_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InterruptResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /threads/{thread_id}/mode:
+        post:
+            tags:
+                - ThreadService
+            description: |-
+                Restarts the thread's process in the other mode, resuming the same native session.
+                 State held only by the old process is lost. Fails while a turn is running.
+            operationId: ThreadService_SetMode
+            parameters:
+                - name: thread_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetModeRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Thread'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /threads/{thread_id}/raw:
+        post:
+            tags:
+                - ThreadService
+            description: Sends a request of the provider's own protocol and returns its result unchanged.
+            operationId: ThreadService_Raw
+            parameters:
+                - name: thread_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RawRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RawResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /threads/{thread_id}/requests/{request_id}:
+        post:
+            tags:
+                - ThreadService
+            description: Answers a permission request.
+            operationId: ThreadService_Respond
+            parameters:
+                - name: thread_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: request_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RespondRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RespondResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /threads/{thread_id}/terminal/input:
+        post:
+            tags:
+                - TerminalService
+            operationId: TerminalService_Write
+            parameters:
+                - name: thread_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/WriteRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/WriteResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /threads/{thread_id}/terminal/size:
+        post:
+            tags:
+                - TerminalService
+            operationId: TerminalService_Resize
+            parameters:
+                - name: thread_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ResizeRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ResizeResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /threads/{thread_id}/turns:
+        post:
+            tags:
+                - ThreadService
+            description: Returns once the provider accepted the prompt; the turn's output arrives as events.
+            operationId: ThreadService_StartTurn
+            parameters:
+                - name: thread_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/StartTurnRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/StartTurnResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+components:
+    schemas:
+        CreateProjectRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Defaults to the folder's name.
+                cwd:
+                    type: string
+        CreateThreadRequest:
+            type: object
+            properties:
+                provider:
+                    type: string
+                cwd:
+                    type: string
+                title:
+                    type: string
+                mode:
+                    type: integer
+                    description: Defaults to THREAD_MODE_STRUCTURED.
+                    format: enum
+                project_id:
+                    type: string
+                    description: Start the thread in this project. Its folder is used and cwd is ignored.
+        DeleteProjectResponse:
+            type: object
+            properties: {}
+        DeleteThreadResponse:
+            type: object
+            properties: {}
+        Event:
+            type: object
+            properties:
+                seq:
+                    type: string
+                    description: Per-thread, starts at 1, no gaps.
+                thread_id:
+                    type: string
+                time:
+                    type: string
+                    format: date-time
+                user_message:
+                    $ref: '#/components/schemas/UserMessage'
+                text_delta:
+                    $ref: '#/components/schemas/TextDelta'
+                tool_call:
+                    $ref: '#/components/schemas/ToolCall'
+                permission_request:
+                    $ref: '#/components/schemas/PermissionRequest'
+                permission_resolved:
+                    $ref: '#/components/schemas/PermissionResolved'
+                turn_started:
+                    $ref: '#/components/schemas/TurnStarted'
+                turn_ended:
+                    $ref: '#/components/schemas/TurnEnded'
+                mode_changed:
+                    $ref: '#/components/schemas/ModeChanged'
+                raw:
+                    $ref: '#/components/schemas/RawEvent'
+        GoogleProtobufAny:
+            type: object
+            properties:
+                '@type':
+                    type: string
+                    description: The type of the serialized message.
+            additionalProperties: true
+            description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
+        GoogleProtobufValue:
+            description: Represents a dynamically typed value which can be either null, a number, a string, a boolean, a recursive struct value, or a list of values.
+        InterruptResponse:
+            type: object
+            properties: {}
+        ListEventsResponse:
+            type: object
+            properties:
+                events:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Event'
+        ListProjectsResponse:
+            type: object
+            properties:
+                projects:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Project'
+        ListProvidersResponse:
+            type: object
+            properties:
+                providers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Provider'
+        ListThreadsResponse:
+            type: object
+            properties:
+                threads:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Thread'
+        ModeChanged:
+            type: object
+            properties:
+                mode:
+                    type: integer
+                    format: enum
+        PermissionRequest:
+            type: object
+            properties:
+                request_id:
+                    type: string
+                title:
+                    type: string
+                options:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/PermissionRequest_Option'
+                raw:
+                    $ref: '#/components/schemas/GoogleProtobufValue'
+        PermissionRequest_Option:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                kind:
+                    type: string
+                    description: The provider's own word for it, such as allow_once or reject_always.
+        PermissionResolved:
+            type: object
+            properties:
+                request_id:
+                    type: string
+                option_id:
+                    type: string
+                    description: Empty when the request was cancelled.
+        Project:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                cwd:
+                    type: string
+                    description: Where the project's threads start.
+                created_at:
+                    type: string
+                    format: date-time
+            description: A folder on the host that threads are grouped under.
+        Provider:
+            type: object
+            properties:
+                id:
+                    type: string
+                terminal:
+                    type: boolean
+                    description: Whether threads can switch to THREAD_MODE_TERMINAL.
+                raw:
+                    type: boolean
+                    description: Whether Raw is available.
+                structured:
+                    type: boolean
+                    description: |-
+                        Whether threads have a structured mode. A provider without one, such as a plain
+                         shell, only ever runs in THREAD_MODE_TERMINAL.
+        RawEvent:
+            type: object
+            properties:
+                method:
+                    type: string
+                params:
+                    $ref: '#/components/schemas/GoogleProtobufValue'
+            description: A provider notification inaba has no event for, passed through unchanged.
+        RawRequest:
+            type: object
+            properties:
+                thread_id:
+                    type: string
+                method:
+                    type: string
+                params:
+                    $ref: '#/components/schemas/GoogleProtobufValue'
+        RawResponse:
+            type: object
+            properties:
+                result:
+                    $ref: '#/components/schemas/GoogleProtobufValue'
+        ResizeRequest:
+            type: object
+            properties:
+                thread_id:
+                    type: string
+                cols:
+                    type: integer
+                    format: uint32
+                rows:
+                    type: integer
+                    format: uint32
+        ResizeResponse:
+            type: object
+            properties: {}
+        RespondRequest:
+            type: object
+            properties:
+                thread_id:
+                    type: string
+                request_id:
+                    type: string
+                option_id:
+                    type: string
+                    description: Leave empty to cancel the request.
+        RespondResponse:
+            type: object
+            properties: {}
+        SetModeRequest:
+            type: object
+            properties:
+                thread_id:
+                    type: string
+                mode:
+                    type: integer
+                    format: enum
+        StartTurnRequest:
+            type: object
+            properties:
+                thread_id:
+                    type: string
+                text:
+                    type: string
+        StartTurnResponse:
+            type: object
+            properties: {}
+        Status:
+            type: object
+            properties:
+                code:
+                    type: integer
+                    description: The status code, which should be an enum value of [google.rpc.Code][google.rpc.Code].
+                    format: int32
+                message:
+                    type: string
+                    description: A developer-facing error message, which should be in English. Any user-facing error message should be localized and sent in the [google.rpc.Status.details][google.rpc.Status.details] field, or localized by the client.
+                details:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/GoogleProtobufAny'
+                    description: A list of messages that carry the error details.  There is a common set of message types for APIs to use.
+            description: 'The `Status` type defines a logical error model that is suitable for different programming environments, including REST APIs and RPC APIs. It is used by [gRPC](https://github.com/grpc). Each `Status` message contains three pieces of data: error code, error message, and error details. You can find out more about this error model and how to work with it in the [API Design Guide](https://cloud.google.com/apis/design/errors).'
+        TextDelta:
+            type: object
+            properties:
+                kind:
+                    type: integer
+                    format: enum
+                text:
+                    type: string
+        Thread:
+            type: object
+            properties:
+                id:
+                    type: string
+                provider:
+                    type: string
+                cwd:
+                    type: string
+                title:
+                    type: string
+                    description: What the thread is about. Left empty, it becomes the start of the first message.
+                mode:
+                    type: integer
+                    format: enum
+                status:
+                    type: integer
+                    format: enum
+                native_session_id:
+                    type: string
+                    description: The provider's own session id, once it has one.
+                last_seq:
+                    type: string
+                created_at:
+                    type: string
+                    format: date-time
+                project_id:
+                    type: string
+                    description: The project the thread belongs to; empty for a thread started outside any project.
+                updated_at:
+                    type: string
+                    description: When the thread last produced an event.
+                    format: date-time
+                activity:
+                    type: string
+                    description: What the agent is doing right now, such as the tool call in progress; empty when idle.
+        ToolCall:
+            type: object
+            properties:
+                id:
+                    type: string
+                title:
+                    type: string
+                kind:
+                    type: string
+                status:
+                    type: string
+                raw:
+                    allOf:
+                        - $ref: '#/components/schemas/GoogleProtobufValue'
+                    description: The provider's own record of the call.
+            description: Sent again with the same id whenever the call changes; later fields win.
+        TurnEnded:
+            type: object
+            properties:
+                stop_reason:
+                    type: string
+                    description: The provider's own stop reason, such as end_turn or cancelled.
+                error:
+                    type: string
+                    description: Set when the turn failed.
+        TurnStarted:
+            type: object
+            properties: {}
+        UserMessage:
+            type: object
+            properties:
+                text:
+                    type: string
+        WriteRequest:
+            type: object
+            properties:
+                thread_id:
+                    type: string
+                data:
+                    type: string
+                    format: bytes
+        WriteResponse:
+            type: object
+            properties: {}
+tags:
+    - name: ProjectService
+    - name: TerminalService
+      description: The PTY of a thread in THREAD_MODE_TERMINAL.
+    - name: ThreadService
+servers:
+    - url: /v1/hosts/{host_id}
+      variables:
+        host_id:
+            default: ""
+            description: The id of the host, from GET /v1/hosts.

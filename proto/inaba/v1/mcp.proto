@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+// MCP servers: the mcp module of a host. inaba-server proxies it under
+// /hosts/{host_id}/, like the rest of the host API.
+package inaba.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// MCP servers the host gives the agents of its threads, on top of the agents' own.
+// A thread gets the servers that apply to it when its agent starts; a change reaches
+// a running thread the next time its agent is started. They hold the host's secrets
+// and reach every thread on it, so reading or changing them needs the hosts
+// permission, which a personal host's owner has.
+service McpService {
+  rpc ListMcpServers(ListMcpServersRequest) returns (ListMcpServersResponse) {
+    option (google.api.http) = {get: "/v1/mcp-servers"};
+  }
+  rpc CreateMcpServer(McpServer) returns (McpServer) {
+    option (google.api.http) = {
+      post: "/v1/mcp-servers"
+      body: "*"
+    };
+  }
+  rpc UpdateMcpServer(McpServer) returns (McpServer) {
+    option (google.api.http) = {
+      put: "/v1/mcp-servers/{id}"
+      body: "*"
+    };
+  }
+  rpc DeleteMcpServer(DeleteMcpServerRequest) returns (DeleteMcpServerResponse) {
+    option (google.api.http) = {delete: "/v1/mcp-servers/{id}"};
+  }
+}
+
+// An MCP server: a command the agent starts, or an address it reaches over
+// Streamable HTTP. Exactly one of command and url is set.
+message McpServer {
+  // Set by the host.
+  string id = 1;
+  // What the agent knows it by.
+  string name = 2;
+  bool enabled = 3;
+  string command = 4;
+  repeated string args = 5;
+  map<string, string> env = 6;
+  string url = 7;
+  map<string, string> headers = 8;
+  // The projects whose threads get it; empty for every thread.
+  repeated string project_ids = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+message ListMcpServersRequest {}
+message ListMcpServersResponse {
+  repeated McpServer servers = 1;
+}
+message DeleteMcpServerRequest {
+  string id = 1;
+}
+message DeleteMcpServerResponse {}

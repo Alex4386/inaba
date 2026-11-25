@@ -1,0 +1,17 @@
+/bin/
+/web/node_modules/
+# Built by `make web`; only the placeholder is tracked so the embed compiles without it.
+/internal/webui/dist/*
+!/internal/webui/dist/.gitkeep
+*.tmp
+/inaba-server.json
+
+/inaba-server.db*
+*.db-wal
+*.db-shm
+*.tsbuildinfo
+.DS_Store
+.claude/settings.local.json
+# Downloaded by scripts/expand-banner.sh.
+/docs/fonts/
+/scripts/expand-banner/node_modules/

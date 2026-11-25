@@ -1,0 +1,3 @@
+# Dependencies' install scripts run only when listed here. @scarf/scarf only sends install telemetry.
+allowBuilds:
+  '@scarf/scarf': false

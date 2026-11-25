@@ -1,0 +1,28 @@
+# inaba (a host) as a systemd user service: it runs agents as you, in your home,
+# with your git and agent credentials, so it is not sandboxed away from them (no
+# ProtectHome, and no NoNewPrivileges, which would stop agents using sudo).
+#
+# Install:
+#   install -m 755 bin/inaba ~/.local/bin/
+#   install -D -m 644 contrib/systemd/inaba.service ~/.config/systemd/user/inaba.service
+#   ~/.local/bin/inaba login --server https://inaba.example.com
+#   systemctl --user daemon-reload && systemctl --user enable --now inaba
+#   loginctl enable-linger "$USER"   # keep it running while you are logged out
+#
+# Settings come from ~/.config/inaba/config.json (or .yaml) and INABA_* variables; put the
+# latter in ~/.config/inaba/host.env (install -m 600 /dev/null ~/.config/inaba/host.env), along
+# with a PATH that finds your agents (npx, claude, ...), since user services start with a
+# minimal one. The database is ~/.local/share/inaba/inaba.db and the control socket sits
+# beside it, where `inaba project list` and the other commands find it.
+
+[Unit]
+Description=inaba host
+
+[Service]
+ExecStart=%h/.local/bin/inaba connect
+EnvironmentFile=-%h/.config/inaba/host.env
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

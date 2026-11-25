@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Source badge: edit text here, then run ./scripts/expand-banner.sh for README. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="222" height="32" viewBox="0 0 222 32" role="img" aria-label="Blocked by Y Combinator">
+  <title>Blocked by Y Combinator</title>
+  <style type="text/css"><![CDATA[
+    .box { fill: #f26522; }
+    .y { fill: #ffffff; font-family: "Pretendard JP", "PretendardJP", ui-sans-serif, system-ui, sans-serif; font-size: 14px; font-weight: 500; }
+    .badge { fill: #3f3f46; font-family: "Pretendard JP", "PretendardJP", ui-sans-serif, system-ui, sans-serif; font-size: 15px; font-weight: 500; }
+    .border { fill: none; stroke: #d4d4d8; }
+    @media (prefers-color-scheme: dark) {
+      .badge { fill: #d4d4d8; }
+      .border { stroke: #3f3f46; }
+    }
+  ]]></style>
+  <rect class="border" x="0.5" y="0.5" width="221" height="31" rx="6"/>
+  <rect class="box" x="8" y="6" width="20" height="20" rx="2"/>
+  <g id="copy" class="copy">
+    <text class="y" x="13.5" y="21">Y</text>
+    <text class="badge" x="37" y="21.5">Blocked by Y Combinator</text>
+  </g>
+</svg>

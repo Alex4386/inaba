@@ -1,0 +1,51 @@
+# inaba-server, plus an optional host in a container.
+#   docker compose up -d inaba-server
+# The first start logs a one-time link for creating the first administrator:
+#   docker compose logs inaba-server
+#
+# A host usually runs on the machine you code on (`inaba login` + `inaba connect`). To run one
+# here instead, give it a host secret from `inaba-server host add` and start it:
+#   docker compose exec inaba-server inaba-server host add my-container   # prints the secret
+#   INABA_HOST_TOKEN=… docker compose --profile host up -d
+services:
+  inaba-server:
+    image: ghcr.io/alex4386/inaba-server:main
+    build:
+      context: .
+      target: server
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      # With INABA_STUN_ENABLE below:
+      # - "3478:3478/udp"
+    environment:
+      # The URL browsers use to reach the server; needed for passkeys and sign-in links.
+      INABA_PUBLIC_URL: ${INABA_PUBLIC_URL:-http://localhost:8080}
+      # Run the built-in STUN server too, where UDP 3478 is reachable from outside (not behind NAT):
+      # INABA_STUN_ENABLE: "true"
+      # Behind a reverse proxy, name it, or every request looks like it comes from the proxy:
+      # INABA_TRUSTED_PROXIES: 172.16.0.0/12
+    volumes:
+      - inaba-server-data:/data
+
+  inaba:
+    profiles: [host]
+    image: ghcr.io/alex4386/inaba:main
+    build:
+      context: .
+      target: host
+    restart: unless-stopped
+    depends_on: [inaba-server]
+    environment:
+      INABA_SERVER: http://inaba-server:8080
+      INABA_TOKEN: ${INABA_HOST_TOKEN:?set INABA_HOST_TOKEN to a secret from inaba-server host add}
+    volumes:
+      # The host's database and the agents' own logins.
+      - inaba-home:/home/inaba
+      # Projects; bind a folder from this machine instead to work on existing code.
+      - inaba-workspace:/workspace
+
+volumes:
+  inaba-server-data:
+  inaba-home:
+  inaba-workspace:

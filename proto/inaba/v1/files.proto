@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+// A thread's files: the files module of a host. inaba-server proxies it under
+// /hosts/{host_id}/, like the rest of the host API.
+package inaba.v1;
+
+import "google/api/annotations.proto";
+
+// Reading what is in a thread's folder: finding files to point an agent at with @path,
+// and showing folders and files. Nothing here writes. Paths are relative to the
+// thread's folder, and never lead out of it, through .. or a symbolic link.
+service FileService {
+  // Files in the thread's folder whose path matches the query, for pointing the
+  // agent at them with @path. Ignored files are left out in a git repository.
+  rpc SearchFiles(SearchFilesRequest) returns (SearchFilesResponse) {
+    option (google.api.http) = {get: "/v1/threads/{thread_id}/files"};
+  }
+  // Lists one folder of the thread's folder, folders first. Only .git is left out.
+  rpc ListFolder(ListFolderRequest) returns (ListFolderResponse) {
+    option (google.api.http) = {get: "/v1/threads/{thread_id}/tree"};
+  }
+  // Reads a file in the thread's folder, up to 1 MiB of it.
+  rpc ReadFile(ReadFileRequest) returns (ReadFileResponse) {
+    option (google.api.http) = {get: "/v1/threads/{thread_id}/file"};
+  }
+  // Saves a file in the thread's folder, up to 1 MiB. Given the version it was read
+  // at, it refuses with ABORTED when the file changed since, as when the agent edited
+  // it meanwhile, rather than overwrite that.
+  rpc WriteFile(WriteFileRequest) returns (WriteFileResponse) {
+    option (google.api.http) = {
+      put: "/v1/threads/{thread_id}/file"
+      body: "*"
+    };
+  }
+}
+
+message WriteFileRequest {
+  string thread_id = 1;
+  string path = 2;
+  bytes data = 3;
+  // ReadFileResponse.version as read; empty writes regardless.
+  string base_version = 4;
+}
+message WriteFileResponse {
+  string version = 1;
+}
+
+message SearchFilesRequest {
+  string thread_id = 1;
+  // Letters to find in order in the path, case aside; empty lists files from the top.
+  string query = 2;
+}
+message SearchFilesResponse {
+  // Paths relative to the thread's folder, best match first; at most 50.
+  repeated string paths = 1;
+}
+
+message ListFolderRequest {
+  string thread_id = 1;
+  // Relative to the thread's folder; empty for the folder itself.
+  string path = 2;
+}
+message ListFolderResponse {
+  message Entry {
+    string name = 1;
+    bool folder = 2;
+    uint64 size = 3;
+  }
+  repeated Entry entries = 1;
+}
+
+message ReadFileRequest {
+  string thread_id = 1;
+  // Relative to the thread's folder.
+  string path = 2;
+}
+message ReadFileResponse {
+  bytes data = 1;
+  // What the content looks like, such as text/plain; charset=utf-8 or image/png.
+  string mime_type = 2;
+  uint64 size = 3;
+  // The file is larger than what is sent, which is its beginning.
+  bool truncated = 4;
+  // Names the content, to save it back with WriteFile only if it is still this.
+  string version = 5;
+}

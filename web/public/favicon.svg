@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <style>
+    g { stroke: #1d1c1a; }
+    @media (prefers-color-scheme: dark) { g { stroke: #f2f0eb; } }
+  </style>
+  <g>
+    <ellipse cx="8" cy="10" rx="2.8" ry="7.5" transform="rotate(-10 8 10)" />
+    <ellipse cx="16" cy="10" rx="2.8" ry="7.5" transform="rotate(10 16 10)" />
+    <path d="M5 21.5a7 4.5 0 0 1 14 0" />
+  </g>
+</svg>

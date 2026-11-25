@@ -1,0 +1,259 @@
+package browser
+
+import (
+	"context"
+	"net/url"
+	"time"
+
+	"connectrpc.com/connect/v2"
+	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/proto"
+
+	inabav1 "github.com/Alex4386/inaba/gen/inaba/v1"
+	"github.com/Alex4386/inaba/gen/inaba/v1/inabav1connect"
+)
+
+// page finds a page of the thread's browser by id, or its newest page.
+func (s *service) page(ctx context.Context, threadID, pageID string) (*instance, *rod.Page, error) {
+	in, err := s.open(ctx, threadID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if pageID == "" {
+		st, err := state(in)
+		if err != nil {
+			return nil, nil, err
+		}
+		if len(st.Pages) == 0 {
+			p, err := in.browser.Page(proto.TargetCreateTarget{URL: "about:blank"})
+			if err != nil {
+				return nil, nil, connect.NewError(connect.CodeUnavailable, "could not open a page: "+err.Error())
+			}
+			return in, p, nil
+		}
+		pageID = st.Pages[len(st.Pages)-1].Id
+	}
+	p, err := in.browser.PageFromTarget(proto.TargetTargetID(pageID))
+	if err != nil {
+		return nil, nil, connect.NewError(connect.CodeNotFound, "no such page in the browser")
+	}
+	return in, p, nil
+}
+
+func (s *service) WatchPage(ctx context.Context, req *inabav1.WatchPageRequest, stream inabav1connect.BrowserServiceWatchPageServerStream) error {
+	in, p, err := s.page(ctx, req.ThreadId, req.PageId)
+	if err != nil {
+		return err
+	}
+	in.touch(1)
+	defer in.touch(-1)
+	// One viewer per page: a page streams to one place. This one takes over.
+	ctx, done := s.takeOver(ctx, string(p.TargetID))
+	defer done()
+	// A screencast a viewer gone astray left running would refuse this one.
+	_ = proto.PageStopScreencast{}.Call(p)
+	if req.WindowWidth > 0 && req.WindowHeight > 0 {
+		if err := resize(p, int(req.WindowWidth), int(req.WindowHeight)); err != nil {
+			return connect.NewError(connect.CodeUnavailable, "could not size the window: "+err.Error())
+		}
+	}
+	p = p.Context(ctx)
+
+	start := proto.PageStartScreencast{Format: proto.PageStartScreencastFormatJpeg, Quality: ptr(70)}
+	if req.MaxWidth > 0 {
+		start.MaxWidth = ptr(int(req.MaxWidth))
+	}
+	if req.MaxHeight > 0 {
+		start.MaxHeight = ptr(int(req.MaxHeight))
+	}
+	var sendErr error
+	wait := p.EachEvent(func(f *proto.PageScreencastFrame) bool {
+		frame := &inabav1.PageFrame{PageId: string(p.TargetID), Jpeg: f.Data}
+		if m := f.Metadata; m != nil {
+			frame.ViewportWidth, frame.ViewportHeight = m.DeviceWidth, m.DeviceHeight
+		}
+		if info, err := p.Info(); err == nil {
+			frame.Url, frame.Title = info.URL, info.Title
+		}
+		if sendErr = stream.Send(frame); sendErr != nil {
+			return true
+		}
+		// Chrome sends the next frame once this one is acknowledged: a slow viewer gets fewer.
+		_ = proto.PageScreencastFrameAck{SessionID: f.SessionID}.Call(p)
+		return false
+	}, func(e *proto.TargetTargetDestroyed) bool {
+		return e.TargetID == p.TargetID
+	})
+	if err := start.Call(p); err != nil {
+		return connect.NewError(connect.CodeUnavailable, "the page would not show itself: "+err.Error())
+	}
+	wait()
+	// The call is over; the page stops sending, if it is still there to hear it.
+	_ = proto.PageStopScreencast{}.Call(p.Context(context.Background()))
+	return sendErr
+}
+
+func ptr[T any](v T) *T { return &v }
+
+// watcher is a page's viewer: how to end it, and word when it has.
+type watcher struct {
+	cancel context.CancelFunc
+	ended  chan struct{}
+}
+
+// takeOver ends the page's current viewer, waiting until it has let go of the page,
+// and makes the caller the viewer. done gives the page up.
+func (s *service) takeOver(ctx context.Context, pageID string) (context.Context, func()) {
+	ctx, cancel := context.WithCancel(ctx)
+	me := &watcher{cancel: cancel, ended: make(chan struct{})}
+	s.mu.Lock()
+	old := s.watchers[pageID]
+	s.watchers[pageID] = me
+	s.mu.Unlock()
+	if old != nil {
+		old.cancel()
+		select {
+		case <-old.ended:
+		case <-time.After(5 * time.Second):
+		}
+	}
+	return ctx, func() {
+		cancel()
+		s.mu.Lock()
+		if s.watchers[pageID] == me {
+			delete(s.watchers, pageID)
+		}
+		s.mu.Unlock()
+		close(me.ended)
+	}
+}
+
+// The smallest window the browser is made, so a page still lays itself out sensibly.
+const minWindowWidth, minWindowHeight = 320, 240
+
+// resize makes the window of the page this size, in CSS pixels. In a headless browser
+// the window is the viewport, so pages see a real size, not an emulated one, and so
+// does the agent's Playwright.
+func resize(p *rod.Page, width, height int) error {
+	win, err := proto.BrowserGetWindowForTarget{TargetID: p.TargetID}.Call(p)
+	if err != nil {
+		return err
+	}
+	// Even headless, a window can be taller or wider than its page, by a frame no one
+	// sees; measure it and add it, so the page gets the size asked for.
+	inner, err := proto.RuntimeEvaluate{Expression: "[innerWidth, innerHeight]", ReturnByValue: true}.Call(p)
+	if err != nil {
+		return err
+	}
+	size := inner.Result.Value.Arr()
+	extraW, extraH := 0, 0
+	if len(size) == 2 && win.Bounds != nil && win.Bounds.Width != nil && win.Bounds.Height != nil {
+		extraW, extraH = max(0, *win.Bounds.Width-size[0].Int()), max(0, *win.Bounds.Height-size[1].Int())
+	}
+	return proto.BrowserSetWindowBounds{WindowID: win.WindowID, Bounds: &proto.BrowserBounds{
+		Width: ptr(max(width, minWindowWidth) + extraW), Height: ptr(max(height, minWindowHeight) + extraH),
+	}}.Call(p)
+}
+
+func (s *service) Input(ctx context.Context, req *inabav1.BrowserInputRequest) (*inabav1.BrowserInputResponse, error) {
+	in, p, err := s.page(ctx, req.ThreadId, req.PageId)
+	if err != nil {
+		return nil, err
+	}
+	in.touch(0)
+	switch e := req.Event.(type) {
+	case *inabav1.BrowserInputRequest_Mouse:
+		m := e.Mouse
+		types := map[string]proto.InputDispatchMouseEventType{
+			"pressed": proto.InputDispatchMouseEventTypeMousePressed, "released": proto.InputDispatchMouseEventTypeMouseReleased,
+			"moved": proto.InputDispatchMouseEventTypeMouseMoved, "wheel": proto.InputDispatchMouseEventTypeMouseWheel,
+		}
+		t, ok := types[m.Type]
+		if !ok {
+			return nil, connect.NewError(connect.CodeInvalidArgument, "a mouse event is pressed, released, moved or wheel")
+		}
+		ev := proto.InputDispatchMouseEvent{Type: t, X: m.X, Y: m.Y, Modifiers: int(m.Modifiers), ClickCount: int(m.Clicks), DeltaX: m.DeltaX, DeltaY: m.DeltaY}
+		if m.Button != "" {
+			ev.Button = proto.InputMouseButton(m.Button)
+		} else if t != proto.InputDispatchMouseEventTypeMouseWheel {
+			ev.Button = proto.InputMouseButtonNone
+		}
+		err = ev.Call(p)
+	case *inabav1.BrowserInputRequest_Key:
+		k := e.Key
+		t := proto.InputDispatchKeyEventTypeKeyUp
+		if k.Type == "down" {
+			// A key that types makes its character; one that does not is only pressed.
+			t = proto.InputDispatchKeyEventTypeRawKeyDown
+			if k.Text != "" {
+				t = proto.InputDispatchKeyEventTypeKeyDown
+			}
+		}
+		err = proto.InputDispatchKeyEvent{Type: t, Key: k.Key, Code: k.Code, WindowsVirtualKeyCode: int(k.KeyCode), Text: k.Text, UnmodifiedText: k.Text, Modifiers: int(k.Modifiers), Commands: k.Commands}.Call(p)
+	case *inabav1.BrowserInputRequest_Text:
+		// Inserting text also commits whatever was being composed.
+		err = proto.InputInsertText{Text: e.Text}.Call(p)
+	case *inabav1.BrowserInputRequest_Composition:
+		n := len([]rune(e.Composition))
+		err = proto.InputImeSetComposition{Text: e.Composition, SelectionStart: n, SelectionEnd: n}.Call(p)
+	default:
+		return nil, connect.NewError(connect.CodeInvalidArgument, "say what to put in: a mouse event, a key or text")
+	}
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, "the page did not take it: "+err.Error())
+	}
+	return &inabav1.BrowserInputResponse{}, nil
+}
+
+func (s *service) Navigate(ctx context.Context, req *inabav1.NavigateRequest) (*inabav1.BrowserState, error) {
+	if req.Url != "" {
+		if u, err := url.Parse(req.Url); err != nil || u.Scheme == "" {
+			return nil, connect.NewError(connect.CodeInvalidArgument, "give a full address, such as https://example.com")
+		}
+	}
+	if req.NewPage {
+		in, err := s.open(ctx, req.ThreadId)
+		if err != nil {
+			return nil, err
+		}
+		p, err := in.browser.Page(proto.TargetCreateTarget{URL: req.Url})
+		if err != nil {
+			return nil, connect.NewError(connect.CodeUnavailable, "could not open the page: "+err.Error())
+		}
+		st, err := state(in)
+		if st != nil {
+			st.Opened = string(p.TargetID)
+		}
+		return st, err
+	}
+	in, p, err := s.page(ctx, req.ThreadId, req.PageId)
+	if err != nil {
+		return nil, err
+	}
+	switch {
+	case req.Action == "back":
+		err = p.NavigateBack()
+	case req.Action == "forward":
+		err = p.NavigateForward()
+	case req.Action == "reload":
+		err = p.Reload()
+	case req.Action == "close":
+		if err := p.Close(); err != nil {
+			return nil, connect.NewError(connect.CodeUnavailable, "the page did not close: "+err.Error())
+		}
+		return state(in)
+	case req.Url != "":
+		err = p.Navigate(req.Url)
+	default:
+		return nil, connect.NewError(connect.CodeInvalidArgument, "give an address, or back, forward or reload")
+	}
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, "the page did not go: "+err.Error())
+	}
+	// Answer with the page where it went; a page that never finishes loading is not waited for long.
+	_ = p.Timeout(loadWait).WaitLoad()
+	return state(in)
+}
+
+// How long Navigate waits for a page to load before answering anyway.
+const loadWait = 10 * time.Second

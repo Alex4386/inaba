@@ -1,0 +1,64 @@
+// Package rpc mounts a connect server the way both inaba binaries serve it:
+// Connect, gRPC and gRPC-Web by procedure name, plus the REST paths from the protos.
+package rpc
+
+import (
+	"context"
+	"net/http"
+	"slices"
+	"strings"
+
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
+	"connectrpc.com/vanguard"
+)
+
+func Mount(mux *http.ServeMux, server *connect.Server) error {
+	connecthttp.Mount(mux, server)
+	return vanguard.Mount(mux, server)
+}
+
+// PermissionsHeader is how inaba-server tells a host what the caller may do: a
+// comma-separated list of permission names. The server sets it on every relayed
+// request, replacing whatever the caller sent; the host enforces it.
+const PermissionsHeader = "X-Inaba-Permissions"
+
+// Permissions a host enforces, by the names inaba-server sends in PermissionsHeader.
+const (
+	// PermProjects lets its holder add, change and remove a host's projects.
+	PermProjects = "projects"
+	// PermThreadsAnywhere lets its holder start threads in any folder, outside the projects.
+	PermThreadsAnywhere = "threads-anywhere"
+	// PermAutomations lets its holder set up automations and their notifications.
+	PermAutomations = "automations"
+	// PermHostSettings lets its holder change a host's settings: its providers, modules,
+	// MCP servers, browser and archive policy.
+	PermHostSettings = "host-settings"
+	// PermHousekeeping lets its holder clear what inaba leaves on a host's disk.
+	PermHousekeeping = "housekeeping"
+	// PermHosts is the old name for host settings and housekeeping together, sent too
+	// so hosts that predate the split keep working.
+	PermHosts = "hosts"
+)
+
+type trustedKey struct{}
+
+// Trusted marks a context as a call from the machine's own administrator: a local
+// control socket, or code in the same process. Such calls skip permission checks.
+func Trusted(ctx context.Context) context.Context {
+	return context.WithValue(ctx, trustedKey{}, true)
+}
+
+// May fails unless the call is trusted or inaba-server said its caller holds the
+// permission, in PermissionsHeader.
+func May(ctx context.Context, permission string) error {
+	if ctx.Value(trustedKey{}) != nil {
+		return nil
+	}
+	if info, ok := connect.CallInfoForServerContext(ctx); ok {
+		if slices.Contains(strings.Split(info.RequestHeader().Get(PermissionsHeader), ","), permission) {
+			return nil
+		}
+	}
+	return connect.NewError(connect.CodePermissionDenied, "an administrator has to allow your account to manage "+permission)
+}

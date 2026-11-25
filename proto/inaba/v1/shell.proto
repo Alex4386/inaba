@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+// The shell beside a thread's conversation: the shell module of a host. inaba-server
+// proxies it under /hosts/{host_id}/, like the rest of the host API.
+package inaba.v1;
+
+import "google/api/annotations.proto";
+import "inaba/v1/host.proto";
+
+// Login shells in the thread's folder, beside the conversation, for running commands
+// while the agent works. A thread has as many as the caller names by shell_id, ""
+// being the first; each starts on its first Attach, and again on an Attach after it
+// exits, and ends with CloseShell or the thread.
+service ShellService {
+  // Sends the recent output first, then output as it comes, until the shell exits.
+  rpc AttachShell(AttachShellRequest) returns (stream TerminalOutput);
+  rpc WriteShell(WriteShellRequest) returns (WriteShellResponse) {
+    option (google.api.http) = {
+      post: "/v1/threads/{thread_id}/shell/input"
+      body: "*"
+    };
+  }
+  rpc ResizeShell(ResizeShellRequest) returns (ResizeShellResponse) {
+    option (google.api.http) = {
+      post: "/v1/threads/{thread_id}/shell/size"
+      body: "*"
+    };
+  }
+  // Ends a shell and its process.
+  rpc CloseShell(CloseShellRequest) returns (CloseShellResponse) {
+    option (google.api.http) = {
+      post: "/v1/threads/{thread_id}/shell/close"
+      body: "*"
+    };
+  }
+}
+
+message AttachShellRequest {
+  string thread_id = 1;
+  // Which of the thread's shells: up to 32 letters, digits, - and _.
+  string shell_id = 2;
+  // The viewer's terminal size: a shell starts at it, and a running one takes it, so
+  // its first screen is drawn for the width it is seen at. Zero means 80 by 24.
+  uint32 cols = 3;
+  uint32 rows = 4;
+}
+message WriteShellRequest {
+  string thread_id = 1;
+  bytes data = 2;
+  string shell_id = 3;
+}
+message WriteShellResponse {}
+message ResizeShellRequest {
+  string thread_id = 1;
+  uint32 cols = 2;
+  uint32 rows = 3;
+  string shell_id = 4;
+}
+message ResizeShellResponse {}
+message CloseShellRequest {
+  string thread_id = 1;
+  string shell_id = 2;
+}
+message CloseShellResponse {}

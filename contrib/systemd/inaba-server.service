@@ -1,0 +1,50 @@
+# inaba-server as a system service.
+#
+# Install:
+#   sudo install -m 755 bin/inaba-server /usr/local/bin/
+#   sudo install -m 644 contrib/systemd/inaba-server.service /etc/systemd/system/
+#   sudo install -d /etc/inaba
+#   # Settings: /etc/inaba/server.json or server.yaml (no secrets; the service user cannot
+#   # read a 0600 root file) and/or INABA_* lines in a root-only /etc/inaba/server.env:
+#   sudo install -m 600 /dev/null /etc/inaba/server.env
+#   # The OIDC client secret, if any, goes in a root-only file read through LoadCredential:
+#   sudo install -m 600 /dev/null /etc/inaba/oidc_client_secret   # write the secret into it,
+#   # then uncomment LoadCredential below (systemd refuses to start if the file is missing).
+#   sudo systemctl daemon-reload && sudo systemctl enable --now inaba-server
+#
+# The database is /var/lib/inaba/inaba-server.db and the control socket sits beside it,
+# where root looks by default, so admin commands work without flags: sudo inaba-server user list
+
+[Unit]
+Description=inaba control server
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/inaba-server serve
+EnvironmentFile=-/etc/inaba/server.env
+# The same database, and so the same socket, that a root admin command picks by default.
+Environment=INABA_DATA=/var/lib/inaba/inaba-server.db
+# Read as root and handed over as $CREDENTIALS_DIRECTORY/oidc_client_secret.
+#LoadCredential=oidc_client_secret:/etc/inaba/oidc_client_secret
+DynamicUser=yes
+StateDirectory=inaba
+ConfigurationDirectory=inaba
+Restart=on-failure
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+# AF_NETLINK lets Go list network interfaces.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+LockPersonality=yes
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

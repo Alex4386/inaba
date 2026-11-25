@@ -1,0 +1,196 @@
+syntax = "proto3";
+
+// Automations and notifiers: the automations module of a host. inaba-server proxies
+// it under /hosts/{host_id}/, like the rest of the host API.
+package inaba.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// Work that starts by itself: on a schedule, or when its webhook is called. Each run
+// sends a message to a thread, an existing one or one made for the run. Managing
+// automations needs the permission to manage projects.
+//
+// The webhook is POST /hooks/{host_id}/{automation_id} on the server, outside the
+// API: callers prove themselves with the automation's secret, as a Bearer token or
+// as an X-Hub-Signature-256 HMAC of the body the way GitHub signs. A delivery id
+// (X-GitHub-Delivery, X-Gitlab-Event-UUID or Idempotency-Key) seen before is not run
+// again. The answer, 202, comes before the run is under way.
+service AutomationService {
+  rpc ListAutomations(ListAutomationsRequest) returns (ListAutomationsResponse) {
+    option (google.api.http) = {get: "/v1/automations"};
+  }
+  rpc CreateAutomation(Automation) returns (CreateAutomationResponse) {
+    option (google.api.http) = {
+      post: "/v1/automations"
+      body: "*"
+    };
+  }
+  // Replaces what the automation is and does. Its runs and secret stay.
+  rpc UpdateAutomation(Automation) returns (Automation) {
+    option (google.api.http) = {
+      put: "/v1/automations/{id}"
+      body: "*"
+    };
+  }
+  rpc DeleteAutomation(DeleteAutomationRequest) returns (DeleteAutomationResponse) {
+    option (google.api.http) = {delete: "/v1/automations/{id}"};
+  }
+  // Runs it now, as if it were due. An automation that is turned off runs too.
+  rpc RunAutomation(RunAutomationRequest) returns (AutomationRun) {
+    option (google.api.http) = {
+      post: "/v1/automations/{id}/run"
+      body: "*"
+    };
+  }
+  // Replaces the webhook's secret; the old one stops working.
+  rpc RotateWebhookSecret(RotateWebhookSecretRequest) returns (RotateWebhookSecretResponse) {
+    option (google.api.http) = {post: "/v1/automations/{id}/webhook-secret"};
+  }
+
+  // Notifiers tell another service when a thread needs attention, by POSTing JSON
+  // to its URL: {"event", "time", "thread": {..., "labels"}, "stopReason", "error", "question"}.
+  // Each delivery is signed in X-Inaba-Signature-256 as sha256=<hex HMAC-SHA256 of
+  // the body, keyed with the notifier's secret>, names its event in X-Inaba-Event
+  // and itself in X-Inaba-Delivery, and is tried up to three times.
+  rpc ListNotifiers(ListNotifiersRequest) returns (ListNotifiersResponse) {
+    option (google.api.http) = {get: "/v1/notifiers"};
+  }
+  rpc CreateNotifier(Notifier) returns (CreateNotifierResponse) {
+    option (google.api.http) = {
+      post: "/v1/notifiers"
+      body: "*"
+    };
+  }
+  rpc DeleteNotifier(DeleteNotifierRequest) returns (DeleteNotifierResponse) {
+    option (google.api.http) = {delete: "/v1/notifiers/{id}"};
+  }
+  // Sends a "test" event and answers how the delivery went.
+  rpc TestNotifier(TestNotifierRequest) returns (NotifierDelivery) {
+    option (google.api.http) = {post: "/v1/notifiers/{id}/test"};
+  }
+}
+
+message Notifier {
+  // Set by the host.
+  string id = 1;
+  // An http or https address.
+  string url = 2;
+  // Which events to send: turn.ended (a turn finished), turn.failed (it ended in an
+  // error), input.needed (the agent waits for an answer). Empty for all of them.
+  repeated string events = 3;
+  // Only for threads automations started: those with an "automation" label.
+  bool automations_only = 4;
+  // The latest deliveries, newest first. Set by the host.
+  repeated NotifierDelivery deliveries = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message NotifierDelivery {
+  google.protobuf.Timestamp time = 1;
+  string event = 2;
+  string thread_id = 3;
+  // The HTTP status of the last try; 0 when none got an answer.
+  uint32 status = 4;
+  string error = 5;
+}
+
+message ListNotifiersRequest {}
+message ListNotifiersResponse {
+  repeated Notifier notifiers = 1;
+}
+message CreateNotifierResponse {
+  Notifier notifier = 1;
+  // For checking deliveries' signatures. Shown once.
+  string secret = 2;
+}
+message DeleteNotifierRequest {
+  string id = 1;
+}
+message DeleteNotifierResponse {}
+message TestNotifierRequest {
+  string id = 1;
+}
+
+message Automation {
+  // Set by the host.
+  string id = 1;
+  string name = 2;
+  // A turned-off automation does not run on its schedule or from its webhook.
+  bool enabled = 3;
+  // When it runs by itself; unset for one that runs from its webhook or by hand.
+  Schedule schedule = 4;
+  // Whether calling its webhook runs it.
+  bool webhook = 5;
+  // The message each run sends. {{payload}} stands for the body the webhook was
+  // called with, and {{time}} for when the run started. A webhook body the message
+  // has no place for is added at its end.
+  string prompt = 6;
+  // Where the message goes: this thread, behind whatever it is doing...
+  string thread_id = 7;
+  // ...or, with thread_id empty, a thread made for each run.
+  NewThread new_thread = 8;
+  // When it runs next on its schedule. Set by the host.
+  google.protobuf.Timestamp next_run = 9;
+  // The latest runs, newest first. Set by the host.
+  repeated AutomationRun runs = 10;
+  google.protobuf.Timestamp created_at = 11;
+}
+
+message Schedule {
+  oneof when {
+    uint32 every_minutes = 1;
+    Daily daily = 2;
+    google.protobuf.Timestamp once_at = 3;
+  }
+}
+
+message Daily {
+  // HH:MM on the host's clock.
+  string at = 1;
+  // Days to run on, 0 for Sunday to 6 for Saturday; empty for every day.
+  repeated uint32 weekdays = 2;
+}
+
+message NewThread {
+  string provider = 1;
+  // The project to start it in; empty to start it in the cwd below.
+  string project_id = 2;
+  string cwd = 3;
+  // Give each run's thread its own worktree, as CreateThread does.
+  bool worktree = 4;
+  map<string, string> options = 5;
+}
+
+message AutomationRun {
+  google.protobuf.Timestamp time = 1;
+  // schedule, webhook or manual.
+  string trigger = 2;
+  // The thread the message went to.
+  string thread_id = 3;
+  // Why the run did not get its message sent.
+  string error = 4;
+}
+
+message ListAutomationsRequest {}
+message ListAutomationsResponse {
+  repeated Automation automations = 1;
+}
+message CreateAutomationResponse {
+  Automation automation = 1;
+  // Shown once, for an automation with a webhook.
+  string webhook_secret = 2;
+}
+message DeleteAutomationRequest {
+  string id = 1;
+}
+message DeleteAutomationResponse {}
+message RunAutomationRequest {
+  string id = 1;
+}
+message RotateWebhookSecretRequest {
+  string id = 1;
+}
+message RotateWebhookSecretResponse {
+  string webhook_secret = 1;
+}

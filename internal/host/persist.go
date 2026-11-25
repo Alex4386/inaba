@@ -1,0 +1,181 @@
+package host
+
+import (
+	"log/slog"
+	"path/filepath"
+
+	"google.golang.org/protobuf/proto"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
+	inabav1 "github.com/Alex4386/inaba/gen/inaba/v1"
+	"github.com/Alex4386/inaba/internal/ptyterm"
+)
+
+// threadRow is a thread as last known, and eventRow one entry of its log. Both hold
+// the wire message as it is, so the schema here does not have to follow the protos.
+type threadRow struct {
+	ID   string `gorm:"primaryKey"`
+	Meta []byte
+}
+
+type eventRow struct {
+	ThreadID string `gorm:"primaryKey"`
+	Seq      uint64 `gorm:"primaryKey;autoIncrement:false"`
+	Data     []byte
+}
+
+// saver writes threads and their events to the host's database, so they outlive the
+// process. A nil saver keeps everything in memory only. A failed write is logged and
+// the thread carries on: losing a line of history is better than stopping an agent.
+// shortcut: one insert per event, including every chunk of streamed text; batch them
+// if the database shows up in a profile.
+type saver struct{ db *gorm.DB }
+
+func (s *saver) event(e *inabav1.Event) {
+	if s == nil {
+		return
+	}
+	data, err := proto.Marshal(e)
+	if err == nil {
+		err = s.db.Create(&eventRow{ThreadID: e.ThreadId, Seq: e.Seq, Data: data}).Error
+	}
+	if err != nil {
+		slog.Error("could not save an event", "thread", e.ThreadId, "seq", e.Seq, "error", err)
+	}
+}
+
+func (s *saver) meta(m *inabav1.Thread) {
+	if s == nil {
+		return
+	}
+	data, err := proto.Marshal(m)
+	if err == nil {
+		err = s.db.Clauses(clause.OnConflict{UpdateAll: true}).Create(&threadRow{ID: m.Id, Meta: data}).Error
+	}
+	if err != nil {
+		slog.Error("could not save a thread", "thread", m.Id, "error", err)
+	}
+}
+
+// offeredRow is what a provider's agent last offered as session options.
+type offeredRow struct {
+	Provider string `gorm:"primaryKey"`
+	Options  []byte
+}
+
+func (s *saver) offered(providerID string, options []*inabav1.SessionOption) {
+	if s == nil {
+		return
+	}
+	data, err := proto.Marshal(&inabav1.OptionsChanged{Options: options})
+	if err == nil {
+		err = s.db.Clauses(clause.OnConflict{UpdateAll: true}).Create(&offeredRow{Provider: providerID, Options: data}).Error
+	}
+	if err != nil {
+		slog.Error("could not save a provider's options", "provider", providerID, "error", err)
+	}
+}
+
+func (s *saver) delete(threadID string) {
+	if s == nil {
+		return
+	}
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("thread_id = ?", threadID).Delete(&eventRow{}).Error; err != nil {
+			return err
+		}
+		return tx.Where("id = ?", threadID).Delete(&threadRow{}).Error
+	})
+	if err != nil {
+		slog.Error("could not delete a thread", "thread", threadID, "error", err)
+	}
+}
+
+// OpenData opens the host's database and brings back the threads saved in it. Their
+// processes are gone with the host that ran them: an agent thread starts its agent
+// again, on the same native session, at its next turn, and a terminal is shown as
+// exited until it is restarted.
+func (h *Host) OpenData(path string) error {
+	if err := h.LoadProjects(path); err != nil {
+		return err
+	}
+	// Absolute, because worktrees are made by git running in another folder.
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	h.dataDir, h.dbPath = filepath.Dir(abs), abs
+	db := h.projects.db
+	if err := db.AutoMigrate(&threadRow{}, &eventRow{}, &offeredRow{}, &settingRow{}); err != nil {
+		return err
+	}
+	h.save = &saver{db: db}
+
+	var known []offeredRow
+	if err := db.Find(&known).Error; err != nil {
+		return err
+	}
+	for _, row := range known {
+		options := &inabav1.OptionsChanged{}
+		if err := proto.Unmarshal(row.Options, options); err != nil {
+			return err
+		}
+		h.offered[row.Provider] = options.Options
+	}
+
+	var rows []threadRow
+	if err := db.Find(&rows).Error; err != nil {
+		return err
+	}
+	for _, row := range rows {
+		meta := &inabav1.Thread{}
+		if err := proto.Unmarshal(row.Meta, meta); err != nil {
+			return err
+		}
+		prov, _ := h.provider(meta.Provider)
+		if prov == nil {
+			// Kept in the database: the provider may be back in the config next time.
+			slog.Warn("leaving out a saved thread whose provider is not configured", "thread", meta.Id, "provider", meta.Provider)
+			continue
+		}
+		var saved []eventRow
+		if err := db.Where("thread_id = ?", meta.Id).Order("seq").Find(&saved).Error; err != nil {
+			return err
+		}
+		t := &thread{prov: prov, save: h.save, learned: h.learn(meta.Provider), show: func(o []*inabav1.SessionOption) []*inabav1.SessionOption { return h.shown(meta.Provider, o) }, bus: h.bus, mcp: h.sessionMCP, meta: meta, changed: make(chan struct{})}
+		for _, s := range saved {
+			e := &inabav1.Event{}
+			if err := proto.Unmarshal(s.Data, e); err != nil {
+				return err
+			}
+			t.events = append(t.events, e)
+		}
+		// The log is the truth about how far the thread got.
+		meta.LastSeq = uint64(len(t.events))
+		// Also for activity, which threads saved before activity_seq existed lack: the newest
+		// conversation event gives both it and when the thread was last active.
+		meta.ActivitySeq = 0
+		for i := len(t.events) - 1; i >= 0; i-- {
+			if activity(t.events[i]) {
+				meta.ActivitySeq, meta.UpdatedAt = t.events[i].Seq, t.events[i].Time
+				break
+			}
+		}
+		if meta.Mode == inabav1.ThreadMode_THREAD_MODE_TERMINAL {
+			t.term = ptyterm.Exited()
+		}
+		// Nothing queued runs by itself after a restart; the user decides.
+		meta.QueuePaused = len(meta.Queue) > 0
+		if meta.Status != inabav1.ThreadStatus_THREAD_STATUS_IDLE {
+			// A turn was running when the host stopped. Close it in the log, so readers
+			// do not wait for an end that will not come.
+			t.emit(&inabav1.Event{Payload: &inabav1.Event_TurnEnded{TurnEnded: &inabav1.TurnEnded{Error: "the host restarted while this turn was running"}}})
+		}
+		h.threads[meta.Id] = t
+	}
+	// Quiet threads are archived as the host's policy says, from now until it closes.
+	h.stopArchive = make(chan struct{})
+	go h.archiveLoop(h.stopArchive)
+	return nil
+}

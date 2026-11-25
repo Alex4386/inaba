@@ -1,0 +1,179 @@
+syntax = "proto3";
+
+// A browser for each thread: the browser module of a host. inaba-server proxies it
+// under /hosts/{host_id}/, like the rest of the host API.
+package inaba.v1;
+
+import "google/api/annotations.proto";
+
+// Each thread has a browser of its own on the host, started when first needed. The
+// thread's agent drives it through Playwright MCP, which the module gives it; people
+// watch it and use it here. The two share the browser: what one does, the other sees.
+// The browser keeps its profile (cookies, logins) until the thread is deleted.
+service BrowserService {
+  // Starts the thread's browser if it is not running, and lists its pages.
+  rpc OpenBrowser(OpenBrowserRequest) returns (BrowserState) {
+    option (google.api.http) = {
+      post: "/v1/threads/{thread_id}/browser"
+      body: "*"
+    };
+  }
+  // Stops the thread's browser. Its profile stays.
+  rpc CloseBrowser(CloseBrowserRequest) returns (CloseBrowserResponse) {
+    option (google.api.http) = {delete: "/v1/threads/{thread_id}/browser"};
+  }
+  // Sends a page's picture whenever it changes, until the call ends or the page
+  // closes. One watcher per page: a new one takes over from the last.
+  rpc WatchPage(WatchPageRequest) returns (stream PageFrame);
+  // Clicks, scrolls and types into a page, as a person would.
+  rpc Input(BrowserInputRequest) returns (BrowserInputResponse);
+  // Goes to an address, or back, forward or reload; or opens a new page.
+  rpc Navigate(NavigateRequest) returns (BrowserState) {
+    option (google.api.http) = {
+      post: "/v1/threads/{thread_id}/browser/navigate"
+      body: "*"
+    };
+  }
+  // The host's browser settings. Needs the hosts permission.
+  rpc GetBrowserSettings(GetBrowserSettingsRequest) returns (BrowserSettings) {
+    option (google.api.http) = {get: "/v1/browser/settings"};
+  }
+  // Replaces the host's browser settings; browsers started from then on take them.
+  // Needs the hosts permission.
+  rpc SaveBrowserSettings(BrowserSettings) returns (BrowserSettings) {
+    option (google.api.http) = {
+      put: "/v1/browser/settings"
+      body: "*"
+    };
+  }
+}
+
+// Which sessions share a browser, and with it its profile: cookies, logins, storage.
+enum BrowserSharing {
+  // Takes the host's setting; for the host itself, the same as SESSION.
+  BROWSER_SHARING_UNSPECIFIED = 0;
+  // Each thread has a browser and profile of its own.
+  BROWSER_SHARING_THREAD = 1;
+  // The sessions of a project share one browser and profile, so a login carries over.
+  // A thread outside any project still has its own.
+  BROWSER_SHARING_PROJECT = 2;
+}
+
+message BrowserProfile {
+  // Chrome command-line switches, as "name" or "name=value", without the leading dashes:
+  // "lang=ko", "ignore-certificate-errors". Up to 32. The ones inaba needs to drive the
+  // browser (user-data-dir, remote-debugging-*) are refused.
+  repeated string flags = 1;
+  BrowserSharing sharing = 2;
+}
+
+message GetBrowserSettingsRequest {}
+
+message BrowserSettings {
+  BrowserProfile defaults = 1;
+  // By project id. A project's flags go after the host's, replacing any of the same name;
+  // its sharing, when set, is used instead of the host's.
+  map<string, BrowserProfile> projects = 2;
+}
+
+message BrowserPage {
+  string id = 1;
+  string url = 2;
+  string title = 3;
+}
+
+message BrowserState {
+  // Oldest first.
+  repeated BrowserPage pages = 1;
+  // The page a Navigate with new_page opened.
+  string opened = 2;
+}
+
+message OpenBrowserRequest {
+  string thread_id = 1;
+}
+message CloseBrowserRequest {
+  string thread_id = 1;
+}
+message CloseBrowserResponse {}
+
+message WatchPageRequest {
+  string thread_id = 1;
+  // Empty for the newest page.
+  string page_id = 2;
+  // The largest picture wanted, in pixels; 0 for the page's own size.
+  uint32 max_width = 3;
+  uint32 max_height = 4;
+  // Resize the browser's window to this many CSS pixels, so pages lay themselves out
+  // for the space they are shown in. The agent sees the same size. 0 leaves it.
+  uint32 window_width = 5;
+  uint32 window_height = 6;
+}
+
+message PageFrame {
+  string page_id = 1;
+  bytes jpeg = 2;
+  // The page's viewport in CSS pixels, which input coordinates are in.
+  double viewport_width = 3;
+  double viewport_height = 4;
+  string url = 5;
+  string title = 6;
+}
+
+message BrowserInputRequest {
+  string thread_id = 1;
+  string page_id = 2;
+  oneof event {
+    MouseInput mouse = 3;
+    KeyInput key = 4;
+    // Text typed, as by a keyboard into whatever has focus. It also ends any
+    // composition in progress.
+    string text = 5;
+    // Text being composed with an input method, such as Hangul before its syllable is
+    // done: shown in place, and replaced by the next composition or by text.
+    string composition = 6;
+  }
+}
+message BrowserInputResponse {}
+
+message MouseInput {
+  // pressed, released, moved or wheel.
+  string type = 1;
+  // In CSS pixels of the viewport.
+  double x = 2;
+  double y = 3;
+  // left, middle or right.
+  string button = 4;
+  uint32 clicks = 5;
+  double delta_x = 6;
+  double delta_y = 7;
+  // Alt 1, Ctrl 2, Meta 4, Shift 8.
+  int32 modifiers = 8;
+}
+
+message KeyInput {
+  // down or up.
+  string type = 1;
+  // As in KeyboardEvent: key such as Enter, code such as KeyA, and the Windows key code.
+  string key = 2;
+  string code = 3;
+  int32 key_code = 4;
+  // The text the key types, if any.
+  string text = 5;
+  int32 modifiers = 6;
+  // Editing commands the key stands for, such as selectAll or paste, which headless
+  // Chrome does not take from shortcut keys alone.
+  repeated string commands = 7;
+}
+
+message NavigateRequest {
+  string thread_id = 1;
+  // Empty for the newest page.
+  string page_id = 2;
+  // An address to go to.
+  string url = 3;
+  // back, forward, reload or close, instead of an address. close shuts the page.
+  string action = 4;
+  // Open url in a new page.
+  bool new_page = 5;
+}

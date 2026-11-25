@@ -1,0 +1,1392 @@
+syntax = "proto3";
+
+// The API an inaba host exposes. inaba-server proxies it under /hosts/{host_id}/.
+package inaba.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+enum ThreadMode {
+  THREAD_MODE_UNSPECIFIED = 0;
+  // Driven through the provider's structured protocol.
+  THREAD_MODE_STRUCTURED = 1;
+  // The provider's own CLI runs in a PTY; structured calls are rejected.
+  THREAD_MODE_TERMINAL = 2;
+}
+
+enum ThreadStatus {
+  THREAD_STATUS_UNSPECIFIED = 0;
+  THREAD_STATUS_IDLE = 1;
+  THREAD_STATUS_RUNNING = 2;
+  // A permission request is waiting for an answer.
+  THREAD_STATUS_WAITING = 3;
+}
+
+message Provider {
+  string id = 1;
+  // Whether threads can switch to THREAD_MODE_TERMINAL.
+  bool terminal = 2;
+  // Whether Raw is available.
+  bool raw = 3;
+  // Whether threads have a structured mode. A provider without one, such as a plain
+  // shell, only ever runs in THREAD_MODE_TERMINAL.
+  bool structured = 4;
+  // The session options this provider's agent offered the last time one of its
+  // threads ran on this host, for choosing before a thread exists. Empty until then.
+  repeated SessionOption options = 5;
+  // What to call the provider; the id when the config gives no name.
+  string display_name = 6;
+  // An image URL for it, from the ACP registry entry its command runs; empty when none matches.
+  string icon = 7;
+}
+
+message Thread {
+  string id = 1;
+  string provider = 2;
+  string cwd = 3;
+  // What the thread is about. Left empty, it becomes the start of the first message.
+  string title = 4;
+  ThreadMode mode = 5;
+  ThreadStatus status = 6;
+  // The provider's own thread id, once it has one.
+  string native_session_id = 7;
+  uint64 last_seq = 8;
+  google.protobuf.Timestamp created_at = 9;
+  // The project the thread belongs to; empty for a thread started outside any project.
+  string project_id = 10;
+  // When the conversation last moved: the time of the event at activity_seq.
+  google.protobuf.Timestamp updated_at = 11;
+  // What the agent is doing right now, such as the tool call in progress; empty when idle.
+  string activity = 12;
+  // Messages sent while a turn was running, in the order they will run.
+  repeated QueuedMessage queue = 13;
+  // The queue is waiting for a go-ahead: the user stopped a turn, or the host restarted.
+  bool queue_paused = 14;
+  // What the agent lets the user choose for this thread, such as the model.
+  repeated SessionOption options = 15;
+  // The thread works in a git worktree of its own, on its own branch, instead of in
+  // its project's folder. Deleting the thread removes the worktree when it is clean.
+  bool worktree = 16;
+  // The slash commands the agent takes, as it last reported them.
+  repeated Command commands = 17;
+  // How full the agent's context window is, when the agent reports it.
+  Usage usage = 18;
+  // The conversation was rewound. The agent cannot forget turns, so the next turn
+  // starts a new agent session and hands it the conversation as it now stands.
+  bool rewound = 19;
+  // The provider the thread switched away from, until its next turn: that turn starts the new
+  // provider's agent and hands it the conversation so far.
+  string handoff_from = 24;
+  reserved 20;
+  // Notes modules keep on the thread, by key, such as "automation": the automation
+  // that started it. Set by modules; the host keeps them with the thread.
+  map<string, string> labels = 21;
+  // What the thread's screen shows beside the conversation, as the web UI writes it:
+  // its docks and their tabs. Shared, so everyone in the thread sees the same screen.
+  string layout = 22;
+  // Whether someone named the thread; until then the agent's own name for it, when it
+  // gives one, replaces the first message as its title.
+  bool named = 23;
+  // The last turn ended with an error. Set when such a turn ends, cleared when the next
+  // one starts. A flag beside status, not a status of its own, so clients that treat
+  // anything but IDLE as busy keep working.
+  bool last_turn_failed = 25;
+  // The seq of the newest conversation event: messages, agent output, tool calls, turns,
+  // permissions, rewinds. Bookkeeping such as layout, options, usage, commands, mode,
+  // provider and title changes moves last_seq but not this, so opening a thread or moving
+  // a tab does not make it unread or recent. 0 until the conversation starts. Resume
+  // streams with last_seq; compare seen marks with this.
+  uint64 activity_seq = 26;
+}
+
+// A slash command the agent offers, run by sending "/name" and its input as a message.
+message Command {
+  string name = 1;
+  string description = 2;
+  // What to type after the name, when the command takes input.
+  string hint = 3;
+}
+
+message Usage {
+  // Tokens in the context window now, and how many it holds.
+  uint64 used = 1;
+  uint64 size = 2;
+  // What the thread has cost so far; zero when the agent does not say.
+  double cost = 3;
+  // ISO 4217, such as USD.
+  string currency = 4;
+  // The provider's rate-limit or quota windows, when its agent reports them. ACP has no
+  // message for these yet, so no agent fills them today.
+  repeated UsageLimit limits = 5;
+}
+
+// One rate-limit or quota window of a provider, such as a five-hour or weekly limit.
+message UsageLimit {
+  // What the provider calls the window, such as "5h" or "weekly".
+  string name = 1;
+  // How much of the window is used, 0 to 1.
+  double used_fraction = 2;
+  // When the window starts over; unset when the provider does not say.
+  google.protobuf.Timestamp resets_at = 3;
+}
+
+// The tokens one turn used, as the agent reported them when the turn ended.
+message TurnUsage {
+  uint64 input_tokens = 1;
+  uint64 output_tokens = 2;
+  uint64 cached_read_tokens = 3;
+  uint64 cached_write_tokens = 4;
+  uint64 thought_tokens = 5;
+  uint64 total_tokens = 6;
+}
+
+// A file given to the agent with a message: an image the user added, or a file in
+// the thread's folder the message points at.
+message Attachment {
+  string name = 1;
+  string mime_type = 2;
+  // The file itself: an image up to 5 MiB, any other file up to 10 MiB. The host
+  // writes a non-image file into the thread's folder, under .inaba/uploads/, and
+  // keeps only its path and size from then on, so data is empty in the event log
+  // and the queue.
+  bytes data = 3;
+  // For a file in the thread's folder: its path, relative to the folder. data is empty.
+  string path = 4;
+  // The uploaded file's size in bytes, once the host has written it out; unset for a
+  // file that was pointed at by path.
+  optional uint64 size = 5;
+}
+
+// A setting of the thread that the agent itself offers: which model, which
+// permission mode, how hard to think. inaba does not know these ahead of time; it
+// shows whatever the agent reports.
+message SessionOption {
+  message Choice {
+    string value = 1;
+    string name = 2;
+    string description = 3;
+    // A heading the agent files the choice under; empty when it does not group them.
+    string group = 4;
+  }
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  // The agent's hint at what the option is: "model", "mode", "thought_level", or its own word.
+  string category = 4;
+  // An on/off option: value is "true" or "false" and there are no choices.
+  bool boolean = 5;
+  // The current value.
+  string value = 6;
+  repeated Choice choices = 7;
+}
+
+message QueuedMessage {
+  string id = 1;
+  string text = 2;
+  repeated Attachment attachments = 3;
+}
+
+// A folder on the host that threads are grouped under.
+message Project {
+  string id = 1;
+  string name = 2;
+  // Where the project's threads start.
+  string cwd = 3;
+  google.protobuf.Timestamp created_at = 4;
+  // A picture for it, as a data: URL; empty shows its initials.
+  string icon = 5;
+  // Pinned projects come first in the sidebar, for everyone.
+  bool pinned = 6;
+  // What a new thread in the project starts with.
+  NewThreadDefaults new_thread = 7;
+  // Put away: left out of the sidebar until someone asks to see what is archived.
+  bool archived = 8;
+}
+
+// The choices a new thread in a project starts with; each can still be changed there.
+message NewThreadDefaults {
+  // A provider id; empty leaves it to the picker.
+  string provider = 1;
+  // Session option values for that provider, by option id, such as model and effort.
+  map<string, string> options = 2;
+  // Start new threads in a worktree of their own rather than the project's folder.
+  bool worktree = 3;
+}
+
+message Event {
+  // Per-thread, starts at 1, no gaps.
+  uint64 seq = 1;
+  string thread_id = 2;
+  google.protobuf.Timestamp time = 3;
+  oneof payload {
+    UserMessage user_message = 10;
+    TextDelta text_delta = 11;
+    ToolCall tool_call = 12;
+    PermissionRequest permission_request = 13;
+    PermissionResolved permission_resolved = 14;
+    TurnStarted turn_started = 15;
+    TurnEnded turn_ended = 16;
+    ModeChanged mode_changed = 17;
+    RawEvent raw = 18;
+    OptionsChanged options_changed = 19;
+    TurnChanges turn_changes = 20;
+    CommandsChanged commands_changed = 21;
+    UsageChanged usage_changed = 22;
+    Rewound rewound = 23;
+    Plan plan = 24;
+    LayoutChanged layout_changed = 25;
+    ThreadTitle thread_title = 26;
+    ProviderChanged provider_changed = 27;
+  }
+}
+
+// The agent named the thread. It becomes the thread's title unless someone named it
+// themselves; see Thread.named.
+message ThreadTitle {
+  string title = 1;
+}
+
+// Someone changed what the thread's screen shows beside the conversation.
+message LayoutChanged {
+  string layout = 1;
+}
+
+// What a turn changed in the thread's folder, as two snapshots of it: one taken
+// before the turn and one after. Sent after TurnEnded, and only when the folder is a
+// git repository and the snapshots differ. The snapshots are commits kept under
+// refs/inaba/checkpoints/, away from the user's branches and index.
+message TurnChanges {
+  string before = 1;
+  string after = 2;
+  uint32 files = 3;
+  uint32 additions = 4;
+  uint32 deletions = 5;
+}
+
+// The options the agent offers, or their values, changed.
+message OptionsChanged {
+  repeated SessionOption options = 1;
+}
+
+message UserMessage {
+  string text = 1;
+  repeated Attachment attachments = 2;
+}
+
+// The agent's plan for the turn, whole each time it changes.
+message Plan {
+  message Entry {
+    string content = 1;
+    // high, medium or low.
+    string priority = 2;
+    // pending, in_progress or completed.
+    string status = 3;
+  }
+  repeated Entry entries = 1;
+}
+
+message CommandsChanged {
+  repeated Command commands = 1;
+}
+
+message UsageChanged {
+  Usage usage = 1;
+}
+
+// The conversation was taken back to before the message at to_seq: the events from
+// to_seq up to this one are no longer part of it.
+message Rewound {
+  uint64 to_seq = 1;
+}
+
+message TextDelta {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_MESSAGE = 1;
+    KIND_THOUGHT = 2;
+  }
+  Kind kind = 1;
+  string text = 2;
+}
+
+// Sent again with the same id whenever the call changes; later fields win.
+message ToolCall {
+  string id = 1;
+  string title = 2;
+  string kind = 3;
+  string status = 4;
+  // The provider's own record of the call.
+  google.protobuf.Value raw = 5;
+  // What the tool was given, for a person to read: a command's command line, or
+  // the input as JSON. An update without it leaves it as it was.
+  string input = 6;
+  // What the tool gave back as text, cut at 64 KiB. An update without it leaves it
+  // as it was.
+  string output = 7;
+}
+
+message PermissionRequest {
+  message Option {
+    string id = 1;
+    string name = 2;
+    // The provider's own word for it, such as allow_once or reject_always.
+    string kind = 3;
+  }
+  string request_id = 1;
+  string title = 2;
+  repeated Option options = 3;
+  google.protobuf.Value raw = 4;
+}
+
+message PermissionResolved {
+  string request_id = 1;
+  // Empty when the request was cancelled.
+  string option_id = 2;
+}
+
+message TurnStarted {}
+
+message TurnEnded {
+  // The provider's own stop reason, such as end_turn or cancelled.
+  string stop_reason = 1;
+  // Set when the turn failed.
+  string error = 2;
+  // The tokens the turn used; unset when the agent does not say. Left out of the copies
+  // a fork makes, so a turn is counted once.
+  TurnUsage usage = 3;
+  // Set on the copies a fork makes of the original's turns: history, not a turn the fork ran.
+  bool copied = 4;
+}
+
+message ModeChanged {
+  ThreadMode mode = 1;
+}
+
+// A provider notification inaba has no event for, passed through unchanged.
+message RawEvent {
+  string method = 1;
+  google.protobuf.Value params = 2;
+}
+
+service ThreadService {
+  rpc ListProviders(ListProvidersRequest) returns (ListProvidersResponse) {
+    option (google.api.http) = {get: "/v1/providers"};
+  }
+  rpc CreateThread(CreateThreadRequest) returns (Thread) {
+    option (google.api.http) = {
+      post: "/v1/threads"
+      body: "*"
+    };
+  }
+  rpc ListThreads(ListThreadsRequest) returns (ListThreadsResponse) {
+    option (google.api.http) = {get: "/v1/threads"};
+  }
+  rpc GetThread(GetThreadRequest) returns (Thread) {
+    option (google.api.http) = {get: "/v1/threads/{thread_id}"};
+  }
+  // Renames the thread.
+  rpc UpdateThread(UpdateThreadRequest) returns (Thread) {
+    option (google.api.http) = {
+      patch: "/v1/threads/{thread_id}"
+      body: "*"
+    };
+  }
+  // Stops the thread's process and forgets the thread.
+  rpc DeleteThread(DeleteThreadRequest) returns (DeleteThreadResponse) {
+    option (google.api.http) = {delete: "/v1/threads/{thread_id}"};
+  }
+  // Starts a turn with the message, or queues the message when a turn is running.
+  // Queued messages run in order, each as its own turn, once the turns before them end.
+  rpc StartTurn(StartTurnRequest) returns (StartTurnResponse) {
+    option (google.api.http) = {
+      post: "/v1/threads/{thread_id}/turns"
+      body: "*"
+    };
+  }
+  // Stops the running turn and pauses the queue.
+  rpc Interrupt(InterruptRequest) returns (InterruptResponse) {
+    option (google.api.http) = {
+      post: "/v1/threads/{thread_id}/interrupt"
+      body: "*"
+    };
+  }
+  // Changes one of the thread's options. Fails while the agent is not running.
+  rpc SetOption(SetOptionRequest) returns (Thread) {
+    option (google.api.http) = {
+      put: "/v1/threads/{thread_id}/options/{option_id}"
+      body: "*"
+    };
+  }
+  // Takes a message out of the queue.
+  rpc CancelQueued(CancelQueuedRequest) returns (Thread) {
+    option (google.api.http) = {delete: "/v1/threads/{thread_id}/queue/{queued_id}"};
+  }
+  // Changes the text of a message still waiting in the queue.
+  rpc EditQueued(EditQueuedRequest) returns (Thread) {
+    option (google.api.http) = {
+      patch: "/v1/threads/{thread_id}/queue/{queued_id}"
+      body: "*"
+    };
+  }
+  // Puts a waiting message at another place in the queue.
+  rpc MoveQueued(MoveQueuedRequest) returns (Thread) {
+    option (google.api.http) = {
+      post: "/v1/threads/{thread_id}/queue/{queued_id}/move"
+      body: "*"
+    };
+  }
+  // Runs a waiting message next: it goes to the head of the queue, the running turn
+  // is stopped as StartTurn with interrupt does, and a paused queue goes again.
+  rpc SendQueuedNow(SendQueuedNowRequest) returns (Thread) {
+    option (google.api.http) = {post: "/v1/threads/{thread_id}/queue/{queued_id}/send"};
+  }
+  // Lets a paused queue run again.
+  rpc ResumeQueue(ResumeQueueRequest) returns (Thread) {
+    option (google.api.http) = {post: "/v1/threads/{thread_id}/queue/resume"};
+  }
+  // Answers a permission request.
+  rpc Respond(RespondRequest) returns (RespondResponse) {
+    option (google.api.http) = {
+      post: "/v1/threads/{thread_id}/requests/{request_id}"
+      body: "*"
+    };
+  }
+  // Restarts the thread's process in the other mode, resuming the same native session.
+  // State held only by the old process is lost. Fails while a turn is running.
+  rpc SetMode(SetModeRequest) returns (Thread) {
+    option (google.api.http) = {
+      post: "/v1/threads/{thread_id}/mode"
+      body: "*"
+    };
+  }
+  // Sends a request of the provider's own protocol and returns its result unchanged.
+  rpc Raw(RawRequest) returns (RawResponse) {
+    option (google.api.http) = {
+      post: "/v1/threads/{thread_id}/raw"
+      body: "*"
+    };
+  }
+  // Takes the conversation back to before one of the user's messages, which is
+  // answered so it can be edited and sent again. Only while no turn is running. The
+  // events stay in the log, after a Rewound event that marks them as taken back.
+  rpc Rewind(RewindRequest) returns (RewindResponse) {
+    option (google.api.http) = {
+      post: "/v1/threads/{thread_id}/rewind"
+      body: "*"
+    };
+  }
+  // Starts a new thread that carries this one's conversation through the end of the
+  // turn holding seq. Its agent session is new: like after Rewind, the first turn
+  // hands it the conversation. A thread with a worktree of its own forks into a new
+  // worktree, from the commit the original is on; uncommitted changes stay behind.
+  // Saves the thread's screen layout for everyone in it and tells them.
+  rpc SetLayout(SetLayoutRequest) returns (Thread) {
+    option (google.api.http) = {
+      post: "/v1/threads/{thread_id}/layout"
+      body: "*"
+    };
+  }
+  rpc ForkThread(ForkThreadRequest) returns (Thread) {
+    option (google.api.http) = {
+      post: "/v1/threads/{thread_id}/fork"
+      body: "*"
+    };
+  }
+  rpc ListEvents(ListEventsRequest) returns (ListEventsResponse) {
+    option (google.api.http) = {get: "/v1/threads/{thread_id}/events"};
+  }
+  // Sends every event after after_seq, then new ones as they happen.
+  rpc Subscribe(SubscribeRequest) returns (stream Event);
+}
+
+message ListProvidersRequest {}
+message ListProvidersResponse {
+  repeated Provider providers = 1;
+}
+
+message CreateThreadRequest {
+  string provider = 1;
+  string cwd = 2;
+  string title = 3;
+  // Defaults to THREAD_MODE_STRUCTURED.
+  ThreadMode mode = 4;
+  // Start the thread in this project. Its folder is used and cwd is ignored.
+  string project_id = 5;
+  // Session options to set once the agent is up, by option id. One the agent turns
+  // out not to offer is skipped.
+  map<string, string> options = 6;
+  // Give the thread a git worktree of its own instead of the project's folder, so its
+  // changes stay apart from other threads'. Needs project_id, and a git repository there.
+  Worktree worktree = 7;
+}
+
+message Worktree {
+  // The branch to work on. Created when it does not exist. Defaults to a new branch
+  // named after the thread.
+  string branch = 1;
+  // What a new branch starts from: a branch, tag or commit. Defaults to the
+  // project folder's current commit.
+  string base = 2;
+}
+
+message ListThreadsRequest {}
+message ListThreadsResponse {
+  repeated Thread threads = 1;
+}
+
+message GetThreadRequest {
+  string thread_id = 1;
+}
+
+// Changes what is set; a field left out stays as it is.
+message UpdateThreadRequest {
+  string thread_id = 1;
+  optional string title = 2;
+  // Pins the thread to the top of its project for everyone, kept as the "pinned" label.
+  optional bool pinned = 3;
+  // Puts the thread away, out of the sidebar until archived ones are shown; kept as the "archived" label.
+  optional bool archived = 4;
+  // Moves the thread to another provider's agent while it is idle. The new agent does not share the
+  // old one's memory, so its first turn is handed the conversation so far.
+  optional string provider = 5;
+}
+
+// The thread moved to another provider's agent.
+message ProviderChanged {
+  string provider = 1;
+  string from = 2;
+}
+
+message DeleteThreadRequest {
+  string thread_id = 1;
+}
+message DeleteThreadResponse {}
+
+message StartTurnRequest {
+  string thread_id = 1;
+  string text = 2;
+  // When a turn is running, stop it and run this message next, ahead of the queue.
+  bool interrupt = 3;
+  repeated Attachment attachments = 4;
+}
+message RewindRequest {
+  string thread_id = 1;
+  // The seq of the UserMessage event to go back to before.
+  uint64 seq = 2;
+  // Also put the files back as they were before that message's turn. Only for a
+  // thread with a worktree of its own, as with GitService.Restore.
+  bool restore_files = 3;
+}
+message RewindResponse {
+  Thread thread = 1;
+  // The message that was taken back.
+  UserMessage message = 2;
+}
+
+message SetLayoutRequest {
+  string thread_id = 1;
+  // At most 16 KiB, written and read by the web UI.
+  string layout = 2;
+}
+
+message ForkThreadRequest {
+  string thread_id = 1;
+  // Any event of the turn to fork after.
+  uint64 seq = 2;
+  // Defaults to the original's.
+  string title = 3;
+}
+
+message StartTurnResponse {
+  // Set when the message was queued instead of started.
+  string queued_id = 1;
+}
+
+message SetOptionRequest {
+  string thread_id = 1;
+  string option_id = 2;
+  // One of the option's choices, or "true"/"false" for an on/off option.
+  string value = 3;
+}
+
+message CancelQueuedRequest {
+  string thread_id = 1;
+  string queued_id = 2;
+}
+
+message EditQueuedRequest {
+  string thread_id = 1;
+  string queued_id = 2;
+  string text = 3;
+}
+
+message MoveQueuedRequest {
+  string thread_id = 1;
+  string queued_id = 2;
+  // Its place afterwards, 0 being next; past the end puts it last.
+  uint32 to_index = 3;
+}
+
+message SendQueuedNowRequest {
+  string thread_id = 1;
+  string queued_id = 2;
+}
+
+message ResumeQueueRequest {
+  string thread_id = 1;
+}
+
+message InterruptRequest {
+  string thread_id = 1;
+  // Do not ask the agent to stop: end its process. For an agent that ignores a stop.
+  // The thread keeps its conversation and starts the agent again at the next turn.
+  bool force = 2;
+}
+message InterruptResponse {}
+
+message RespondRequest {
+  string thread_id = 1;
+  string request_id = 2;
+  // Leave empty to cancel the request.
+  string option_id = 3;
+}
+message RespondResponse {}
+
+message SetModeRequest {
+  string thread_id = 1;
+  ThreadMode mode = 2;
+}
+
+message RawRequest {
+  string thread_id = 1;
+  string method = 2;
+  google.protobuf.Value params = 3;
+}
+message RawResponse {
+  google.protobuf.Value result = 1;
+}
+
+message ListEventsRequest {
+  string thread_id = 1;
+  uint64 after_seq = 2;
+  // At most this many events; 0 means the server's default.
+  uint32 limit = 3;
+}
+message ListEventsResponse {
+  repeated Event events = 1;
+}
+
+message SubscribeRequest {
+  string thread_id = 1;
+  uint64 after_seq = 2;
+}
+
+service ProjectService {
+  rpc CreateProject(CreateProjectRequest) returns (Project) {
+    option (google.api.http) = {
+      post: "/v1/projects"
+      body: "*"
+    };
+  }
+  // Changes a project's name, icon, pin or new-thread defaults; a field left out stays as it is.
+  rpc UpdateProject(UpdateProjectRequest) returns (Project) {
+    option (google.api.http) = {
+      patch: "/v1/projects/{project_id}"
+      body: "*"
+    };
+  }
+  rpc ListProjects(ListProjectsRequest) returns (ListProjectsResponse) {
+    option (google.api.http) = {get: "/v1/projects"};
+  }
+  // Lists the folders inside a folder on the host, for choosing a project's folder.
+  // Needs the permission to manage projects.
+  rpc ListDirectory(ListDirectoryRequest) returns (ListDirectoryResponse) {
+    option (google.api.http) = {get: "/v1/directories"};
+  }
+  // Forgets the project. Its threads keep running and keep the id of the project that
+  // is gone; treat a thread whose project does not exist as one without a project.
+  rpc DeleteProject(DeleteProjectRequest) returns (DeleteProjectResponse) {
+    option (google.api.http) = {delete: "/v1/projects/{project_id}"};
+  }
+}
+
+message CreateProjectRequest {
+  // Defaults to the folder's name.
+  string name = 1;
+  string cwd = 2;
+}
+
+message ListProjectsRequest {}
+message ListProjectsResponse {
+  repeated Project projects = 1;
+}
+
+message ListDirectoryRequest {
+  // An absolute path. Empty means the home folder of the account the host runs as.
+  string path = 1;
+}
+message ListDirectoryResponse {
+  message Entry {
+    string name = 1;
+    // Whether the folder is the root of a git repository.
+    bool git = 2;
+  }
+  // The folder that was listed, as an absolute path.
+  string path = 1;
+  // Its parent; empty at the top of the filesystem.
+  string parent = 2;
+  // The folders inside it, by name. Hidden ones are left out.
+  repeated Entry entries = 3;
+}
+
+message UpdateProjectRequest {
+  string project_id = 1;
+  optional string name = 2;
+  optional string icon = 3;
+  optional bool pinned = 4;
+  NewThreadDefaults new_thread = 5;
+  optional bool archived = 6;
+}
+
+message DeleteProjectRequest {
+  string project_id = 1;
+}
+message DeleteProjectResponse {}
+
+// A git repository: what changed in its working tree, and committing it.
+//
+// Each call has two addresses. A project's is the folder the project stands for. A
+// thread's is the folder that thread works in. While a thread works in its project's
+// own folder, the two are the same repository state, and the thread's REST address
+// answers with a 307 redirect to the project's, so that state has one address. A
+// thread working in a folder of its own, such as one outside any project, answers
+// at its own address.
+service GitService {
+  rpc GetStatus(GetGitStatusRequest) returns (GitStatus) {
+    option (google.api.http) = {
+      get: "/v1/projects/{project_id}/git/status"
+      additional_bindings {get: "/v1/threads/{thread_id}/git/status"}
+    };
+  }
+  // The uncommitted changes as a unified diff, of one file or of everything.
+  rpc GetDiff(GetGitDiffRequest) returns (GetGitDiffResponse) {
+    option (google.api.http) = {
+      get: "/v1/projects/{project_id}/git/diff"
+      additional_bindings {get: "/v1/threads/{thread_id}/git/diff"}
+    };
+  }
+  rpc ListBranches(ListBranchesRequest) returns (ListBranchesResponse) {
+    option (google.api.http) = {
+      get: "/v1/projects/{project_id}/git/branches"
+      additional_bindings {get: "/v1/threads/{thread_id}/git/branches"}
+    };
+  }
+  // Switches the folder to a branch, creating it first when asked to. Refused while a
+  // thread is running a turn in that folder.
+  rpc Checkout(GitCheckoutRequest) returns (GitStatus) {
+    option (google.api.http) = {
+      post: "/v1/projects/{project_id}/git/checkout"
+      body: "*"
+      additional_bindings {
+        post: "/v1/threads/{thread_id}/git/checkout"
+        body: "*"
+      }
+    };
+  }
+  // Puts the thread's files back as they were at a snapshot from a TurnChanges event.
+  // Only for a thread with a worktree of its own, where no other thread's work can
+  // be lost, and not while a turn is running. The files as they were just before the
+  // restore are snapshotted too, so it can be undone. The conversation is not changed.
+  rpc Restore(GitRestoreRequest) returns (GitRestoreResponse) {
+    option (google.api.http) = {
+      post: "/v1/threads/{thread_id}/git/restore"
+      body: "*"
+    };
+  }
+  // Pushes the branch, setting its upstream on origin when it has none.
+  rpc Push(GitPushRequest) returns (GitCommitResponse) {
+    option (google.api.http) = {
+      post: "/v1/projects/{project_id}/git/push"
+      additional_bindings {post: "/v1/threads/{thread_id}/git/push"}
+    };
+  }
+  // Fetches from the remote (git fetch), so the status's ahead and behind are current.
+  // The files are not touched.
+  rpc Fetch(GitFetchRequest) returns (GitCommitResponse) {
+    option (google.api.http) = {
+      post: "/v1/projects/{project_id}/git/fetch"
+      additional_bindings {post: "/v1/threads/{thread_id}/git/fetch"}
+    };
+  }
+  // Brings the current branch up to its upstream with git pull --ff-only. Refused while
+  // a thread is running a turn in that folder, and when the branch has diverged from
+  // its upstream or local changes are in the way: nothing is merged or rebased.
+  rpc Pull(GitPullBranchRequest) returns (GitCommitResponse) {
+    option (google.api.http) = {
+      post: "/v1/projects/{project_id}/git/pull"
+      additional_bindings {post: "/v1/threads/{thread_id}/git/pull"}
+    };
+  }
+  // Opens a GitHub pull request for the current branch with the GitHub CLI (gh) on
+  // the host, pushing the branch first when the remote is behind it. When the branch
+  // already has an open pull request, that one is answered instead of a new one.
+  // Uncommitted changes are not part of it.
+  rpc CreatePullRequest(GitPullRequestRequest) returns (GitPullRequestResponse) {
+    option (google.api.http) = {
+      post: "/v1/projects/{project_id}/git/pull-requests"
+      body: "*"
+      additional_bindings {
+        post: "/v1/threads/{thread_id}/git/pull-requests"
+        body: "*"
+      }
+    };
+  }
+  // Commits every change in the working tree, and pushes when asked to.
+  rpc Commit(GitCommitRequest) returns (GitCommitResponse) {
+    option (google.api.http) = {
+      post: "/v1/projects/{project_id}/git/commit"
+      body: "*"
+      additional_bindings {
+        post: "/v1/threads/{thread_id}/git/commit"
+        body: "*"
+      }
+    };
+  }
+}
+
+// Every git request names the repository by a project or by a thread, one of the two.
+
+message ListBranchesRequest {
+  string project_id = 1;
+  string thread_id = 2;
+}
+message ListBranchesResponse {
+  // Local branches, most recently committed to first.
+  repeated string branches = 1;
+  string current = 2;
+}
+
+message GitCheckoutRequest {
+  string project_id = 1;
+  string thread_id = 2;
+  string branch = 3;
+  // Create the branch from the current commit instead of switching to an existing one.
+  bool create = 4;
+}
+
+message GitRestoreRequest {
+  string thread_id = 1;
+  // A snapshot commit: the before or after of a TurnChanges event.
+  string commit = 2;
+}
+message GitRestoreResponse {
+  GitStatus status = 1;
+  // A snapshot of the files as they were before the restore; restore to it to undo.
+  string undo = 2;
+}
+
+message GitPushRequest {
+  string project_id = 1;
+  string thread_id = 2;
+}
+
+message GitFetchRequest {
+  string project_id = 1;
+  string thread_id = 2;
+}
+
+message GitPullBranchRequest {
+  string project_id = 1;
+  string thread_id = 2;
+}
+
+message GetGitStatusRequest {
+  string project_id = 1;
+  string thread_id = 2;
+}
+
+message GitStatus {
+  message File {
+    string path = 1;
+    // The two-letter state git status prints, such as " M", "A " or "??".
+    string state = 2;
+    uint32 additions = 3;
+    uint32 deletions = 4;
+  }
+  // False when the folder is not inside a git repository; the rest is then empty.
+  bool repository = 1;
+  // The current branch, or the short commit id when no branch is checked out.
+  string branch = 2;
+  // The branch this one tracks, such as origin/main; empty when it tracks none.
+  string upstream = 3;
+  uint32 ahead = 4;
+  uint32 behind = 5;
+  // Files with uncommitted changes, untracked ones included.
+  repeated File files = 6;
+  uint32 additions = 7;
+  uint32 deletions = 8;
+}
+
+message GetGitDiffRequest {
+  string project_id = 1;
+  // A path from the status; empty for every change.
+  string path = 2;
+  string thread_id = 3;
+  // Compare two commits instead of showing the uncommitted changes: the before and
+  // after of a TurnChanges event, for what that turn changed.
+  string from = 4;
+  string to = 5;
+  // Leave out changes that only touch whitespace (git diff -w).
+  bool ignore_whitespace = 6;
+}
+message GetGitDiffResponse {
+  string diff = 1;
+  // The diff was longer than the server sends and was cut short.
+  bool truncated = 2;
+  // For one path, the file whole before and after, for a side-by-side view: before
+  // at HEAD (or from), after in the folder (or at to). Empty when the file is not
+  // there on that side; both left out, with sides false, for a binary or large file.
+  bool sides = 3;
+  string before = 4;
+  string after = 5;
+}
+
+message GitCommitRequest {
+  string project_id = 1;
+  string message = 2;
+  // Also push the branch, setting its upstream on origin when it has none.
+  bool push = 3;
+  string thread_id = 4;
+}
+message GitPullRequestRequest {
+  string project_id = 1;
+  string thread_id = 2;
+  // Empty to take the title and description from the branch's commits.
+  string title = 3;
+  string body = 4;
+  // The branch to merge into; empty for the repository's default branch.
+  string base = 5;
+  bool draft = 6;
+}
+message GitPullRequestResponse {
+  string url = 1;
+  // The branch already had this open pull request; nothing new was opened.
+  bool existing = 2;
+  GitStatus status = 3;
+}
+
+message GitCommitResponse {
+  // What git printed.
+  string output = 1;
+  GitStatus status = 2;
+}
+
+// The optional parts of a host, such as automations, and turning them on and off.
+// A change takes effect at once, without a restart; threads are not touched. Data
+// a turned-off module keeps stays, for when it is turned on again. Listing needs no
+// permission; changing needs the permission to manage hosts.
+service ModuleService {
+  rpc ListModules(ListModulesRequest) returns (ListModulesResponse) {
+    option (google.api.http) = {get: "/v1/modules"};
+  }
+  rpc SetModule(SetModuleRequest) returns (Module) {
+    option (google.api.http) = {
+      put: "/v1/modules/{name}"
+      body: "*"
+    };
+  }
+}
+
+message Module {
+  string name = 1;
+  string title = 2;
+  string description = 3;
+  bool enabled = 4;
+  // Why it could not start when it is enabled but not running.
+  string error = 5;
+}
+message ListModulesRequest {}
+message ListModulesResponse {
+  repeated Module modules = 1;
+}
+message SetModuleRequest {
+  string name = 1;
+  bool enabled = 2;
+}
+
+// Upkeep of a host: what inaba leaves on its disk, and clearing what is no longer
+// needed. For accounts allowed to manage hosts.
+service HousekeepingService {
+  rpc GetHousekeeping(GetHousekeepingRequest) returns (Housekeeping) {
+    option (google.api.http) = {get: "/v1/housekeeping"};
+  }
+  // When the host puts quiet threads away by itself.
+  rpc GetArchivePolicy(GetArchivePolicyRequest) returns (ArchivePolicy) {
+    option (google.api.http) = {get: "/v1/housekeeping/archive-policy"};
+  }
+  // Sets it, and archives at once what it now covers.
+  rpc SetArchivePolicy(ArchivePolicy) returns (ArchivePolicy) {
+    option (google.api.http) = {
+      put: "/v1/housekeeping/archive-policy"
+      body: "*"
+    };
+  }
+  rpc CleanUp(CleanUpRequest) returns (CleanUpResponse) {
+    option (google.api.http) = {
+      post: "/v1/housekeeping/clean-up"
+      body: "*"
+    };
+  }
+}
+
+message GetHousekeepingRequest {}
+message Housekeeping {
+  // A git worktree inaba made for a thread, in the host's data folder.
+  message Worktree {
+    string path = 1;
+    // The thread using it; empty when no thread does any more, as after one was
+    // deleted while its worktree had changes.
+    string thread_id = 2;
+    string thread_title = 3;
+    string branch = 4;
+    // Uncommitted changes in it, which removing it would lose.
+    bool dirty = 5;
+  }
+  // The per-turn file snapshots kept in one repository.
+  message Snapshots {
+    string repository = 1;
+    uint32 refs = 2;
+    // Snapshots of threads that no longer exist.
+    uint32 leftover_refs = 3;
+  }
+  // The database file and its write-ahead log.
+  uint64 database_bytes = 1;
+  repeated Worktree worktrees = 2;
+  repeated Snapshots snapshots = 3;
+}
+
+message CleanUpRequest {
+  // Remove the worktrees no thread uses. One with uncommitted changes is kept
+  // unless discard_changes is set. Their branches are kept.
+  bool leftover_worktrees = 1;
+  bool discard_changes = 2;
+  // Delete the snapshots of threads that no longer exist.
+  bool leftover_snapshots = 3;
+  // Give the space deleted data leaves in the database back to the file system.
+  bool compact_database = 4;
+}
+message GetArchivePolicyRequest {}
+// A thread nothing happened in for this many days is archived, unless it is pinned or
+// working; 0 never archives by itself. Archiving hides it, and can be undone.
+message ArchivePolicy {
+  uint32 after_days = 1;
+}
+
+message CleanUpResponse {
+  Housekeeping housekeeping = 1;
+  // What was asked to go but stayed, each with the reason.
+  repeated string kept = 2;
+}
+
+// The PTY of a thread in THREAD_MODE_TERMINAL.
+service TerminalService {
+  // Sends the recent output first, then output as it is produced, until the process exits.
+  rpc Attach(AttachRequest) returns (stream TerminalOutput);
+  rpc Write(WriteRequest) returns (WriteResponse) {
+    option (google.api.http) = {
+      post: "/v1/threads/{thread_id}/terminal/input"
+      body: "*"
+    };
+  }
+  rpc Resize(ResizeRequest) returns (ResizeResponse) {
+    option (google.api.http) = {
+      post: "/v1/threads/{thread_id}/terminal/size"
+      body: "*"
+    };
+  }
+}
+
+message AttachRequest {
+  string thread_id = 1;
+  // Was the shell beside the conversation; that is the shell module's now.
+  reserved 2;
+  // The viewer's terminal size; the terminal takes it before the output is sent, so
+  // the program draws for the screen it is seen on. Zero leaves the size as it is.
+  uint32 cols = 3;
+  uint32 rows = 4;
+}
+message TerminalOutput {
+  bytes data = 1;
+  // The terminal's size, sent first and whenever it changes, so a viewer who only watches
+  // can draw at the size the driver set.
+  uint32 cols = 2;
+  uint32 rows = 3;
+}
+
+message WriteRequest {
+  string thread_id = 1;
+  bytes data = 2;
+  reserved 3;
+}
+message WriteResponse {}
+
+message ResizeRequest {
+  string thread_id = 1;
+  uint32 cols = 2;
+  uint32 rows = 3;
+  reserved 4;
+}
+message ResizeResponse {}
+
+// Opens a direct WebRTC connection to the host. Reached through the server's relay.
+service PeerService {
+  // Takes a complete SDP offer and returns a complete answer; there is no trickle ICE.
+  rpc Connect(ConnectRequest) returns (ConnectResponse);
+}
+
+message ConnectRequest {
+  string offer_sdp = 1;
+  repeated string ice_urls = 2;
+}
+message ConnectResponse {
+  string answer_sdp = 1;
+}
+
+// The agents a host offers, as its config file lists them. Changes are written to
+// that file and take effect for new threads at once; running ones keep what they
+// started with. Reading or changing them needs the hosts permission, since the
+// environment variables may hold keys.
+service ProviderConfigService {
+  rpc ListProviderConfigs(ListProviderConfigsRequest) returns (ListProviderConfigsResponse) {
+    option (google.api.http) = {get: "/v1/provider-configs"};
+  }
+  // Adds a provider or replaces the one with the same id.
+  rpc SaveProviderConfig(SaveProviderConfigRequest) returns (ProviderConfig) {
+    option (google.api.http) = {
+      put: "/v1/provider-configs/{config.id}"
+      body: "config"
+    };
+  }
+  rpc DeleteProviderConfig(DeleteProviderConfigRequest) returns (DeleteProviderConfigResponse) {
+    option (google.api.http) = {delete: "/v1/provider-configs/{id}"};
+  }
+  // Starts each enabled provider's agent to see whether it runs and which version it
+  // is, then answers as ListProviderConfigs does. npx may download the agent first,
+  // so this can take a while.
+  rpc CheckProviders(CheckProvidersRequest) returns (ListProviderConfigsResponse) {
+    option (google.api.http) = {
+      post: "/v1/provider-configs/check"
+      body: "*"
+    };
+  }
+  // The agents in the public ACP registry, as the host would start them.
+  rpc ListAcpAgents(ListAcpAgentsRequest) returns (ListAcpAgentsResponse) {
+    option (google.api.http) = {get: "/v1/acp-agents"};
+  }
+}
+
+message ListAcpAgentsRequest {}
+message ListAcpAgentsResponse {
+  repeated AcpAgent agents = 1;
+}
+message AcpAgent {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string version = 4;
+  // An image URL.
+  string icon = 5;
+  string website = 6;
+  // How to start it, through npx or uvx. Empty for an agent published only as a
+  // download, which inaba does not fetch; install it and enter its command instead.
+  repeated string command = 7;
+  map<string, string> env = 8;
+}
+
+message ProviderConfig {
+  // Lowercase letters, digits, - and _. Threads record it, so renaming is adding anew.
+  string id = 1;
+  string display_name = 2;
+  // A disabled provider is not offered for new threads; its threads still run.
+  bool enabled = 3;
+  // Starts the agent speaking ACP on stdio.
+  repeated string command = 4;
+  // Starts the agent's own interactive CLI; empty leaves terminal mode out.
+  repeated string terminal = 5;
+  // Continues a session in the CLI; "{session}" becomes the agent's session id.
+  repeated string terminal_resume = 6;
+  map<string, string> env = 7;
+  // Built into inaba, like the plain shell: only its name and whether it is
+  // offered can change, and it cannot be removed.
+  bool builtin = 8;
+  // Models left out of the pickers, by value; a thread already on one keeps it.
+  repeated string hidden_models = 9;
+  // Filled in by the host when read, never saved.
+  ProviderStatus status = 10;
+  // The models the agent offered the last time one of its threads ran here.
+  repeated SessionOption.Choice models = 11;
+  // A picture chosen for it, as a data: URL of an image of at most 128 KiB; empty
+  // shows the ACP registry's icon for the agent it runs.
+  string icon = 12;
+}
+
+// Whether a provider's agent starts, from the last check.
+message ProviderStatus {
+  bool ok = 1;
+  // What the agent calls itself, and its version.
+  string name = 2;
+  string version = 3;
+  // Why it did not start.
+  string error = 4;
+  google.protobuf.Timestamp checked_at = 5;
+}
+
+message CheckProvidersRequest {}
+
+message ListProviderConfigsRequest {}
+message ListProviderConfigsResponse {
+  repeated ProviderConfig configs = 1;
+  // The config file they live in, on the host.
+  string path = 2;
+}
+message SaveProviderConfigRequest {
+  ProviderConfig config = 1;
+}
+message DeleteProviderConfigRequest {
+  string id = 1;
+}
+message DeleteProviderConfigResponse {}
+
+// What the machine a host runs on is and how busy it is, for its About page.
+service SystemService {
+  rpc GetSystemInfo(GetSystemInfoRequest) returns (SystemInfo) {
+    option (google.api.http) = {get: "/v1/system"};
+  }
+}
+
+message GetSystemInfoRequest {}
+
+message SystemInfo {
+  string hostname = 1;
+  // The system and its version as it names them, such as "macOS 26.2".
+  string platform = 2;
+  string kernel = 3;
+  string arch = 4;
+  string cpu_model = 5;
+  int32 cpu_cores = 6;
+  // Busy share of all cores over the last moment, 0 to 100.
+  double cpu_percent = 7;
+  double load1 = 8;
+  double load5 = 9;
+  double load15 = 10;
+  uint64 memory_total = 11;
+  uint64 memory_used = 12;
+  // The disk holding the host's data: its threads' worktrees and snapshots.
+  uint64 disk_total = 13;
+  uint64 disk_used = 14;
+  uint64 uptime_seconds = 15;
+  // Threads this host has loaded, and how many are working right now.
+  int32 threads = 16;
+  int32 threads_running = 17;
+  // The version of inaba the host runs.
+  string inaba_version = 18;
+}
+
+// What the host's agents have used, from the events the host keeps. Anyone who can use
+// the host may read it.
+service UsageService {
+  rpc GetUsageSummary(GetUsageSummaryRequest) returns (UsageSummary) {
+    option (google.api.http) = {get: "/v1/usage"};
+  }
+}
+
+message GetUsageSummaryRequest {
+  // The window to sum over. to defaults to now and from to 30 days before to; a window
+  // longer than 90 days is cut to the 90 days that end at to.
+  google.protobuf.Timestamp from = 1;
+  google.protobuf.Timestamp to = 2;
+}
+
+message UsageTotals {
+  // What the agents reported spending, in UsageSummary.currency.
+  double cost = 1;
+  uint64 input_tokens = 2;
+  uint64 output_tokens = 3;
+  uint64 cached_read_tokens = 4;
+  uint64 cached_write_tokens = 5;
+  uint64 thought_tokens = 6;
+  uint64 total_tokens = 7;
+  // Turns that ended in the window.
+  uint32 turns = 8;
+  // Threads with a turn or reported spend in the window.
+  uint32 threads = 9;
+}
+
+message UsageSummary {
+  // The window as applied, after defaults and the cap.
+  google.protobuf.Timestamp from = 1;
+  google.protobuf.Timestamp to = 2;
+  // ISO 4217 code of every cost here; empty when no agent reported a cost.
+  string currency = 3;
+  UsageTotals totals = 4;
+  message Day {
+    // YYYY-MM-DD in the host's local time.
+    string date = 1;
+    UsageTotals totals = 2;
+    // The same day by provider, most cost first, so a chart can stack them.
+    repeated Group providers = 3;
+  }
+  // Every day of the window, oldest first, including days with nothing.
+  repeated Day days = 5;
+  message Group {
+    // A provider id, or a project id; empty for threads outside any project.
+    string id = 1;
+    UsageTotals totals = 2;
+  }
+  // By provider and by project, most cost first.
+  repeated Group providers = 6;
+  repeated Group projects = 7;
+  message ThreadUsage {
+    string thread_id = 1;
+    string title = 2;
+    string project_id = 3;
+    // The provider the thread uses now.
+    string provider = 4;
+    UsageTotals totals = 5;
+  }
+  // The threads that used most, by cost and then tokens; at most 10.
+  repeated ThreadUsage top_threads = 8;
+  message ProviderLimits {
+    string provider = 1;
+    repeated UsageLimit limits = 2;
+    // When the agent last reported them.
+    google.protobuf.Timestamp reported_at = 3;
+  }
+  // The latest limit windows of each provider whose agent reports them.
+  repeated ProviderLimits limits = 9;
+}
+
+// What happens on the host that people may want to hear of, for inaba-server to push to
+// their devices. Server-only: the relay refuses it from browsers.
+service AlertService {
+  // Streams alerts as they happen, until the call ends. Nothing is replayed.
+  rpc WatchAlerts(WatchAlertsRequest) returns (stream Alert);
+}
+
+message WatchAlertsRequest {}
+
+message Alert {
+  // "turn.ended", "turn.failed", "input.needed", or "thread.deleted", which only tells
+  // the server to forget the thread's snoozes.
+  string event = 1;
+  string thread_id = 2;
+  string project_id = 3;
+  string project_name = 4;
+  string thread_title = 5;
+  // The thread was started by an automation.
+  bool automation = 6;
+  // Why the turn failed, for turn.failed.
+  string error = 7;
+  google.protobuf.Timestamp at = 8;
+}

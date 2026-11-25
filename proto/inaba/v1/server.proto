@@ -1,0 +1,993 @@
+syntax = "proto3";
+
+// The API of inaba-server itself.
+package inaba.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "inaba/v1/host.proto";
+
+service AuthService {
+  // Needs no sign-in.
+  rpc GetConfig(GetConfigRequest) returns (GetConfigResponse) {
+    option (google.api.http) = {get: "/v1/config"};
+  }
+  // Creates the first account on a server that has none, and signs it in. The token
+  // comes from the onboarding link the server prints when it starts without accounts.
+  // Needs no sign-in.
+  rpc Onboard(OnboardRequest) returns (User) {
+    option (google.api.http) = {
+      post: "/v1/auth/onboard"
+      body: "*"
+    };
+  }
+  // Sets the session cookie.
+  rpc Login(LoginRequest) returns (User) {
+    option (google.api.http) = {
+      post: "/v1/auth/login"
+      body: "*"
+    };
+  }
+  rpc Logout(LogoutRequest) returns (LogoutResponse) {
+    option (google.api.http) = {post: "/v1/auth/logout"};
+  }
+  rpc WhoAmI(WhoAmIRequest) returns (User) {
+    option (google.api.http) = {get: "/v1/auth/me"};
+  }
+  // Creates an API token for scripts. The secret is returned only here.
+  rpc CreateToken(CreateTokenRequest) returns (CreateTokenResponse) {
+    option (google.api.http) = {
+      post: "/v1/tokens"
+      body: "*"
+    };
+  }
+  rpc ListTokens(ListTokensRequest) returns (ListTokensResponse) {
+    option (google.api.http) = {get: "/v1/tokens"};
+  }
+  rpc RevokeToken(RevokeTokenRequest) returns (RevokeTokenResponse) {
+    option (google.api.http) = {delete: "/v1/tokens/{id}"};
+  }
+  // Changes the signed-in account's own profile; a field left out stays as it is.
+  rpc UpdateProfile(UpdateProfileRequest) returns (User) {
+    option (google.api.http) = {
+      patch: "/v1/me"
+      body: "*"
+    };
+  }
+  rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse) {
+    option (google.api.http) = {
+      post: "/v1/me/password"
+      body: "*"
+    };
+  }
+  // Two-step sign-in with an authenticator app: begin makes a secret to scan, enable
+  // turns it on once a code from the app checks out, disable needs a code too.
+  rpc BeginTotp(BeginTotpRequest) returns (BeginTotpResponse) {
+    option (google.api.http) = {
+      post: "/v1/me/totp"
+      body: "*"
+    };
+  }
+  rpc EnableTotp(EnableTotpRequest) returns (User) {
+    option (google.api.http) = {
+      post: "/v1/me/totp/enable"
+      body: "*"
+    };
+  }
+  rpc DisableTotp(DisableTotpRequest) returns (User) {
+    option (google.api.http) = {
+      post: "/v1/me/totp/disable"
+      body: "*"
+    };
+  }
+  // The account's sign-ins in browsers, to end any of them.
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse) {
+    option (google.api.http) = {get: "/v1/me/sessions"};
+  }
+  rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse) {
+    option (google.api.http) = {delete: "/v1/me/sessions/{id}"};
+  }
+  // Passkeys sign in without a password. Registering one is begin then finish.
+  rpc ListPasskeys(ListPasskeysRequest) returns (ListPasskeysResponse) {
+    option (google.api.http) = {get: "/v1/me/passkeys"};
+  }
+  rpc BeginPasskeyRegistration(BeginPasskeyRequest) returns (BeginPasskeyResponse) {
+    option (google.api.http) = {
+      post: "/v1/me/passkeys/begin"
+      body: "*"
+    };
+  }
+  rpc FinishPasskeyRegistration(FinishPasskeyRegistrationRequest) returns (Passkey) {
+    option (google.api.http) = {
+      post: "/v1/me/passkeys"
+      body: "*"
+    };
+  }
+  rpc DeletePasskey(DeletePasskeyRequest) returns (DeletePasskeyResponse) {
+    option (google.api.http) = {delete: "/v1/me/passkeys/{id}"};
+  }
+  // Signing in with a passkey, without an account yet: the passkey says whose it is.
+  rpc BeginPasskeyLogin(BeginPasskeyRequest) returns (BeginPasskeyResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/passkey/begin"
+      body: "*"
+    };
+  }
+  rpc FinishPasskeyLogin(FinishPasskeyLoginRequest) returns (User) {
+    option (google.api.http) = {
+      post: "/v1/auth/passkey"
+      body: "*"
+    };
+  }
+}
+
+message UpdateProfileRequest {
+  // A picture as a data: URL of a PNG, JPEG or WebP image of at most 256 KiB; empty removes it.
+  optional string avatar = 1;
+  // Up to 64 characters; empty goes back to the sign-in name.
+  optional string display_name = 2;
+  // Stealth mode, for administrators only: see User.stealth.
+  optional bool stealth = 3;
+}
+
+message ChangePasswordRequest {
+  string current_password = 1;
+  // At least 8 characters. Every other sign-in of the account ends with the change.
+  string new_password = 2;
+}
+message ChangePasswordResponse {}
+
+message BeginTotpRequest {}
+message BeginTotpResponse {
+  // The secret, for typing into an app, and the same as a QR code: a PNG data: URL.
+  string secret = 1;
+  string url = 2;
+  string qr_code = 3;
+}
+message EnableTotpRequest {
+  // A current code from the app, proving it was set up.
+  string code = 1;
+}
+message DisableTotpRequest {
+  string code = 1;
+}
+
+message LoginSession {
+  string id = 1;
+  // The browser it was made in, as it named itself.
+  string user_agent = 2;
+  google.protobuf.Timestamp created_at = 3;
+  google.protobuf.Timestamp expires_at = 4;
+  // The sign-in this request came with.
+  bool current = 5;
+}
+message ListSessionsRequest {}
+message ListSessionsResponse {
+  repeated LoginSession sessions = 1;
+}
+message RevokeSessionRequest {
+  string id = 1;
+}
+message RevokeSessionResponse {}
+
+message Passkey {
+  string id = 1;
+  string name = 2;
+  google.protobuf.Timestamp created_at = 3;
+  google.protobuf.Timestamp last_used_at = 4;
+}
+message ListPasskeysRequest {}
+message ListPasskeysResponse {
+  repeated Passkey passkeys = 1;
+}
+// WebAuthn options and responses travel as the JSON the browser's
+// PublicKeyCredential.parse*OptionsFromJSON and toJSON read and write.
+message BeginPasskeyRequest {}
+message BeginPasskeyResponse {
+  string ceremony_id = 1;
+  string options_json = 2;
+}
+message FinishPasskeyRegistrationRequest {
+  string ceremony_id = 1;
+  string credential_json = 2;
+  string name = 3;
+}
+message FinishPasskeyLoginRequest {
+  string ceremony_id = 1;
+  string credential_json = 2;
+}
+message DeletePasskeyRequest {
+  string id = 1;
+}
+message DeletePasskeyResponse {}
+
+message GetConfigRequest {}
+message GetConfigResponse {
+  // Start OIDC sign-in by sending the browser to /auth/oidc/login.
+  bool oidc_enabled = 1;
+  string oidc_name = 2;
+  // STUN servers for direct connections to hosts.
+  repeated string ice_urls = 3;
+  // The server has no account yet; it is set up through its onboarding link.
+  bool needs_onboarding = 4;
+}
+
+message OnboardRequest {
+  string token = 1;
+  string username = 2;
+  // At least 8 characters.
+  string password = 3;
+}
+
+// What an administrator can allow an account to do. Without any, an account can use
+// the hosts and projects that exist and run threads in them, and nothing more.
+enum Permission {
+  PERMISSION_UNSPECIFIED = 0;
+  // Add shared hosts, which everyone signed in can use. Anyone may add a host of
+  // their own without it.
+  PERMISSION_MANAGE_HOSTS = 1;
+  // Add, change and remove projects on hosts.
+  PERMISSION_MANAGE_PROJECTS = 2;
+  // Start threads in any folder of a host, outside its projects.
+  PERMISSION_THREADS_ANYWHERE = 3;
+  // Set up automations and their notifications.
+  PERMISSION_AUTOMATIONS = 4;
+  // Change a host's settings: its providers, modules, MCP servers, browser and archive policy.
+  PERMISSION_HOST_SETTINGS = 5;
+  // Clear what inaba leaves on a host's disk.
+  PERMISSION_HOUSEKEEPING = 6;
+}
+
+message User {
+  string id = 1;
+  string name = 2;
+  // Whether the account signs in through OIDC rather than with a password.
+  bool oidc = 3;
+  // An administrator has every permission and manages the other accounts.
+  bool admin = 4;
+  repeated Permission permissions = 5;
+  // Where the account's picture is served, for anyone signed in; empty without one.
+  // It changes when the picture does, so it can be cached.
+  string avatar_url = 6;
+  // What to call the person; the name they sign in with when empty.
+  string display_name = 7;
+  // Whether signing in also asks for a code from an authenticator app.
+  bool totp = 8;
+  // An administrator in stealth mode is left out of what others see of who is where.
+  bool stealth = 9;
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+  // The code from the authenticator app, for an account with two-step sign-in on.
+  // Without it such an account is refused with FAILED_PRECONDITION, asking for it.
+  string totp_code = 3;
+}
+
+message LogoutRequest {}
+message LogoutResponse {}
+
+message WhoAmIRequest {}
+
+message Token {
+  string id = 1;
+  string name = 2;
+  google.protobuf.Timestamp created_at = 3;
+}
+
+message CreateTokenRequest {
+  string name = 1;
+}
+message CreateTokenResponse {
+  Token token = 1;
+  // Send as "Authorization: Bearer <secret>".
+  string secret = 2;
+}
+
+message ListTokensRequest {}
+message ListTokensResponse {
+  repeated Token tokens = 1;
+}
+
+message RevokeTokenRequest {
+  string id = 1;
+}
+message RevokeTokenResponse {}
+
+service HostService {
+  // Registers a host. The secret is returned only here; start the host with it.
+  rpc CreateHost(CreateHostRequest) returns (CreateHostResponse) {
+    option (google.api.http) = {
+      post: "/v1/hosts"
+      body: "*"
+    };
+  }
+  rpc ListHosts(ListHostsRequest) returns (ListHostsResponse) {
+    option (google.api.http) = {get: "/v1/hosts"};
+  }
+  // Makes a link that lets whoever signs in and opens it into a host with a role, for a
+  // week. The host's owner's or managers' to make, or an administrator's. The secret is
+  // returned only here.
+  rpc CreateHostInvite(CreateHostInviteRequest) returns (CreateHostInviteResponse) {
+    option (google.api.http) = {
+      post: "/v1/invites"
+      body: "*"
+    };
+  }
+  // Ends every invite link of a host; those who already joined stay.
+  rpc RevokeHostInvites(RevokeHostInvitesRequest) returns (RevokeHostInvitesResponse) {
+    option (google.api.http) = {
+      post: "/v1/invites/revoke"
+      body: "*"
+    };
+  }
+  // The invite links of a host that still work, without their secrets. The host's
+  // owner's or managers' to see, or an administrator's.
+  rpc ListHostInvites(ListHostInvitesRequest) returns (ListHostInvitesResponse) {
+    option (google.api.http) = {get: "/v1/host-invites/{host_id}"};
+  }
+  // Ends one invite link of a host.
+  rpc RevokeHostInvite(RevokeHostInviteRequest) returns (RevokeHostInviteResponse) {
+    option (google.api.http) = {delete: "/v1/host-invites/{host_id}/{id}"};
+  }
+  // What an invite link leads to, before joining.
+  rpc GetHostInvite(GetHostInviteRequest) returns (HostInvite) {
+    option (google.api.http) = {get: "/v1/invites/{token}"};
+  }
+  // Joins the host an invite link is for, with the role it grants.
+  rpc AcceptHostInvite(AcceptHostInviteRequest) returns (Host) {
+    option (google.api.http) = {
+      post: "/v1/invites/{token}/accept"
+      body: "*"
+    };
+  }
+  // Who was let into a personal host. Its owner's, or an administrator's, to see.
+  rpc ListHostMembers(ListHostMembersRequest) returns (ListHostMembersResponse) {
+    option (google.api.http) = {get: "/v1/host-members/{host_id}"};
+  }
+  rpc RemoveHostMember(RemoveHostMemberRequest) returns (RemoveHostMemberResponse) {
+    option (google.api.http) = {delete: "/v1/host-members/{host_id}/{user_id}"};
+  }
+  // Lets an account into a host with a role, changes its role, or takes it out. The
+  // host's owner's or managers' to do, or an administrator's.
+  rpc SetHostMember(SetHostMemberRequest) returns (SetHostMemberResponse) {
+    option (google.api.http) = {
+      put: "/v1/host-members/{host_id}/{user_id}"
+      body: "*"
+    };
+  }
+  rpc DeleteHost(DeleteHostRequest) returns (DeleteHostResponse) {
+    option (google.api.http) = {delete: "/v1/hosts/{id}"};
+  }
+  // Changes how a host is named and shown. Its look is for whoever may change its settings;
+  // its name, like removing it, is its owner's, an administrator's, or for a shared host
+  // theirs who may add shared hosts.
+  rpc UpdateHost(UpdateHostRequest) returns (Host) {
+    option (google.api.http) = {
+      patch: "/v1/hosts/{id}"
+      body: "*"
+    };
+  }
+
+  // Signing a machine in as a host, the way a device signs in to a TV app: `inaba login`
+  // starts it without an account and shows a code; a signed-in user approves the
+  // code in the browser; the host then gets a refresh token it keeps.
+  rpc StartHostLogin(StartHostLoginRequest) returns (StartHostLoginResponse) {
+    option (google.api.http) = {
+      post: "/v1/host-logins"
+      body: "*"
+    };
+  }
+  // Asked by the host every interval until the login is approved, denied, or expires.
+  rpc PollHostLogin(PollHostLoginRequest) returns (PollHostLoginResponse) {
+    option (google.api.http) = {
+      post: "/v1/host-logins/poll"
+      body: "*"
+    };
+  }
+  // What a user is about to approve.
+  rpc GetHostLogin(GetHostLoginRequest) returns (HostLogin) {
+    option (google.api.http) = {get: "/v1/host-logins/{user_code}"};
+  }
+  // Registers the machine as a host of the caller's, or with shared, of every account's.
+  rpc ApproveHostLogin(ApproveHostLoginRequest) returns (Host) {
+    option (google.api.http) = {
+      post: "/v1/host-logins/{user_code}/approve"
+      body: "*"
+    };
+  }
+  rpc DenyHostLogin(DenyHostLoginRequest) returns (DenyHostLoginResponse) {
+    option (google.api.http) = {
+      post: "/v1/host-logins/{user_code}/deny"
+      body: "*"
+    };
+  }
+  // Trades a host's refresh token for a short-lived access token to connect with.
+  rpc RefreshHostToken(RefreshHostTokenRequest) returns (RefreshHostTokenResponse) {
+    option (google.api.http) = {
+      post: "/v1/host-tokens"
+      body: "*"
+    };
+  }
+}
+
+message StartHostLoginRequest {
+  // The name the machine suggests for itself, usually its hostname.
+  string name = 1;
+}
+message StartHostLoginResponse {
+  // The host's secret for polling; never shown to anyone.
+  string device_code = 1;
+  // What the user checks in the browser, such as BCDF-GHJK.
+  string user_code = 2;
+  // Where to approve, and the same with the code filled in.
+  string verification_uri = 3;
+  string verification_uri_complete = 4;
+  int32 interval_seconds = 5;
+  google.protobuf.Timestamp expires_at = 6;
+}
+message PollHostLoginRequest {
+  string device_code = 1;
+}
+message PollHostLoginResponse {
+  // Still waiting for the user. A denied or expired login is an error instead.
+  bool pending = 1;
+  Host host = 2;
+  // Kept by the host for good, until the host is removed; trade it for access tokens.
+  string refresh_token = 3;
+}
+message GetHostLoginRequest {
+  string user_code = 1;
+}
+message HostLogin {
+  string user_code = 1;
+  string name = 2;
+  // Where the request came from, as the server saw it.
+  string address = 3;
+  google.protobuf.Timestamp expires_at = 4;
+}
+message ApproveHostLoginRequest {
+  string user_code = 1;
+  // The host's name; the machine's suggestion when empty.
+  string name = 2;
+  bool shared = 3;
+}
+message DenyHostLoginRequest {
+  string user_code = 1;
+}
+message DenyHostLoginResponse {}
+message RefreshHostTokenRequest {
+  string refresh_token = 1;
+}
+message RefreshHostTokenResponse {
+  string access_token = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+message Host {
+  string id = 1;
+  string name = 2;
+  // Whether the host is connected right now.
+  bool online = 3;
+  google.protobuf.Timestamp created_at = 4;
+  // Whether every account can use the host. A host that is not shared is personal:
+  // only the account that registered it sees it and reaches it.
+  bool shared = 5;
+  // What the host runs on, as Go names it (darwin, linux, windows; arm64, amd64),
+  // from when it last connected. Empty for a host that never has.
+  string os = 6;
+  string arch = 7;
+  // How the host is shown: an icon by name, and a picture that takes its place. See UpdateHostRequest.
+  string icon = 8;
+  string image = 9;
+  // Someone else's personal host the caller was invited into.
+  bool invited = 10;
+  // Whose personal host it is, by name; empty for a shared one.
+  string owner_name = 11;
+  // The caller's place on it: "owner", "manager" (also looks after its members and invites),
+  // "member" (may do everything on the host itself), or empty when it is shared with everyone.
+  string role = 12;
+  // A shared host only its members may use. See UpdateHostRequest.restricted.
+  bool restricted = 13;
+  // The owner's account id, for a personal host; empty for a shared one.
+  string owner_id = 14;
+  // When it was last connected, or connected last; unset for a host that never has.
+  google.protobuf.Timestamp last_seen = 15;
+  // What it said of itself when it last connected, kept for while it is not.
+  SystemInfo system = 16;
+}
+
+message CreateHostInviteRequest {
+  string host_id = 1;
+  // "member" (the default when empty) or "manager": what whoever accepts becomes.
+  string role = 2;
+  // A note to tell links apart, such as whom it was sent to.
+  string note = 3;
+}
+message CreateHostInviteResponse {
+  // The secret to put in the link: /ui/invite/{token}.
+  string token = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}
+message RevokeHostInvitesRequest {
+  string host_id = 1;
+}
+message RevokeHostInvitesResponse {}
+message ListHostInvitesRequest {
+  string host_id = 1;
+}
+message PendingHostInvite {
+  string id = 1;
+  // "member" or "manager".
+  string role = 2;
+  string note = 3;
+  // Who made it, by name; empty when that account is gone.
+  string created_by = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp expires_at = 6;
+}
+message ListHostInvitesResponse {
+  repeated PendingHostInvite invites = 1;
+}
+message RevokeHostInviteRequest {
+  string host_id = 1;
+  string id = 2;
+}
+message RevokeHostInviteResponse {}
+message GetHostInviteRequest {
+  string token = 1;
+}
+message HostInvite {
+  string host_id = 1;
+  string host_name = 2;
+  string owner_name = 3;
+  // Whether the caller can use the host already.
+  bool joined = 4;
+  // "member" or "manager": what accepting makes the caller.
+  string role = 5;
+}
+message AcceptHostInviteRequest {
+  string token = 1;
+}
+message ListHostMembersRequest {
+  string host_id = 1;
+}
+message HostMember {
+  string user_id = 1;
+  string name = 2;
+  string avatar_url = 3;
+  google.protobuf.Timestamp joined_at = 4;
+  // "member" may do everything on the host itself; "manager" also looks after its members and invites.
+  string role = 5;
+}
+message SetHostMemberRequest {
+  string host_id = 1;
+  string user_id = 2;
+  // "member" or "manager"; "none" takes the account out.
+  string role = 3;
+}
+message ListHostMembersResponse {
+  repeated HostMember members = 1;
+  reserved 2;
+}
+message RemoveHostMemberRequest {
+  string host_id = 1;
+  string user_id = 2;
+}
+message RemoveHostMemberResponse {}
+message SetHostMemberResponse {}
+
+// Changes what is set; a field left out stays as it is.
+message UpdateHostRequest {
+  string id = 1;
+  optional string name = 2;
+  // One of the web UI's icons by name, such as server or laptop; empty picks one
+  // from the host's system.
+  optional string icon = 3;
+  // A picture to show instead of the icon, as a data: URL of a PNG, JPEG or WebP
+  // image of at most 256 KiB; empty removes it.
+  optional string image = 4;
+  // Keeps a shared host to its members, instead of every account. For administrators.
+  optional bool restricted = 5;
+}
+
+message CreateHostRequest {
+  string name = 1;
+  // Registers a host for every account, which needs the hosts permission. Without
+  // it the host is the caller's own.
+  bool shared = 2;
+}
+message CreateHostResponse {
+  Host host = 1;
+  string secret = 2;
+}
+
+message ListHostsRequest {
+  // Every host, others' personal ones too, for an administrator; the admin panel's list.
+  bool all = 1;
+}
+message ListHostsResponse {
+  repeated Host hosts = 1;
+}
+
+message DeleteHostRequest {
+  string id = 1;
+}
+message DeleteHostResponse {}
+
+// Administration of the server's accounts, for administrators. The server's local
+// control socket serves it too, to whoever can open the socket.
+service AdminService {
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse) {
+    option (google.api.http) = {get: "/v1/users"};
+  }
+  // Creates an account that signs in with a password. It starts with no permissions.
+  rpc CreateUser(CreateUserRequest) returns (User) {
+    option (google.api.http) = {
+      post: "/v1/users"
+      body: "*"
+    };
+  }
+  // Changes a password account's password and signs it out everywhere.
+  rpc SetPassword(SetPasswordRequest) returns (SetPasswordResponse) {
+    option (google.api.http) = {
+      put: "/v1/users/{user}/password"
+      body: "*"
+    };
+  }
+  // Replaces what an account is allowed to do. The last administrator stays one.
+  rpc SetAccess(SetAccessRequest) returns (User) {
+    option (google.api.http) = {
+      put: "/v1/users/{user}/access"
+      body: "*"
+    };
+  }
+  // Removes an account, its sign-ins and its API tokens.
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse) {
+    option (google.api.http) = {delete: "/v1/users/{user}"};
+  }
+  // Lists every account's API tokens.
+  rpc ListUserTokens(ListUserTokensRequest) returns (ListUserTokensResponse) {
+    option (google.api.http) = {get: "/v1/users/-/tokens"};
+  }
+  rpc CreateUserToken(CreateUserTokenRequest) returns (CreateTokenResponse) {
+    option (google.api.http) = {
+      post: "/v1/users/{user}/tokens"
+      body: "*"
+    };
+  }
+  rpc RevokeUserToken(RevokeTokenRequest) returns (RevokeTokenResponse) {
+    option (google.api.http) = {delete: "/v1/users/-/tokens/{id}"};
+  }
+  // An account in full: who it is, how it signs in, and its place on every host.
+  rpc GetUserDetail(GetUserDetailRequest) returns (UserDetail) {
+    option (google.api.http) = {get: "/v1/users/{user}/detail"};
+  }
+  // Signs an account out everywhere.
+  rpc EndUserSessions(EndUserSessionsRequest) returns (EndUserSessionsResponse) {
+    option (google.api.http) = {
+      post: "/v1/users/{user}/sessions/end"
+      body: "*"
+    };
+  }
+  // Turns off an account's two-step sign-in, as when its authenticator is lost.
+  rpc DisableUserTotp(DisableUserTotpRequest) returns (User) {
+    option (google.api.http) = {
+      post: "/v1/users/{user}/totp/disable"
+      body: "*"
+    };
+  }
+  // What the server keeps that may be cleared: its database, and sign-ins and tokens
+  // that have expired. Each host has its own, at /v1/hosts/{host_id}/housekeeping.
+  rpc GetServerHousekeeping(GetServerHousekeepingRequest) returns (ServerHousekeeping) {
+    option (google.api.http) = {get: "/v1/housekeeping"};
+  }
+  rpc CleanUpServer(CleanUpServerRequest) returns (ServerHousekeeping) {
+    option (google.api.http) = {
+      post: "/v1/housekeeping/clean-up"
+      body: "*"
+    };
+  }
+}
+
+message GetServerHousekeepingRequest {}
+message ServerHousekeeping {
+  // The database file and its write-ahead log.
+  uint64 database_bytes = 1;
+  // Sign-ins and tokens past their expiry. They no longer work; they only take space.
+  uint32 expired_tokens = 2;
+  // Browser sign-ins that still work.
+  uint32 active_sign_ins = 3;
+}
+message CleanUpServerRequest {
+  bool expired_tokens = 1;
+  // Give the space deleted data leaves back to the file system.
+  bool compact_database = 2;
+}
+
+message ListUsersRequest {}
+message ListUsersResponse {
+  repeated User users = 1;
+}
+
+message CreateUserRequest {
+  string name = 1;
+  string password = 2;
+  // What the account may do from the start, as with SetAccess.
+  bool admin = 3;
+  repeated Permission permissions = 4;
+}
+
+message SetPasswordRequest {
+  // The account: its id, or the name of a password account.
+  string user = 1;
+  string password = 2;
+}
+message SetPasswordResponse {}
+
+message GetUserDetailRequest {
+  // The account: its id, or the name of a password account.
+  string user = 1;
+}
+message UserDetail {
+  User user = 1;
+  google.protobuf.Timestamp created_at = 2;
+  // Browsers signed in now, and passkeys registered.
+  int32 sessions = 3;
+  int32 passkeys = 4;
+  // Every host, with the account's place on it.
+  repeated HostAccess hosts = 5;
+}
+message HostAccess {
+  Host host = 1;
+  // "owner", "manager", "member", "everyone" (a shared host open to all), or empty for none.
+  string role = 2;
+}
+message EndUserSessionsRequest {
+  string user = 1;
+}
+message EndUserSessionsResponse {}
+message DisableUserTotpRequest {
+  string user = 1;
+}
+
+message SetAccessRequest {
+  // The account: its id, or the name of a password account.
+  string user = 1;
+  bool admin = 2;
+  repeated Permission permissions = 3;
+}
+
+message DeleteUserRequest {
+  // The account: its id, or the name of a password account.
+  string user = 1;
+}
+message DeleteUserResponse {}
+
+message ListUserTokensRequest {}
+message ListUserTokensResponse {
+  message Entry {
+    Token token = 1;
+    string user_name = 2;
+  }
+  repeated Entry tokens = 1;
+}
+
+message CreateUserTokenRequest {
+  // The account the token acts as: an id, or the name of a password account.
+  string user = 1;
+  string name = 2;
+}
+
+// Who is where: each browser says what it has open, and hears who else is on the same host.
+service PresenceService {
+  // Says where this browser is and returns everyone else seen on that host in the last
+  // half minute. Call it every few seconds while the page is open.
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse) {
+    option (google.api.http) = {
+      post: "/v1/presence"
+      body: "*"
+    };
+  }
+  // Records that the caller has read a thread up to an event, for unread markers: the
+  // thread is unread while its last_seq is above the seq kept here. The kept seq only
+  // moves forward, so two tabs reporting out of order do not mark it unread again.
+  rpc MarkThreadSeen(MarkThreadSeenRequest) returns (ThreadSeen) {
+    option (google.api.http) = {
+      post: "/v1/me/seen"
+      body: "*"
+    };
+  }
+  // What the caller has read of each thread on a host. A thread missing here was never opened.
+  rpc ListThreadSeen(ListThreadSeenRequest) returns (ListThreadSeenResponse) {
+    option (google.api.http) = {get: "/v1/me/seen"};
+  }
+}
+
+message MarkThreadSeenRequest {
+  string host_id = 1;
+  // The thread's id on the host; at most 64 characters.
+  string thread_id = 2;
+  // The seq of the last event read, such as the thread's last_seq when it was shown.
+  uint64 seq = 3;
+}
+message ThreadSeen {
+  string thread_id = 1;
+  uint64 seq = 2;
+}
+message ListThreadSeenRequest {
+  string host_id = 1;
+}
+message ListThreadSeenResponse {
+  repeated ThreadSeen threads = 1;
+}
+
+message HeartbeatRequest {
+  // A random id the browser tab keeps, so one person in two tabs is in two places.
+  string client_id = 1;
+  string host_id = 2;
+  // What it has open: a thread, or a project's page; both empty for neither.
+  string thread_id = 3;
+  string project_id = 4;
+  reserved 5;
+  // Asks for the thread's driver seat: given only when it is free, or still held by from,
+  // the client this browser saw holding it, so of two asking at once the first gets it. A
+  // seat someone else holds is taken only from one's own other browser tab, or by an
+  // administrator.
+  bool take = 6;
+  string from = 7;
+  // Gives the seat up, when this browser holds it, for someone watching to take.
+  bool release = 8;
+  // An administrator hands the seat, still held by from, to this client on the thread.
+  string give_to = 9;
+  // Whether the page is on screen now. Only a browser showing the thread holds back pushes
+  // about it; one left open in a background tab does not.
+  bool visible = 10;
+}
+
+message HeartbeatResponse {
+  repeated Presence present = 1;
+  // Every other browser tab with the same thread open, one's own included, but for those
+  // that handed back its driver seat: whether the driver is still there, and whether this
+  // browser is the one left to take a free seat.
+  repeated string clients = 2;
+  // The client id holding the thread's driver seat; empty when no browser still on the
+  // thread holds it, as when its driver left or went quiet.
+  string driver = 3;
+}
+
+message Presence {
+  string user_id = 1;
+  string name = 2;
+  // See User.avatar_url.
+  string avatar_url = 6;
+  string thread_id = 3;
+  string project_id = 4;
+  google.protobuf.Timestamp seen_at = 5;
+  reserved 7;
+  // Their browser tabs' client ids there, to tell who holds a thread's driver seat.
+  repeated string clients = 8;
+}
+
+// Push notifications to the signed-in account's devices, and the threads and projects it
+// has snoozed. The server keeps only the devices and the snoozes, never what a thread says.
+service NotificationService {
+  // What a browser subscribes with: the server's VAPID public key.
+  rpc GetPushConfig(GetPushConfigRequest) returns (GetPushConfigResponse) {
+    option (google.api.http) = {get: "/v1/push/config"};
+  }
+  // Adds a device, or updates the one with the same endpoint, which moves to the caller.
+  // An account has at most 20.
+  rpc RegisterDevice(RegisterDeviceRequest) returns (PushDevice) {
+    option (google.api.http) = {
+      post: "/v1/me/devices"
+      body: "*"
+    };
+  }
+  rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse) {
+    option (google.api.http) = {get: "/v1/me/devices"};
+  }
+  rpc DeleteDevice(DeleteDeviceRequest) returns (DeleteDeviceResponse) {
+    option (google.api.http) = {delete: "/v1/me/devices/{id}"};
+  }
+  // Sends a test notification to one of the caller's devices.
+  rpc TestDevice(TestDeviceRequest) returns (TestDeviceResponse) {
+    option (google.api.http) = {
+      post: "/v1/me/devices/{id}/test"
+      body: "*"
+    };
+  }
+  // The caller's snoozes on a host that have not woken yet.
+  rpc ListSnoozes(ListSnoozesRequest) returns (ListSnoozesResponse) {
+    option (google.api.http) = {get: "/v1/me/snoozes"};
+  }
+  // Mutes a thread or a project for the caller until a time, or for good without one.
+  // Finished turns stay quiet; questions, approvals and failures still notify.
+  rpc SetSnooze(Snooze) returns (Snooze) {
+    option (google.api.http) = {
+      post: "/v1/me/snoozes"
+      body: "*"
+    };
+  }
+  rpc ClearSnooze(ClearSnoozeRequest) returns (ClearSnoozeResponse) {
+    option (google.api.http) = {delete: "/v1/me/snoozes/{host_id}/{target_id}"};
+  }
+}
+
+enum PushPlatform {
+  PUSH_PLATFORM_UNSPECIFIED = 0;
+  // A browser, through the Web Push protocol.
+  PUSH_PLATFORM_WEB = 1;
+  PUSH_PLATFORM_APNS = 2;
+  PUSH_PLATFORM_FCM = 3;
+}
+
+message GetPushConfigRequest {}
+message GetPushConfigResponse {
+  // base64url, as PushManager.subscribe takes it for applicationServerKey.
+  string vapid_public_key = 1;
+}
+
+message RegisterDeviceRequest {
+  PushPlatform platform = 1;
+  // For the web, the subscription's https endpoint, on a known push service.
+  string endpoint = 2;
+  // For the web, the subscription's keys, base64url: a 65-byte P-256 key and a 16-byte secret.
+  string p256dh = 3;
+  string auth = 4;
+  // What to call the device, such as "Chrome on macOS"; at most 64 characters.
+  string label = 5;
+}
+
+message PushDevice {
+  string id = 1;
+  PushPlatform platform = 2;
+  string label = 3;
+  google.protobuf.Timestamp created_at = 4;
+  // When a notification last reached it; unset until one has.
+  google.protobuf.Timestamp last_used_at = 5;
+  // The endpoint, so a browser can find its own subscription in the list.
+  string endpoint = 6;
+}
+
+message ListDevicesRequest {}
+message ListDevicesResponse {
+  repeated PushDevice devices = 1;
+}
+message DeleteDeviceRequest {
+  string id = 1;
+}
+message DeleteDeviceResponse {}
+message TestDeviceRequest {
+  string id = 1;
+}
+message TestDeviceResponse {}
+
+enum SnoozeKind {
+  SNOOZE_KIND_UNSPECIFIED = 0;
+  SNOOZE_KIND_PROJECT = 1;
+  SNOOZE_KIND_THREAD = 2;
+}
+
+message Snooze {
+  string host_id = 1;
+  SnoozeKind kind = 2;
+  // The project's or thread's id on the host; at most 64 characters.
+  string target_id = 3;
+  // When it wakes; unset for never.
+  google.protobuf.Timestamp until = 4;
+}
+
+message ListSnoozesRequest {
+  string host_id = 1;
+}
+message ListSnoozesResponse {
+  repeated Snooze snoozes = 1;
+}
+message ClearSnoozeRequest {
+  string host_id = 1;
+  SnoozeKind kind = 2;
+  string target_id = 3;
+}
+message ClearSnoozeResponse {}
