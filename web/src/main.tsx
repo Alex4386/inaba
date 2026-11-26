@@ -7,23 +7,26 @@ import { App } from "./App";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { I18nProvider } from "@/lib/i18n";
-import { applyCodeFont, applyUiFont } from "@/lib/settings";
+import { applyCodeFont, applyUiFont, loadCodeFont } from "@/lib/settings";
 
 // The chosen code font applies before anything draws.
 applyCodeFont();
 applyUiFont();
 
-createRoot(document.getElementById("root")!).render(
-  // The theme's dark variant is the `dark` class; "system" follows the OS setting.
-  <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-    <I18nProvider>
-      <TooltipProvider>
-        {/* The UI is served under /ui; its own addresses are below that. */}
-        <Router base="/ui">
-          <App />
-        </Router>
-        <Toaster />
-      </TooltipProvider>
-    </I18nProvider>
-  </ThemeProvider>,
+// The editor and terminal measure the code font when they open, so it is fetched before anything draws.
+void loadCodeFont().then(() =>
+  createRoot(document.getElementById("root")!).render(
+    // The theme's dark variant is the `dark` class; "system" follows the OS setting.
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+      <I18nProvider>
+        <TooltipProvider>
+          {/* The UI is served under /ui; its own addresses are below that. */}
+          <Router base="/ui">
+            <App />
+          </Router>
+          <Toaster />
+        </TooltipProvider>
+      </I18nProvider>
+    </ThemeProvider>,
+  ),
 );

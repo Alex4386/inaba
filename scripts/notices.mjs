@@ -15,7 +15,7 @@ const web = path.join(root, "web");
 const isNotice = /^(un)?licen[sc]e|^copying|^notice|^third-?party-?notices|\.license\.txt$/i;
 
 // What source maps do not show: stylesheets and fonts.
-const styles = ["pretendard", "@fontsource-variable/geist", "tailwindcss", "tw-animate-css", "@tailwindcss/typography", "shadcn"];
+const styles = ["pretendard", "@fontsource-variable/geist", "@fontsource-variable/jetbrains-mono", "tailwindcss", "tw-animate-css", "@tailwindcss/typography", "shadcn"];
 
 // Code and pictures kept in this repository, and what a license asks to be said.
 const copied = [

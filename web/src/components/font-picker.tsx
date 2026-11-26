@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { selectTriggerClass } from "@/components/ui/select";
 import { showError } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
-import { builtInUiFonts, codeFont, codeFontStack, setCodeFont, setUiFont, uiFont, uiFontStack, useCodeFont, useUiFont } from "@/lib/settings";
+import { builtInCodeFonts, builtInUiFonts, codeFont, codeFontStack, setCodeFont, setUiFont, uiFont, uiFontStack, useCodeFont, useUiFont } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
 // Families people often have, for code and for the UI; any that is missing is left out.
@@ -26,7 +26,7 @@ function installed(family: string) {
 type LocalFont = { family: string };
 const queryLocalFonts = (window as unknown as { queryLocalFonts?: () => Promise<LocalFont[]> }).queryLocalFonts;
 
-/** Picks the font code is shown in, from common ones or, where the browser lets it, any installed on this computer. */
+/** Picks the font code is shown in: JetBrains Mono, which inaba carries, or one of the common ones, or where the browser lets it, any installed on this computer. */
 export function CodeFontPicker() {
   const { t } = useI18n();
   useCodeFont();
@@ -35,7 +35,7 @@ export function CodeFontPicker() {
       current={codeFont()}
       stack={codeFontStack}
       set={setCodeFont}
-      builtIn={[{ family: "", label: t("codeFont.system") }]}
+      builtIn={builtInCodeFonts.map((f) => ({ family: f.family, label: f.label ? t("uiFont.builtIn", { name: f.label }) : t("codeFont.system") }))}
       common={commonCode}
       sample={"fn main() { let v = [1, 2]; } // 0O1lI"}
     />

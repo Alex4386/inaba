@@ -19,12 +19,17 @@ export function useNotify(): boolean {
   }, notifyEnabled);
 }
 
-// The font code is shown in: the editor, terminals, diffs and code in messages. Empty is the system's own.
+// The font code is shown in: the editor, terminals, diffs and code in messages. Empty is JetBrains Mono, which inaba carries.
 const CODE_FONT_KEY = "inaba.codeFont";
-export const systemCodeFont = "ui-monospace, SFMono-Regular, Menlo, monospace";
+// Hangul is in no code font here: it falls to Pretendard rather than the generic monospace, GulimChe in Korean Windows.
+const codeFallback = '"JetBrains Mono Variable", "Pretendard Variable", monospace';
+export const builtInCodeFonts = [
+  { family: "", label: "JetBrains Mono" },
+  { family: "monospace", label: "" },
+] as const;
 const fontListeners = new Set<() => void>();
 
-/** The chosen code font's family, "" for the system's monospace. */
+/** The chosen code font's family: "" for JetBrains Mono, "monospace" for the system's own. */
 export function codeFont(): string {
   try {
     return localStorage.getItem(CODE_FONT_KEY) ?? "";
@@ -33,9 +38,18 @@ export function codeFont(): string {
   }
 }
 
-/** The CSS font stack for code: the chosen family first, the system's after it for anything it lacks. */
+/** The CSS font stack for code: the chosen family first, the bundled ones after it for anything it lacks. */
 export function codeFontStack(family = codeFont()): string {
-  return family ? `${JSON.stringify(family)}, ${systemCodeFont}` : systemCodeFont;
+  if (family === "monospace") return `ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", Consolas, ${codeFallback}`;
+  return family ? `${JSON.stringify(family)}, ${codeFallback}` : codeFallback;
+}
+
+/** Fetches the web fonts the code font needs: Monaco and the terminal measure their cells once, with what is loaded then. */
+export function loadCodeFont(): Promise<void> {
+  return document.fonts.load(`13px ${codeFontStack()}`).then(
+    () => {},
+    () => {},
+  );
 }
 
 /** Puts the code font where styles read it: Tailwind's font-mono and the diff view's own variable. */
@@ -52,7 +66,9 @@ export function setCodeFont(family: string) {
     // Applies until the page reloads.
   }
   applyCodeFont();
-  for (const listener of fontListeners) listener();
+  void loadCodeFont().then(() => {
+    for (const listener of fontListeners) listener();
+  });
 }
 
 /** The code font stack, following changes, for what sets its font in code: Monaco and the terminal. */
