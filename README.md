@@ -81,7 +81,27 @@ inaba connect
 
 Open the server in your browser, add a project, start a thread. That's it. Forgot all this already? **Add host** in the web UI walks you through it again.
 
-Don't want to babysit a terminal forever? `inaba ezmode install` (yes, `ezmodo` works too) runs the host in the background and brings it back after a reboot: a systemd user service on Linux, a launchd agent on macOS, a Task Scheduler task on Windows. Changed your mind? `inaba ezmode uninstall`.
+<details>
+<summary>Don't know how to set up systemd?</summary>
+
+<!-- GitHub draws no [!WARNING] inside <details>, so this one is drawn by hand. -->
+> ⚠️ **Warning**  
+> ezmodo? Kimoi~ ♡  
+> <img width="480" height="360" alt="Kimoi~" src="https://github.com/user-attachments/assets/8eac00ae-c441-464b-ae00-c1276c501d76" />
+
+Fine. `inaba ezmode install` (yes, `ezmodo` works too) runs the host in the background and brings it back after a reboot, the easiest way your OS has:
+
+| OS | What you get |
+| --- | --- |
+| Linux | a systemd user service, plus lingering so it keeps running after you log out |
+| macOS | a launchd agent, running while you're logged in. Log: `~/Library/Logs/inaba.log` |
+| Windows | a Task Scheduler task started when you sign in, without a console window in your face |
+
+Sign in (`inaba login`) first. It takes your shell's `PATH` along so the host finds the same agents, so run it again after you install agents somewhere new. Running it again also restarts the host, and asks first; `-y` doesn't.
+
+Changed your mind? `inaba ezmode uninstall`. Your settings, sign-in, projects and threads stay.
+
+</details>
 
 New build out? `inaba update` swaps itself for it (`--channel=pre-release`, or `--channel=nightly` with the [gh CLI](https://cli.github.com) signed in) and restarts the host. It asks first; `-y` doesn't, for your cron job. Edited the config by hand? `inaba restart`. Own the host? Both are on its About page too, channel picker included.
 
