@@ -185,6 +185,8 @@ golang.org/x/sync v0.25.0
   https://pkg.go.dev/golang.org/x/sync
 golang.org/x/sys v0.50.0
   https://pkg.go.dev/golang.org/x/sys
+golang.org/x/term v0.48.0
+  https://pkg.go.dev/golang.org/x/term
 golang.org/x/text v0.44.0
   https://pkg.go.dev/golang.org/x/text
 golang.org/x/time v0.15.0
@@ -653,7 +655,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-For: The Go standard library and runtime, golang.org/x/crypto, golang.org/x/net, golang.org/x/oauth2, golang.org/x/sync, golang.org/x/sys, golang.org/x/text, golang.org/x/time
+For: The Go standard library and runtime, golang.org/x/crypto, golang.org/x/net, golang.org/x/oauth2, golang.org/x/sync, golang.org/x/sys, golang.org/x/term, golang.org/x/text, golang.org/x/time
 
 Copyright 2009 The Go Authors.
 
