@@ -252,6 +252,8 @@ func (t *thread) emit(e *inabav1.Event) {
 		t.meta.Mode = p.ModeChanged.Mode
 	case *inabav1.Event_Rewound:
 		t.meta.Rewound = true
+		// The failed turn, if any, was taken back with the rest.
+		t.meta.LastTurnFailed = false
 	}
 	if t.bus != nil {
 		t.bus.publish(t.meta, e, t.copying)

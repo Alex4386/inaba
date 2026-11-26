@@ -246,6 +246,19 @@ func TestLastTurnFailed(t *testing.T) {
 	if got := turn("ok"); got.LastTurnFailed {
 		t.Fatalf("after a good turn: %v", got)
 	}
+	// Rewinding takes the failed turn back, and the mark with it.
+	turn("fail")
+	evs, _ := threads.ListEvents(ctx, &inabav1.ListEventsRequest{ThreadId: th.Id})
+	var seq uint64
+	for _, e := range evs.Events {
+		if e.GetUserMessage().GetText() == "fail" {
+			seq = e.Seq
+		}
+	}
+	res, err := threads.Rewind(ctx, &inabav1.RewindRequest{ThreadId: th.Id, Seq: seq})
+	if err != nil || res.Thread.LastTurnFailed {
+		t.Fatalf("after rewinding the failed turn: %v %v", res, err)
+	}
 }
 
 func waitIdle(t *testing.T, threads inabav1connect.ThreadServiceClient, id string) {

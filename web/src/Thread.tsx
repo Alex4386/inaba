@@ -127,7 +127,9 @@ function apply(log: Log, event: Event): Log {
       // Everything from the message rewound to onward is no longer part of the conversation.
       const i = items.findIndex((it) => it.type === "user" && it.seq === p.value.toSeq);
       if (i >= 0) items.length = i;
-      items.push({ type: "note", key: "chat.rewound" });
+      // One note for rewinds in a row, and none when no conversation is left above it.
+      while (items.at(-1)?.type === "note" && (items.at(-1) as { key: MessageKey }).key === "chat.rewound") items.pop();
+      if (items.some((it) => it.type === "user")) items.push({ type: "note", key: "chat.rewound" });
       break;
     }
     case "providerChanged":
