@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -47,7 +48,7 @@ func main() {
 	f.StringVar(&configPath, "config", "", "JSON or YAML settings file read last, over the others found (default: $INABA_CONFIG; see the README)")
 	f.String("data", "", "SQLite file that stores this host's projects and threads; its folder also holds worktrees and the sign-in (default: see the README)")
 	f.String("socket", "", "control socket the host listens on and the other commands talk to (default: see the README)")
-	root.AddCommand(loginCommand(), logoutCommand(), connectCommand(), openCommand(), projectCommand(), sessionCommand(), housekeepingCommand(), automationCommand(), moduleCommand(), mcpCommand(), mcpBridgeCommand(), updateCommand(), restartCommand())
+	root.AddCommand(loginCommand(), logoutCommand(), connectCommand(), openCommand(), projectCommand(), sessionCommand(), housekeepingCommand(), automationCommand(), moduleCommand(), mcpCommand(), mcpBridgeCommand(), updateCommand(), restartCommand(), ezmodeCommand())
 	if err := root.Execute(); err != nil {
 		slog.Error(err.Error())
 		os.Exit(1)
@@ -113,11 +114,20 @@ func loadSettings(cmd *cobra.Command) error {
 }
 
 func connectCommand() *cobra.Command {
+	var logFile string
 	cmd := &cobra.Command{
 		Use:   "connect",
 		Short: "Connect this machine to an inaba-server and run its threads",
 		Args:  cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
+			if logFile != "" {
+				f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+				if err != nil {
+					return fmt.Errorf("log file: %w", err)
+				}
+				// slog's default handler writes through the log package.
+				log.SetOutput(f)
+			}
 			serverURL, token, listen := cfg.Server, cfg.Token, cfg.Listen
 			slog.Info("settings", "files", settingsRead)
 			// Agents that cannot reach HTTP MCP servers get them through this binary.
@@ -212,6 +222,7 @@ func connectCommand() *cobra.Command {
 	f.String("server", "", "inaba-server URL, such as https://inaba.example.com (default: $INABA_SERVER, else the one signed in to)")
 	f.String("token", "", "this host's secret, from `inaba-server host add`; prefer $INABA_TOKEN, since others can see flags; without it, the sign-in from `inaba login` is used")
 	f.String("listen", "", "also serve the API here with every permission and no sign-in, for local development; loopback addresses only, such as 127.0.0.1:8081")
+	f.StringVar(&logFile, "log-file", "", "append the log to this file instead of writing it to the terminal, for where there is none to see it")
 	return cmd
 }
 
