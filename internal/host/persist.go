@@ -162,6 +162,16 @@ func (h *Host) OpenData(path string) error {
 				break
 			}
 		}
+		// And for the failed mark, which rewinds saved before they cleared it still carry.
+		meta.LastTurnFailed = false
+		for _, e := range t.events {
+			switch p := e.Payload.(type) {
+			case *inabav1.Event_TurnEnded:
+				meta.LastTurnFailed = p.TurnEnded.Error != ""
+			case *inabav1.Event_TurnStarted, *inabav1.Event_Rewound:
+				meta.LastTurnFailed = false
+			}
+		}
 		if meta.Mode == inabav1.ThreadMode_THREAD_MODE_TERMINAL {
 			t.term = ptyterm.Exited()
 		}

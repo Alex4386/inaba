@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -995,5 +996,54 @@ func TestEmitActivity(t *testing.T) {
 	th.emit(&inabav1.Event{Payload: &inabav1.Event_UserMessage{UserMessage: &inabav1.UserMessage{Text: "hi"}}})
 	if m := th.snapshot(); m.LastSeq != 2 || m.ActivitySeq != 2 || !proto.Equal(m.UpdatedAt, th.events[1].Time) {
 		t.Fatalf("after a message: last %d, activity %d, updated %v", m.LastSeq, m.ActivitySeq, m.UpdatedAt)
+	}
+}
+
+// The failed mark is worked out again from the log on start, so one a rewind left
+// behind before rewinds cleared it goes, and a real failure stays.
+func TestFailedMarkFollowsTheLogAfterARestart(t *testing.T) {
+	path := filepath.Join(testdir.New(t), "inaba.db")
+	ctx := Trusted(context.Background())
+	h := New(fakeProvider{})
+	if err := h.OpenData(path); err != nil {
+		t.Fatal(err)
+	}
+	failTurn := func(id string) {
+		t.Helper()
+		h.StartTurn(ctx, &inabav1.StartTurnRequest{ThreadId: id, Text: "fail"})
+		for range 200 {
+			if th, _ := h.GetThread(ctx, &inabav1.GetThreadRequest{ThreadId: id}); th.Status == inabav1.ThreadStatus_THREAD_STATUS_IDLE {
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		t.Fatal("turn did not end")
+	}
+	stale, _ := h.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "fake", Cwd: t.TempDir()})
+	failed, _ := h.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "fake", Cwd: t.TempDir()})
+	failTurn(stale.Id)
+	failTurn(failed.Id)
+	evs, _ := h.ListEvents(ctx, &inabav1.ListEventsRequest{ThreadId: stale.Id})
+	if _, err := h.Rewind(ctx, &inabav1.RewindRequest{ThreadId: stale.Id, Seq: evs.Events[slices.IndexFunc(evs.Events, func(e *inabav1.Event) bool { return e.GetUserMessage() != nil })].Seq}); err != nil {
+		t.Fatal(err)
+	}
+	// As an older inaba saved it: rewound, yet still marked failed.
+	th, _ := h.thread(stale.Id)
+	th.mu.Lock()
+	th.meta.LastTurnFailed = true
+	th.save.meta(th.meta)
+	th.mu.Unlock()
+	h.Close()
+
+	h = New(fakeProvider{})
+	t.Cleanup(h.Close)
+	if err := h.OpenData(path); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := h.GetThread(ctx, &inabav1.GetThreadRequest{ThreadId: stale.Id}); got.LastTurnFailed {
+		t.Fatal("a rewound thread is still marked failed after a restart")
+	}
+	if got, _ := h.GetThread(ctx, &inabav1.GetThreadRequest{ThreadId: failed.Id}); !got.LastTurnFailed {
+		t.Fatal("a failed thread lost its mark after a restart")
 	}
 }
