@@ -414,6 +414,23 @@ func TestTurnSnapshotsDiffAndRestore(t *testing.T) {
 		t.Fatalf("a snapshot id that is an option: %v", err)
 	}
 
+	// A fork gets a worktree of its own with the files as the turn left them, uncommitted included.
+	evs, _ := h.ListEvents(ctx, &inabav1.ListEventsRequest{ThreadId: th.Id})
+	fork, err := h.ForkThread(ctx, &inabav1.ForkThreadRequest{ThreadId: th.Id, Seq: evs.Events[len(evs.Events)-1].Seq})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inFork := func(name string) string {
+		b, err := os.ReadFile(filepath.Join(fork.Cwd, name))
+		if err != nil {
+			return "<missing>"
+		}
+		return string(b)
+	}
+	if fork.Cwd == wt || inFork("a.txt") != "one\nCHANGED\n" || inFork("new.txt") != "fresh\n" || inFork("b.txt") != "<missing>" {
+		t.Fatalf("fork's files: a=%q new=%q b=%q", inFork("a.txt"), inFork("new.txt"), inFork("b.txt"))
+	}
+
 	// Back to before the turn: the change undone, the new file gone, the removed one back.
 	res, err := h.Restore(ctx, &inabav1.GitRestoreRequest{ThreadId: th.Id, Commit: c.Before})
 	if err != nil {

@@ -73,7 +73,7 @@ export function ProjectsPage({ link, onOpen, onAddProject }: { link: HostLink; o
         )}
       </PageHeader>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto grid w-full max-w-3xl gap-4 p-6">
+        <div className="mx-auto grid w-full max-w-3xl grid-cols-[minmax(0,1fr)] gap-4 p-6">
           <Input className="max-w-64" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t("archive.filterProjects")} aria-label={t("archive.filterProjects")} />
           {!shown ? (
             <Spinner />
@@ -159,7 +159,7 @@ export function ProjectThreadsPage({
         )}
       </PageHeader>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto grid w-full max-w-3xl gap-4 p-6">
+        <div className="mx-auto grid w-full max-w-3xl grid-cols-[minmax(0,1fr)] gap-4 p-6">
           <Input className="max-w-64" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t("archive.filterThreads")} aria-label={t("archive.filterThreads")} />
           {!projects ? (
             <Spinner />

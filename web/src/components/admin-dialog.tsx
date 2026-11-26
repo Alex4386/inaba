@@ -101,7 +101,7 @@ export function AdminPage({
         )}
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto grid w-full max-w-6xl gap-4 p-6">{section === "overview" ? (
+        <div className="mx-auto grid w-full max-w-6xl grid-cols-[minmax(0,1fr)] gap-4 p-6">{section === "overview" ? (
             <AdminOverview onSection={(s) => onItem(s)} onHost={(id) => onItem("hosts", id)} />
           ) : section === "accounts" ? (
             item ? (

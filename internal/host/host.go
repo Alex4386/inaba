@@ -220,7 +220,10 @@ func (t *thread) emit(e *inabav1.Event) {
 	t.meta.LastSeq++
 	e.Seq = t.meta.LastSeq
 	e.ThreadId = t.meta.Id
-	e.Time = timestamppb.Now()
+	// A fork's copied events keep when they happened, so the copy reads like the original.
+	if !t.copying || e.Time == nil {
+		e.Time = timestamppb.Now()
+	}
 	if activity(e) {
 		t.meta.ActivitySeq = e.Seq
 		t.meta.UpdatedAt = e.Time
@@ -857,23 +860,50 @@ func (h *Host) SetOption(ctx context.Context, req *inabav1.SetOptionRequest) (*i
 	if err != nil {
 		return nil, err
 	}
-	sess, err := h.session(req.ThreadId)
+	sess, err := t.structured()
 	if err != nil {
 		return nil, err
-	}
-	c, ok := sess.(provider.Configurable)
-	if !ok {
-		return nil, connect.NewError(connect.CodeUnimplemented, "this agent has no options to set")
 	}
 	meta := t.snapshot()
 	i := slices.IndexFunc(meta.Options, func(o *inabav1.SessionOption) bool { return o.Id == req.OptionId })
 	if i < 0 || !offers(meta.Options[i], req.Value) {
 		return nil, connect.NewError(connect.CodeInvalidArgument, "the agent does not offer that choice")
 	}
+	if sess == nil {
+		return t.keepOption(req.OptionId, req.Value)
+	}
+	c, ok := sess.(provider.Configurable)
+	if !ok {
+		return nil, connect.NewError(connect.CodeUnimplemented, "this agent has no options to set")
+	}
 	if err := c.SetOption(ctx, req.OptionId, req.Value); err != nil {
 		// The agent's own words say why it refused.
 		return nil, connect.NewError(connect.CodeFailedPrecondition, "the agent did not accept the change: "+err.Error())
 	}
+	return t.snapshot(), nil
+}
+
+// keepOption records a choice while no agent runs, as after a rewind or a restart;
+// openSession sets it when the next turn starts the agent.
+func (t *thread) keepOption(id, value string) (*inabav1.Thread, error) {
+	// Under op, so no agent starts meanwhile, and the only options reported are these.
+	t.op.Lock()
+	defer t.op.Unlock()
+	if sess, err := t.structured(); err != nil || sess != nil {
+		return nil, connect.NewError(connect.CodeAborted, "the agent started meanwhile; try again")
+	}
+	options := t.snapshot().Options
+	i := slices.IndexFunc(options, func(o *inabav1.SessionOption) bool { return o.Id == id })
+	options[i].Value = value
+	// These are the options as shown, with hidden models left out: not what the agent offers.
+	t.mu.Lock()
+	learned := t.learned
+	t.learned = nil
+	t.mu.Unlock()
+	t.emit(&inabav1.Event{Payload: &inabav1.Event_OptionsChanged{OptionsChanged: &inabav1.OptionsChanged{Options: options}}})
+	t.mu.Lock()
+	t.learned = learned
+	t.mu.Unlock()
 	return t.snapshot(), nil
 }
 

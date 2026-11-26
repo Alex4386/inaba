@@ -4,6 +4,7 @@ import { Picker } from "@/components/picker";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { selectTriggerClass } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import type { SessionOption } from "@/gen/inaba/v1/host_pb";
 import { useI18n } from "@/lib/i18n";
 import { bindingOf, formatBinding, matches, useKeybindings } from "@/lib/keybindings";
@@ -176,9 +177,9 @@ function ModelPicker({
           </div>
           {effort && (
             <div className="grid w-44 content-start gap-0.5 border-l p-2">
-              <div className="text-muted-foreground flex items-center justify-between px-2 py-1.5 text-xs">
-                <span>{effort.name}</span>
-                <span className="truncate">{current?.name}</span>
+              <div className="text-muted-foreground flex min-w-0 items-center justify-between gap-2 px-2 py-1.5 text-xs">
+                <span className="shrink-0">{effort.name}</span>
+                <span className="min-w-0 truncate">{current?.name}</span>
               </div>
               {effort.choices.map((c) => (
                 <button key={c.value} type="button" className="hover:bg-muted flex items-center rounded-md px-2 py-1.5 text-left text-sm" title={c.description} onClick={() => onSet(effort.id, c.value)}>
@@ -190,21 +191,26 @@ function ModelPicker({
           )}
         </div>
         {(switches.length > 0 || mode) && (
-          <div className="bg-muted/30 flex flex-wrap items-center gap-1.5 border-t p-2">
+          <div className="bg-muted/30 flex flex-wrap items-center gap-x-4 gap-y-2 border-t px-3 py-2">
+            {/* Switches look like switches, so an off one does not read as a label for what sits beside it. */}
             {switches.map((o) => (
-              <Button key={o.id} type="button" size="sm" variant={o.value === "true" ? "secondary" : "ghost"} aria-pressed={o.value === "true"} title={o.description || o.name} onClick={() => onSet(o.id, o.value === "true" ? "false" : "true")}>
+              <label key={o.id} className="flex items-center gap-2 text-sm" title={o.description || o.name}>
+                <Switch size="sm" checked={o.value === "true"} onCheckedChange={(on) => onSet(o.id, on ? "true" : "false")} />
                 {o.name}
-              </Button>
+              </label>
             ))}
             {mode && (
-              <Picker
-                size="sm"
-                className="ml-auto border-0 shadow-none"
-                label={mode.name}
-                value={mode.value}
-                onChange={(value) => onSet(mode.id, value)}
-                options={mode.choices.map((c) => ({ value: c.value, label: c.name }))}
-              />
+              <div className="ml-auto flex items-center gap-1 text-sm">
+                <span className="text-muted-foreground">{mode.name}</span>
+                <Picker
+                  size="sm"
+                  className="border-0 shadow-none"
+                  label={mode.name}
+                  value={mode.value}
+                  onChange={(value) => onSet(mode.id, value)}
+                  options={mode.choices.map((c) => ({ value: c.value, label: c.name }))}
+                />
+              </div>
             )}
           </div>
         )}
@@ -233,8 +239,9 @@ export function OptionsBar({
 }) {
   const rank = (o: SessionOption) => optionOrder.indexOf(o.category) + 1 || optionOrder.length + 1;
   const model = options.find((o) => o.category === "model" && !o.boolean);
-  // With a model to pick, its effort, its switches and the access mode go in its picker.
-  const inPicker = (o: SessionOption) => Boolean(model) && (o === model || (o.category === "thought_level" && !o.boolean) || (o.category === "model_config" && o.boolean) || (o.category === "mode" && !o.boolean));
+  // With a model to pick, its effort, its switches (speed among them) and the access mode go in its picker.
+  const isSwitch = (o: SessionOption) => o.boolean && (o.category === "model_config" || o.category === "speed");
+  const inPicker = (o: SessionOption) => Boolean(model) && (o === model || (o.category === "thought_level" && !o.boolean) || isSwitch(o) || (o.category === "mode" && !o.boolean));
   const rest = options.filter((o) => !inPicker(o));
   return (
     <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
@@ -243,7 +250,7 @@ export function OptionsBar({
         <ModelPicker
           model={model}
           effort={model && options.find((o) => o.category === "thought_level" && !o.boolean)}
-          switches={model ? options.filter((o) => o.category === "model_config" && o.boolean) : []}
+          switches={model ? options.filter(isSwitch) : []}
           mode={model && options.find((o) => o.category === "mode" && !o.boolean)}
           onSet={onSet}
           providers={providers}

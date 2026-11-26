@@ -2,11 +2,13 @@ package host
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 	"strings"
 
 	"connectrpc.com/connect/v2"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	inabav1 "github.com/Alex4386/inaba/gen/inaba/v1"
 )
@@ -38,6 +40,21 @@ func (h *Host) ForkThread(ctx context.Context, req *inabav1.ForkThreadRequest) (
 	if err != nil {
 		return nil, err
 	}
+	if meta.Worktree {
+		// The new worktree starts at the commit; put the files as they were when the last
+		// carried turn ended, uncommitted ones included, so they match the conversation.
+		var asked uint64
+		for _, e := range carried {
+			if e.GetUserMessage() != nil {
+				asked = e.Seq
+			}
+		}
+		if after, err := git(ctx, meta.Cwd, "rev-parse", "--verify", "-q", turnRef(meta.Id, asked)+"-after"); asked > 0 && err == nil {
+			if _, err := restoreFiles(ctx, fork, strings.TrimSpace(after)); err != nil {
+				slog.Warn("the fork's worktree keeps the commit's files", "thread", fork.Id, "reason", err)
+			}
+		}
+	}
 	t, err := h.thread(fork.Id)
 	if err != nil {
 		return nil, err
@@ -52,10 +69,12 @@ func (h *Host) ForkThread(ctx context.Context, req *inabav1.ForkThreadRequest) (
 		if ended := c.GetTurnEnded(); ended != nil {
 			ended.Usage, ended.Copied = nil, true
 		}
-		t.emit(&inabav1.Event{Payload: c.Payload})
+		t.emit(&inabav1.Event{Payload: c.Payload, Time: c.Time})
 	}
 	t.mu.Lock()
 	t.copying = false
+	// The copied events carry their old times; the fork itself is new.
+	t.meta.UpdatedAt = timestamppb.Now()
 	t.meta.Rewound = true
 	t.save.meta(t.meta)
 	t.mu.Unlock()

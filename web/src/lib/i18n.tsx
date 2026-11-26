@@ -2173,6 +2173,24 @@ function initialLocale(): Locale {
   return navigator.language.toLowerCase().startsWith("ko") ? "ko" : "en";
 }
 
+// English strings for a count of one, used in place of the plural when {count} is 1.
+// shortcut: English only, as Korean has no plural form; a library takes over with a language that needs more.
+const enOne: Partial<Record<MessageKey, string>> = {
+  "chat.steps": "{count} step",
+  "git.turnScope": "Turn {n} · {count} file",
+  "git.latestTurn": "Latest turn ({n}) · {count} file",
+  "git.allChanges": "All changes ({count} file)",
+  "git.testsHidden": "{count} test file hidden",
+  "usage.days": "{count} day",
+  "usage.tokenCount": "{count} token",
+  "providers.modelCount": "{count} model",
+  "archive.threadCount": "{count} thread",
+  "archivePolicy.after": "After {count} day",
+  "auto.runs": "{count} run",
+  "accountDetail.browsers": "{count} browser",
+  "overview.cores": "{count} core",
+};
+
 export type Translate = (key: MessageKey, values?: Record<string, string>) => string;
 
 const I18nContext = createContext<{ locale: Locale; setLocale: (locale: Locale) => void; t: Translate } | undefined>(undefined);
@@ -2187,7 +2205,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const value = useMemo(() => {
     document.documentElement.lang = locale;
     // {name} is filled in; {{name}} is left as it is, for text that shows a placeholder of inaba's own.
-    const t: Translate = (key, values) => dictionaries[locale][key].replace(/(?<!\{)\{(\w+)\}(?!\})/g, (_, name: string) => values?.[name] ?? "");
+    const t: Translate = (key, values) => ((locale === "en" && values?.count === "1" && enOne[key]) || dictionaries[locale][key]).replace(/(?<!\{)\{(\w+)\}(?!\})/g, (_, name: string) => values?.[name] ?? "");
     return { locale, setLocale, t };
   }, [locale, setLocale]);
   return <I18nContext value={value}>{children}</I18nContext>;

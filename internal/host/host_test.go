@@ -767,6 +767,21 @@ func TestOptionChoiceOutlivesTheAgentProcess(t *testing.T) {
 	if got, _ := h.GetThread(ctx, &inabav1.GetThreadRequest{ThreadId: th.Id}); got.Options[0].Value != "haiku" {
 		t.Fatalf("model after the agent restarted = %q", got.Options[0].Value)
 	}
+	// With no agent running, as after a rewind, a choice is kept and put on the next one.
+	h.StartTurn(ctx, &inabav1.StartTurnRequest{ThreadId: th.Id, Text: "hang"})
+	h.Interrupt(ctx, &inabav1.InterruptRequest{ThreadId: th.Id, Force: true})
+	waitStatus()
+	if got, err := h.SetOption(ctx, &inabav1.SetOptionRequest{ThreadId: th.Id, OptionId: "model", Value: "opus"}); err != nil || got.Options[0].Value != "opus" {
+		t.Fatalf("set option with no agent running: %v %v", got, err)
+	}
+	if _, err := h.SetOption(ctx, &inabav1.SetOptionRequest{ThreadId: th.Id, OptionId: "model", Value: "gpt"}); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("an unoffered choice with no agent running: %v", err)
+	}
+	h.StartTurn(ctx, &inabav1.StartTurnRequest{ThreadId: th.Id, Text: "again"})
+	waitStatus()
+	if got, _ := h.GetThread(ctx, &inabav1.GetThreadRequest{ThreadId: th.Id}); got.Options[0].Value != "opus" {
+		t.Fatalf("model chosen while no agent ran, after it started = %q", got.Options[0].Value)
+	}
 }
 
 // What one thread's agent offered can be chosen for the next thread before it

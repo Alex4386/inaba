@@ -2,11 +2,14 @@ package host
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect/v2"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	inabav1 "github.com/Alex4386/inaba/gen/inaba/v1"
 )
@@ -45,6 +48,23 @@ func TestForkCarriesTheConversationThroughATurn(t *testing.T) {
 	}
 	if got := logLine(t, h, fork.Id); got != "user:first ended:end_turn" {
 		t.Fatalf("the fork holds %q", got)
+	}
+	// Copied events keep their times, so a turn shows how long it took in the original.
+	copied, _ := h.ListEvents(ctx, &inabav1.ListEventsRequest{ThreadId: fork.Id})
+	timeOf := func(events []*inabav1.Event, match func(*inabav1.Event) bool) *timestamppb.Timestamp {
+		i := slices.IndexFunc(events, match)
+		if i < 0 {
+			t.Fatal("no such event")
+		}
+		return events[i].Time
+	}
+	for _, match := range []func(*inabav1.Event) bool{
+		func(e *inabav1.Event) bool { return e.GetUserMessage().GetText() == "first" },
+		func(e *inabav1.Event) bool { return e.GetTurnEnded() != nil },
+	} {
+		if was, now := timeOf(evs.Events, match), timeOf(copied.Events, match); !proto.Equal(was, now) {
+			t.Fatalf("copied event at %v, the original at %v", now.AsTime(), was.AsTime())
+		}
 	}
 	turn(fork.Id, "third")
 	evs, _ = h.ListEvents(ctx, &inabav1.ListEventsRequest{ThreadId: fork.Id})
