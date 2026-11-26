@@ -1,0 +1,46 @@
+name: Nightly
+
+# Builds main every night, unless nothing changed since the last nightly. The archives stay
+# on the run as artifacts; nothing is released.
+on:
+  schedule:
+    - cron: "17 18 * * *" # 03:17 in Seoul
+  workflow_dispatch:
+  pull_request:
+    paths: [.github/workflows/nightly.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-${{ github.ref }}
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    outputs:
+      build: ${{ steps.plan.outputs.build }}
+      version: ${{ steps.plan.outputs.version }}
+    steps:
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          build=true version="nightly-$(date -u +%Y%m%d)-${GITHUB_SHA::7}"
+          if [ "$GITHUB_EVENT_NAME" = schedule ]; then
+            last=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/nightly.yml/runs?event=schedule&status=success&per_page=1" \
+              --jq '.workflow_runs[0].head_sha // empty' 2>/dev/null || true)
+            if [ "$last" = "$GITHUB_SHA" ]; then build=false; fi
+          fi
+          printf '%s\n' "build=$build" "version=$version" | tee -a "$GITHUB_OUTPUT"
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.build == 'true'
+    uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ needs.plan.outputs.version }}
+      label: nightly

@@ -1,0 +1,116 @@
+name: Build
+
+# Builds both binaries on each platform's own kind of machine, runs them there, and leaves
+# one archive per platform as an artifact of the run. Release and Nightly call this.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: What the binaries say with --version.
+        type: string
+        required: true
+      label:
+        description: The part of the archive names between inaba_ and the platform.
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Web UI
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      # Plain files, so they are built once for every platform.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: internal/webui/dist
+          if-no-files-found: error
+
+  build:
+    name: ${{ matrix.os }}/${{ matrix.arch }}
+    needs: web
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: linux, arch: amd64, runner: ubuntu-24.04 }
+          - { os: linux, arch: arm64, runner: ubuntu-24.04-arm }
+          - { os: darwin, arch: amd64, runner: macos-15-intel }
+          - { os: darwin, arch: arm64, runner: macos-15 }
+          - { os: windows, arch: amd64, runner: windows-latest }
+          - { os: windows, arch: arm64, runner: windows-11-arm }
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ inputs.version }}
+      NAME: inaba_${{ inputs.label }}_${{ matrix.os }}_${{ matrix.arch }}
+      PLATFORM: ${{ matrix.os }}/${{ matrix.arch }}
+      # The SQLite driver is pure Go, so the binaries need no C library.
+      CGO_ENABLED: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/download-artifact@v4
+        with:
+          name: web
+          path: internal/webui/dist
+      - name: build
+        run: |
+          # The runner must be of the platform it builds for, not one translating it.
+          test "$(go env GOOS)/$(go env GOARCH)" = "$PLATFORM"
+          mkdir -p "out/$NAME"
+          go build -trimpath -ldflags="-s -w -X github.com/Alex4386/inaba/internal/version.version=$VERSION" -o "out/$NAME/" ./cmd/inaba ./cmd/inaba-server
+      - name: run what was built
+        run: |
+          cd "out/$NAME"
+          for bin in inaba inaba-server; do
+            said=$(./$bin --version)
+            echo "$said"
+            grep -F "$VERSION" <<< "$said" > /dev/null
+          done
+          ./inaba-server serve --listen 127.0.0.1:18080 --data smoke/inaba-server.db &
+          server=$!
+          for _ in $(seq 30); do curl -fsS http://127.0.0.1:18080/v1/config && break; sleep 1; done
+          # The web UI is in there, not just its placeholder.
+          curl -fsS http://127.0.0.1:18080/ui/ | grep -i '<script' > /dev/null
+          kill $server
+          wait $server || true
+          rm -rf smoke
+      - name: package
+        run: |
+          cp README.md LICENSE THIRD_PARTY_NOTICES.txt docs/CONFIGURATION.md "out/$NAME/"
+          if [ "$RUNNER_OS" = Linux ]; then cp -R contrib/systemd "out/$NAME/"; fi
+          cd out
+          if [ "$RUNNER_OS" = Windows ]; then
+            /c/Windows/System32/tar.exe -a -c -f "$NAME.zip" "$NAME"
+          else
+            tar -czf "$NAME.tar.gz" "$NAME"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.NAME }}
+          path: |
+            out/*.zip
+            out/*.tar.gz
+          if-no-files-found: error
