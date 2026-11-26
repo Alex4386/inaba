@@ -40,7 +40,7 @@ export function QueueList({
   };
   if (queue.length === 0) return null;
   return (
-    <ul className="grid gap-1" aria-label={t("queue.title")}>
+    <ul className="grid grid-cols-1 gap-1" aria-label={t("queue.title")}>
       {queue.map((queued, i) =>
         editing === queued.id ? (
           <li key={queued.id} className="flex items-start gap-1 rounded-lg border border-dashed p-1">

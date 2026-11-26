@@ -482,7 +482,8 @@ export function ThreadView({
           )}
           <h1 className="truncate text-sm font-medium">{threadName(thread)}</h1>
           {/* Which agent and how this browser reaches the host are in the info card, not tags here. */}
-          {(busy || threadFailed(thread)) && <span className={cn("hidden truncate text-xs @2xl:inline", busy ? "text-muted-foreground" : "text-destructive")}>{threadState(thread, t)}</span>}
+          {/* Takes only the room the name leaves (no basis of its own), so it is cut before the name is. */}
+          {(busy || threadFailed(thread)) && <span className={cn("hidden min-w-0 flex-1 basis-0 truncate text-xs @2xl:inline", busy ? "text-muted-foreground" : "text-destructive")}>{threadState(thread, t)}</span>}
           <div className="ml-auto flex shrink-0 items-center gap-2">
             {/* Who else has this thread open. */}
             <PeopleStack people={here} label={driving ? t("drive.watchers") : undefined} />
@@ -1394,7 +1395,7 @@ function Chat({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <div className="mx-auto grid w-full max-w-3xl gap-2 px-4 pb-4">
+      <div className="mx-auto grid w-full max-w-3xl grid-cols-1 gap-2 px-4 pb-4">
         {/* What is queued, and the composer, are the driver's to change. */}
         <fieldset ref={composer} disabled={locked} className="contents">
         <QueueList
@@ -1518,7 +1519,7 @@ function ToolRow({ item }: { item: Extract<Item, { type: "tool" }> }) {
   const more = Boolean(item.output || (item.input && item.input !== item.title));
   const title = (
     <>
-      <span className={cn("wrap-anywhere", item.kind === "execute" && "font-mono text-xs")}>{item.title || item.kind || "tool"}</span>
+      <span className={cn("wrap-anywhere", item.kind === "execute" && "font-mono text-xs", open && item.kind === "execute" && "whitespace-pre-wrap")}>{item.title || item.kind || "tool"}</span>
       {/* Only a failure is worth a word; the rest is the normal course of things. */}
       {item.status === "failed" && <span className="text-destructive ml-2 text-xs">{t("chat.toolFailed")}</span>}
     </>
@@ -1527,7 +1528,8 @@ function ToolRow({ item }: { item: Extract<Item, { type: "tool" }> }) {
     <Row icon={toolIcons[item.kind] ?? <WrenchIcon />}>
       {more ? (
         <button type="button" className="hover:text-foreground inline-flex max-w-full items-start gap-1 text-left" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-          <span className="min-w-0">{title}</span>
+          {/* One line until opened, however long the command. */}
+          <span className={cn("min-w-0", !open && "truncate")}>{title}</span>
           <ChevronRightIcon className={cn("mt-1 size-3.5 shrink-0 transition-transform", open && "rotate-90")} />
         </button>
       ) : (
