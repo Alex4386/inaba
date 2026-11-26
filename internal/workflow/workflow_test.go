@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -13,7 +14,11 @@ func TestDirOnlyFromAWorkflowFolder(t *testing.T) {
 		raw, _ := json.Marshal(map[string]any{"toolResponse": map[string]any{"taskType": taskType, "transcriptDir": dir}})
 		return map[string]json.RawMessage{"claudeCode": raw}
 	}
-	ok := "/home/a/.claude/projects/p/s/subagents/workflows/wf_1"
+	// An absolute path as the platform spells it: Windows wants a drive, and cleans to backslashes.
+	ok := filepath.FromSlash("/home/a/.claude/projects/p/s/subagents/workflows/wf_1")
+	if runtime.GOOS == "windows" {
+		ok = `C:` + ok
+	}
 	for _, tc := range []struct {
 		meta map[string]json.RawMessage
 		want string
