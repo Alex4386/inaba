@@ -324,6 +324,22 @@ message ToolCall {
   // What the tool gave back as text, cut at 64 KiB. An update without it leaves it
   // as it was.
   string output = 7;
+  // The agents a background workflow started by this call has spawned, all of them as
+  // they last stood. An update without it leaves them as they were.
+  repeated WorkflowAgent agents = 8;
+}
+
+// One agent of a background workflow, such as Claude Code's ultracode runs.
+message WorkflowAgent {
+  string id = 1;
+  // The workflow's name for it, and the phase it belongs to.
+  string label = 2;
+  string phase = 3;
+  bool done = 4;
+  // What it is doing now, as its latest tool call: "Bash: go test ./...".
+  string activity = 5;
+  // What it returned, cut short, once done.
+  string result = 6;
 }
 
 message PermissionRequest {

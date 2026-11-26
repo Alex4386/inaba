@@ -25,4 +25,23 @@ describe("apply", () => {
     expect(shown).toEqual(["started two agents", "the results"]);
     expect(log.items.filter((it) => it.type === "turn")).toHaveLength(2);
   });
+
+  it("keeps a workflow's agents in view and up to date after its turn ended", () => {
+    const agent = (id: string, done: boolean) => ({ id, label: id, phase: "Review", done, activity: done ? "" : "Bash: go test", result: done ? "ok" : "" });
+    const events = [
+      ev(1, { case: "userMessage", value: { text: "review" } }),
+      ev(2, { case: "turnStarted", value: {} }),
+      ev(3, { case: "toolCall", value: { id: "w", title: "Workflow" } }),
+      text(4, "started"),
+      ev(5, { case: "turnEnded", value: { stopReason: "end_turn" } }),
+      ev(6, { case: "toolCall", value: { id: "w", agents: [agent("a", false), agent("b", false)] } }),
+      ev(7, { case: "toolCall", value: { id: "w", agents: [agent("a", true), agent("b", false)] } }),
+      // An update without agents leaves them.
+      ev(8, { case: "toolCall", value: { id: "w", status: "completed" } }),
+    ];
+    const log = events.reduce(apply, { items: [], lastSeq: 0n });
+    const tool = blocks(log.items).find((b) => "type" in b && b.type === "tool") as { agents: { done: boolean }[] } | undefined;
+    expect(tool?.agents.map((a) => a.done)).toEqual([true, false]);
+    expect(log.items.filter((it) => it.type === "turn")).toHaveLength(1);
+  });
 });

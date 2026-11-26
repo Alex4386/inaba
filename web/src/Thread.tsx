@@ -1531,7 +1531,36 @@ function ToolRow({ item }: { item: Extract<Item, { type: "tool" }> }) {
           <pre className="px-3 py-2 break-all whitespace-pre-wrap">{item.output || t("chat.noOutput")}</pre>
         </div>
       )}
+      {item.agents.length > 0 && <WorkflowAgents agents={item.agents} />}
     </Row>
+  );
+}
+
+/** The agents a background workflow spawned, by phase: what each is doing, or what it found. */
+function WorkflowAgents({ agents }: { agents: Extract<Item, { type: "tool" }>["agents"] }) {
+  const { t } = useI18n();
+  const phases = [...new Set(agents.map((a) => a.phase))];
+  const done = agents.filter((a) => a.done).length;
+  return (
+    <div className="mt-1 mb-2 grid gap-2 rounded-md border px-3 py-2">
+      <div className="text-xs">{t("chat.workflowAgents", { done: String(done), count: String(agents.length) })}</div>
+      {phases.map((phase) => (
+        <div key={phase} className="grid gap-1">
+          {phase && <div className="text-foreground text-xs font-medium">{phase}</div>}
+          {agents
+            .filter((a) => a.phase === phase)
+            .map((a) => (
+              <div key={a.id} className="flex items-start gap-2 text-xs leading-5">
+                <span className="flex h-5 w-3.5 shrink-0 items-center justify-center">{a.done ? <CheckIcon className="text-success size-3.5" /> : <Spinner className="size-3.5" />}</span>
+                <div className="min-w-0 flex-1">
+                  <span className="text-foreground">{a.label || a.id}</span>
+                  {a.done ? a.result && <p className="line-clamp-3 wrap-anywhere">{a.result}</p> : a.activity && <p className="truncate font-mono">{a.activity}</p>}
+                </div>
+              </div>
+            ))}
+        </div>
+      ))}
+    </div>
   );
 }
 

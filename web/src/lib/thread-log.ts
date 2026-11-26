@@ -1,7 +1,7 @@
 // How a thread's events become what the thread view shows.
 import { toJson } from "@bufbuild/protobuf";
 import { ValueSchema } from "@bufbuild/protobuf/wkt";
-import { type Attachment, type Event, type Plan_Entry, type PermissionRequest_Option, TextDelta_Kind, ThreadMode } from "@/gen/inaba/v1/host_pb";
+import { type Attachment, type Event, type Plan_Entry, type PermissionRequest_Option, TextDelta_Kind, ThreadMode, type WorkflowAgent } from "@/gen/inaba/v1/host_pb";
 import type { MessageKey } from "@/lib/i18n";
 
 export type Item =
@@ -12,7 +12,8 @@ export type Item =
   | { type: "plan"; entries: Plan_Entry[] }
   // A line of the UI's own, kept as a message key so it follows the language setting.
   | { type: "note"; key: MessageKey; values?: Record<string, string> }
-  | { type: "tool"; id: string; title: string; kind: string; status: string; input: string; output: string }
+  // agents are those of a background workflow the call started, such as an ultracode run.
+  | { type: "tool"; id: string; title: string; kind: string; status: string; input: string; output: string; agents: WorkflowAgent[] }
   | { type: "permission"; requestId: string; title: string; options: PermissionRequest_Option[]; answer?: string }
   | { type: "raw"; method: string; json: string }
   // What a turn changed in the folder, as the two snapshots around it.
@@ -83,6 +84,7 @@ export function apply(log: Log, event: Event): Log {
         status: p.value.status || old?.status || "",
         input: p.value.input || old?.input || "",
         output: p.value.output || old?.output || "",
+        agents: p.value.agents.length ? p.value.agents : (old?.agents ?? []),
       };
       if (i >= 0) items[i] = next;
       else items.push(next);
@@ -130,7 +132,8 @@ export function apply(log: Log, event: Event): Log {
 export type Turn = Extract<Item, { type: "turn" }>;
 export type Block = Item | { turn: Turn; work: Item[] };
 
-export const isWork = (item: Item) => item.type === "thought" || item.type === "tool" || item.type === "raw";
+// A workflow's agents stay in view, as they go on after the turn that started them.
+export const isWork = (item: Item) => item.type === "thought" || (item.type === "tool" && item.agents.length === 0) || item.type === "raw";
 
 /**
  * Lays a transcript out for reading. Within each turn, the steps the agent took

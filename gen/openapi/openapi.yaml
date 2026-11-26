@@ -6921,6 +6921,13 @@ components:
                     description: |-
                         What the tool gave back as text, cut at 64 KiB. An update without it leaves it
                          as it was.
+                agents:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/WorkflowAgent'
+                    description: |-
+                        The agents a background workflow started by this call has spawned, all of them as
+                         they last stood. An update without it leaves them as they were.
             description: Sent again with the same id whenever the call changes; later fields win.
         TurnChanges:
             type: object
@@ -7290,6 +7297,25 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/Attachment'
+        WorkflowAgent:
+            type: object
+            properties:
+                id:
+                    type: string
+                label:
+                    type: string
+                    description: The workflow's name for it, and the phase it belongs to.
+                phase:
+                    type: string
+                done:
+                    type: boolean
+                activity:
+                    type: string
+                    description: 'What it is doing now, as its latest tool call: "Bash: go test ./...".'
+                result:
+                    type: string
+                    description: What it returned, cut short, once done.
+            description: One agent of a background workflow, such as Claude Code's ultracode runs.
         Worktree:
             type: object
             properties:

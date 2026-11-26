@@ -78,6 +78,12 @@ type session struct {
 	images bool
 	// What the last turn used, as its PromptResponse said.
 	turnUsage *inabav1.TurnUsage
+	// The tool calls whose background workflow is being watched.
+	watching map[string]bool
+
+	// closed is closed with the session, ending what watches for it.
+	closed    chan struct{}
+	closeOnce sync.Once
 }
 
 func (p *Provider) Open(ctx context.Context, cfg provider.Config, emit provider.Emit) (provider.Session, error) {
@@ -133,7 +139,7 @@ func (p *Provider) spawn(dir string, emit provider.Emit) (*session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("acp: start %s: %w", p.Command[0], err)
 	}
-	s := &session{cmd: cmd, group: group, stdin: stdin, emit: emit, pending: map[string]chan string{}, booleans: map[string]bool{}}
+	s := &session{cmd: cmd, group: group, stdin: stdin, emit: emit, pending: map[string]chan string{}, booleans: map[string]bool{}, watching: map[string]bool{}, closed: make(chan struct{})}
 	s.conn = sdk.NewClientSideConnection(client{s}, stdin, stdout)
 	return s, nil
 }
@@ -330,6 +336,7 @@ func (s *session) Raw(ctx context.Context, method string, params json.RawMessage
 }
 
 func (s *session) Close() error {
+	s.closeOnce.Do(func() { close(s.closed) })
 	s.group.Ask(s.stdin)
 	defer time.AfterFunc(3*time.Second, s.group.Kill).Stop()
 	_ = s.cmd.Wait()
@@ -388,6 +395,18 @@ func (s *session) onUpdate(u sdk.SessionUpdate) {
 			Id: string(t.ToolCallId), Title: title, Kind: string(kind), Status: string(status), Raw: rawValue(u),
 			Input: toolInput(input), Output: toolOutput(content, output),
 		}}})
+		if meta, ok := t.Meta.Value(); ok {
+			if dir := workflowDir(meta); dir != "" {
+				id := string(t.ToolCallId)
+				s.mu.Lock()
+				start := !s.watching[id]
+				s.watching[id] = true
+				s.mu.Unlock()
+				if start {
+					go s.watchWorkflow(id, dir)
+				}
+			}
+		}
 	case u.Plan != nil:
 		plan := &inabav1.Plan{}
 		for _, e := range u.Plan.Entries {
