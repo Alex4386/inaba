@@ -110,7 +110,8 @@ make gen     # only if you touched proto/
 
 - <a id="what-is-blocked-by-y-combinator"></a>**What is "Blocked by Y Combinator"?**  
   Some projects are *backed* by Y Combinator. I got [blocked by You-Know-Who](/.github/proof/lol.png), whose company went through it, so this is the closest thing I will ever get.  
-  It's a joke. Y Combinator has no idea that I exist, and inaba has nothing to do with Y Combinator, `██` or Team Shanghai Alice.
+  It's a joke. Y Combinator has no idea that I exist, and inaba has nothing to do with Y Combinator, `██` or Team Shanghai Alice.  
+  (From Y Combinator? Pay off my credit card bills and buy me some fumos, and I'll change the badge to "Backed" and sell out. Others will fork it anyway—it's FOSS.)
 
 - **Who is You-Know-Who?**  
   We do not speak the name here. Last time I did, I got blocked.
