@@ -83,11 +83,13 @@ Open the server in your browser, add a project, start a thread. That's it. Forgo
 
 Don't know how to set up systemd? `inaba ezmode install` runs the host in the background and brings it back after a reboot. It has [its own doc](./docs/EZMODE.md), and a warning.
 
-New build out? `inaba update` swaps itself for it (`--channel=pre-release`, or `--channel=nightly` with the [gh CLI](https://cli.github.com) signed in) and restarts the host. It asks first; `-y` doesn't, for your cron job. Edited the config by hand? `inaba restart`. Own the host? Both are on its About page too, channel picker included.
-
 > [!TIP]  
-> Want the server to survive a reboot too? systemd units are in [contrib/systemd](./contrib/systemd), and each one starts with how to install it. (Hosts have `ezmode`. Servers are for grown-ups.)  
+> The server has ezmode too: `inaba-server ezmode install -- --public-url https://inaba.example.com`. Grown-ups get systemd units in [contrib/systemd](./contrib/systemd), each starting with how to install it.  
 > Admin commands find the running server by themselves: `sudo inaba-server user list`
+
+### Keep up to date
+
+New build out? `inaba update` swaps itself for it (`--channel=pre-release`, or `--channel=nightly` with the [gh CLI](https://cli.github.com) signed in) and restarts the host. It asks first; `-y` doesn't, for your cron job. Edited the config by hand? `inaba restart`. Own the host? Both are on its About page too, channel picker included.
 
 ## Configure
 

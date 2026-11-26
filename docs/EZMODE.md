@@ -13,6 +13,14 @@ inaba ezmode install                              # yes, `inaba ezmodo install` 
 
 That's it. The host now runs in the background, and comes back after a reboot.
 
+Running the server yourself? It has ezmode too. Flags after `--` go along to `inaba-server serve`:
+
+```sh
+inaba-server ezmode install -- --public-url https://inaba.example.com
+```
+
+The first time it starts, its log has the one-time link for making the first admin. Everything below works the same for it, with `inaba-server` wherever it says `inaba`.
+
 ## What it actually does
 
 The easiest thing your OS has, so you don't have to learn it:
@@ -23,12 +31,12 @@ The easiest thing your OS has, so you don't have to learn it:
 | macOS | a launchd agent, which runs while you're logged in | `~/Library/LaunchAgents/io.github.alex4386.inaba.plist` | `~/Library/Logs/inaba.log` |
 | Windows | a Task Scheduler task started when you sign in, in a headless console so no window stares at you | the `inaba` task in Task Scheduler | `inaba.log` beside the database, in `%LocalAppData%\inaba` |
 
-It runs **this** `inaba` binary, as you, with the same settings and sign-in `inaba connect` would use. If you passed `--config`, `--data` or `--socket`, those go along too.
+It runs **this** `inaba` binary, as you, with the same settings and sign-in `inaba connect` would use. If you passed `--config`, `--data` or `--socket`, those go along too, and so does anything after `--`.
 
 ## Things it takes along, and things it doesn't
 
 - **Your shell's `PATH`** (Linux and macOS), so the host finds the same `claude`, `npx` and friends you do. Installed an agent somewhere new? Run `inaba ezmode install` again.
-- **Not your `INABA_` variables.** They might be secrets, and it isn't writing those into a file for you. It tells you which ones it skipped; put them in your [settings file](./CONFIGURATION.md), or on Linux in `~/.config/inaba/host.env`.
+- **Not your `INABA_` variables.** They might be secrets, and it isn't writing those into a file for you. It tells you which ones it skipped; put them in your [settings file](./CONFIGURATION.md), or on Linux in `~/.config/inaba/host.env` (`server.env` for the server).
 
 ## Running it again
 
