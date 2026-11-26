@@ -1,8 +1,8 @@
 # ezmode
 
 > [!WARNING]  
-> ezmodo? Kimoi~ ♡  
-> <img width="480" height="360" alt="Kimoi~" src="https://github.com/user-attachments/assets/8eac00ae-c441-464b-ae00-c1276c501d76" />
+> [イージーモード？　キモ～い♡](https://youtu.be/spx_FOCO9ko?t=49s)  
+> <a href="https://youtu.be/spx_FOCO9ko?t=49s"><img width="480" height="360" alt="キモ～い♡" src="https://github.com/user-attachments/assets/8eac00ae-c441-464b-ae00-c1276c501d76" /></a>
 
 Fine. You don't know how to set up systemd, and you don't want to babysit `inaba connect` in a terminal forever. Nobody's judging. (We are.)
 
