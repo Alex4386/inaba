@@ -62,7 +62,7 @@ Set `INABA_PUBLIC_URL` to whatever your browser uses to get there, or passkeys a
 
 ### Or without it
 
-Grab the binaries for Linux, macOS or Windows (amd64 and arm64) from [Releases](https://github.com/Alex4386/inaba/releases). Nightly builds live as artifacts on the [nightly runs](https://github.com/Alex4386/inaba/actions/workflows/nightly.yml?query=event%3Aschedule), if you like living dangerously (you need to be signed in to GitHub to download them).
+Grab the binaries for Linux, macOS or Windows (amd64 and arm64) from [Releases](https://github.com/Alex4386/inaba/releases). Nightly builds live as artifacts on the [nightly runs](https://github.com/Alex4386/inaba/actions/workflows/nightly.yml?query=branch%3Amain), if you like living dangerously (you need to be signed in to GitHub to download them).
 
 ```sh
 inaba-server serve --listen :8080 --public-url https://inaba.example.com

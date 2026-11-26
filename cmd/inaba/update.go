@@ -28,7 +28,7 @@ func updateCommand() *cobra.Command {
 
   release      the newest release
   pre-release  the newest release or prerelease
-  nightly      the last nightly build of main; these are GitHub Actions artifacts,
+  nightly      the newest build of main; these are GitHub Actions artifacts,
                which only signed-in users can download, so it needs the gh CLI
                signed in (gh auth login)
 
