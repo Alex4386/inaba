@@ -1,5 +1,5 @@
-import { CheckIcon, LaptopIcon, ShieldAlertIcon } from "lucide-react";
-import { type FormEvent, useEffect, useState } from "react";
+import { CheckIcon, ExternalLinkIcon, LaptopIcon, ShieldAlertIcon } from "lucide-react";
+import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 import { hosts as hostsApi } from "@/api";
 import { Secret } from "@/components/dialogs";
 import { Logo } from "@/components/logo";
@@ -175,18 +175,64 @@ export function DeviceApproval({ code: initial, canShare, onDone }: { code: stri
   );
 }
 
-/** How to add a host: sign the machine in from its own terminal, then approve it here. */
+/** Where hosts get inaba. */
+const RELEASES = "https://github.com/Alex4386/inaba/releases";
+
+/** One numbered step of a guide. */
+function Step({ n, title, optional, children }: { n: number; title: string; optional?: boolean; children?: ReactNode }) {
+  const { t } = useI18n();
+  return (
+    <li className="flex gap-3">
+      <span
+        className={cn(
+          "flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium tabular-nums",
+          optional ? "border-border text-muted-foreground border border-dashed" : "bg-primary text-primary-foreground",
+        )}
+      >
+        {n}
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-2 pt-0.5">
+        <p className="text-sm font-medium">
+          {optional && <span className="text-muted-foreground mr-1.5 font-normal">{t("addHost.optional")}</span>}
+          {title}
+        </p>
+        {children}
+      </div>
+    </li>
+  );
+}
+
+/** How to add a host, step by step: get inaba onto the machine, sign it in from its terminal, approve it here, run it. */
 export function AddHostDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useI18n();
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      {/* Four steps outgrow a phone's screen; the dialog scrolls rather than run off it. */}
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("host.addTitle")}</DialogTitle>
-          <DialogDescription>{t("device.addHelp")}</DialogDescription>
+          <DialogDescription>{t("addHost.help")}</DialogDescription>
         </DialogHeader>
-        <Secret value={`inaba login --server ${location.origin}`} />
-        <p className="text-muted-foreground text-sm">{t("device.addAfter")}</p>
+        <ol className="flex flex-col gap-5">
+          <Step n={1} title={t("addHost.download")}>
+            <p className="text-muted-foreground text-sm">{t("addHost.downloadHelp")}</p>
+            <a href={RELEASES} target="_blank" rel="noreferrer" className="text-primary inline-flex w-fit items-center gap-1 text-sm underline-offset-4 hover:underline">
+              {t("addHost.releases")}
+              <ExternalLinkIcon className="size-3.5" />
+            </a>
+          </Step>
+          <Step n={2} title={t("addHost.login")}>
+            <Secret value={`inaba login --server ${location.origin}`} />
+          </Step>
+          <Step n={3} title={t("addHost.approve")}>
+            <p className="text-muted-foreground text-sm">{t("addHost.approveHelp")}</p>
+            <Secret value="inaba connect" />
+          </Step>
+          <Step n={4} optional title={t("addHost.ezmode")}>
+            <p className="text-muted-foreground text-sm">{t("addHost.ezmodeHelp")}</p>
+            <Secret value="inaba ezmode install" />
+          </Step>
+        </ol>
         <DialogFooter>
           <Button onClick={onClose}>{t("device.done")}</Button>
         </DialogFooter>

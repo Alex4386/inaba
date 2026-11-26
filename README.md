@@ -72,17 +72,21 @@ This one also prints the one-time link when it starts for the first time.
 
 ### Then, on machines you code on
 
+Grab `inaba` from the same [Releases](https://github.com/Alex4386/inaba/releases), the one for *that* machine. Then:
+
 ```sh
-inaba login --server https://inaba.example.com   # approve it in the browser
+inaba login --server https://inaba.example.com   # click the link it prints, approve it in the browser
 inaba connect
 ```
 
-Open the server in your browser, add a project, start a thread. That's it.
+Open the server in your browser, add a project, start a thread. That's it. Forgot all this already? **Add host** in the web UI walks you through it again.
+
+Don't want to babysit a terminal forever? `inaba ezmode install` (yes, `ezmodo` works too) runs the host in the background and brings it back after a reboot: a systemd user service on Linux, a launchd agent on macOS, a Task Scheduler task on Windows. Changed your mind? `inaba ezmode uninstall`.
 
 New build out? `inaba update` swaps itself for it (`--channel=pre-release`, or `--channel=nightly` with the [gh CLI](https://cli.github.com) signed in) and restarts the host. It asks first; `-y` doesn't, for your cron job. Edited the config by hand? `inaba restart`. Own the host? Both are on its About page too, channel picker included.
 
 > [!TIP]  
-> Want it to survive a reboot? systemd units are in [contrib/systemd](./contrib/systemd), and each one starts with how to install it.  
+> Want the server to survive a reboot too? systemd units are in [contrib/systemd](./contrib/systemd), and each one starts with how to install it. (Hosts have `ezmode`. Servers are for grown-ups.)  
 > Admin commands find the running server by themselves: `sudo inaba-server user list`
 
 ## Configure
