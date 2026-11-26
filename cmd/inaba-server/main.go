@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -13,6 +14,8 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -21,6 +24,7 @@ import (
 
 	"github.com/Alex4386/inaba/internal/config"
 	"github.com/Alex4386/inaba/internal/control"
+	"github.com/Alex4386/inaba/internal/ezmode"
 	"github.com/Alex4386/inaba/internal/server"
 	"github.com/Alex4386/inaba/internal/version"
 )
@@ -39,7 +43,7 @@ func main() {
 	f.StringVar(&configFlag, "config", "", "JSON or YAML settings file read last, over the others found (default: $INABA_CONFIG; see the README)")
 	f.String("data", "", "SQLite file that stores users, hosts and tokens (default: see the README)")
 	f.String("socket", "", "control socket the server listens on and the other commands talk to (default: see the README)")
-	root.AddCommand(serveCommand(), userCommand(), hostCommand(), tokenCommand(), housekeepingCommand())
+	root.AddCommand(serveCommand(), userCommand(), hostCommand(), tokenCommand(), housekeepingCommand(), ezmodeCommand())
 	if err := root.Execute(); err != nil {
 		slog.Error(err.Error())
 		os.Exit(1)
@@ -183,12 +187,40 @@ func iceURLs(configured []string, publicURL, stunListen string) []string {
 	return []string{"stun:" + net.JoinHostPort(u.Hostname(), port)}
 }
 
+// ezmodeCommand runs the server in the background; see internal/ezmode.
+func ezmodeCommand() *cobra.Command {
+	return ezmode.Command(func() ezmode.Spec {
+		user, _ := config.Server.UserFile()
+		return ezmode.Spec{
+			Name: "inaba-server", Noun: "the server", Sub: "serve",
+			Socket: socketPath(), Dir: filepath.Dir(dataPath),
+			SettingsFile: user, EnvFile: filepath.Join(filepath.Dir(user), "server.env"),
+			Notes: func(args []string) []string {
+				notes := []string{"The first time it starts, its log has a one-time link for making the first admin."}
+				if cfg.PublicURL == "" && !slices.ContainsFunc(args, func(a string) bool { return strings.HasPrefix(a, "--public-url") }) {
+					notes = append(notes, "public_url is not set, so passkeys and sign-in links will be sad: set it in "+user+", or pass -- --public-url https://… and run this again.")
+				}
+				return notes
+			},
+		}
+	})
+}
+
 func serveCommand() *cobra.Command {
+	var logFile string
 	cmd := &cobra.Command{
 		Use:   "serve",
 		Short: "Serve the web UI and API, and accept hosts",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if logFile != "" {
+				f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+				if err != nil {
+					return fmt.Errorf("log file: %w", err)
+				}
+				// slog's default handler writes through the log package.
+				log.SetOutput(f)
+			}
 			listen, stunListen := cfg.Listen, cfg.STUNListen
 			if !cfg.STUNEnable {
 				stunListen = ""
@@ -271,6 +303,7 @@ func serveCommand() *cobra.Command {
 	// The defaults shown match loadSettings'; only flags actually given override the file and environment.
 	f := cmd.Flags()
 	f.String("listen", ":8080", "address to serve on")
+	f.StringVar(&logFile, "log-file", "", "append the log to this file instead of writing it to the terminal, for where there is none to see it")
 	f.String("public-url", "", "URL browsers use to reach this server, such as https://inaba.example.com")
 	f.StringSlice("ice-url", nil, "STUN URL for direct connections, such as stun:stun.example.com:3478; repeatable")
 	f.Bool("stun-enable", false, "run the built-in STUN server and offer it to browsers and hosts; its UDP port must be reachable from outside")

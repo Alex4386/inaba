@@ -1,4 +1,4 @@
-package main
+package ezmode
 
 import (
 	"os"
@@ -10,7 +10,7 @@ import (
 
 // The unit quotes what systemd would otherwise expand or split.
 func TestEzUnit(t *testing.T) {
-	unit := ezUnitText("/home/a b/bin/inaba", []string{"connect", "--data", "/d/100%/$HOME/x.db"}, `/usr/bin:/odd"%dir`, "/home/a b/.config/inaba/host.env")
+	unit := unitText(Spec{Name: "inaba"}, "/home/a b/bin/inaba", []string{"connect", "--data", "/d/100%/$HOME/x.db"}, `/usr/bin:/odd"%dir`, "/home/a b/.config/inaba/host.env")
 	for _, want := range []string{
 		`ExecStart="/home/a b/bin/inaba" "connect" "--data" "/d/100%%/$$HOME/x.db"`,
 		`Environment="PATH=/usr/bin:/odd\"%%dir"`,
@@ -24,9 +24,9 @@ func TestEzUnit(t *testing.T) {
 		t.Skip("no systemd-analyze to check the unit with")
 	}
 	dir := t.TempDir()
-	unit = ezUnitText("/bin/true", []string{"connect"}, "/usr/bin:/bin", "/nonexistent/host.env")
-	p := filepath.Join(dir, ezUnit)
-	if err := os.WriteFile(p, []byte(unit), 0o644); err != nil {
+	text := unitText(Spec{Name: "inaba"}, "/bin/true", []string{"connect"}, "/usr/bin:/bin", "/nonexistent/host.env")
+	p := filepath.Join(dir, "inaba.service")
+	if err := os.WriteFile(p, []byte(text), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if out, err := exec.Command("systemd-analyze", "--user", "verify", p).CombinedOutput(); err != nil {

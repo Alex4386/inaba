@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -24,6 +25,7 @@ import (
 	"github.com/Alex4386/inaba/gen/inaba/v1/inabav1connect"
 	"github.com/Alex4386/inaba/internal/config"
 	"github.com/Alex4386/inaba/internal/control"
+	"github.com/Alex4386/inaba/internal/ezmode"
 	"github.com/Alex4386/inaba/internal/host"
 	"github.com/Alex4386/inaba/internal/hostconfig"
 	"github.com/Alex4386/inaba/internal/mcpbridge"
@@ -111,6 +113,26 @@ func loadSettings(cmd *cobra.Command) error {
 	dataPath = cmp.Or(cfg.Data, config.Host.DataPath())
 	socketFile = cmp.Or(cfg.Socket, config.SocketPath(dataPath))
 	return nil
+}
+
+// ezmodeCommand runs the host in the background; see internal/ezmode.
+func ezmodeCommand() *cobra.Command {
+	return ezmode.Command(func() ezmode.Spec {
+		return ezmode.Spec{
+			Name: "inaba", Noun: "the host", Sub: "connect",
+			Socket: socketPath(), Dir: filepath.Dir(dataPath),
+			SettingsFile: userFile, EnvFile: filepath.Join(filepath.Dir(userFile), "host.env"),
+			Ready: func() error {
+				if cfg.Token != "" || cfg.Listen != "" {
+					return nil
+				}
+				if _, err := os.Stat(credentialsPath()); err != nil {
+					return errors.New("this machine is not signed in: run inaba login --server URL first")
+				}
+				return nil
+			},
+		}
+	})
 }
 
 func connectCommand() *cobra.Command {

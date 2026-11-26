@@ -1,4 +1,4 @@
-package main
+package ezmode
 
 import (
 	"encoding/xml"
@@ -8,7 +8,7 @@ import (
 
 // The task runs inaba headless, logging to a file, as the user at their sign-in.
 func TestEzTask(t *testing.T) {
-	text := ezTaskText(`C:\Program Files\a&b\inaba.exe`, []string{"connect"}, `PC\a`, `C:\Users\a\AppData\Local\inaba`, `C:\Users\a\AppData\Local\inaba\inaba.log`)
+	text := taskText(Spec{Name: "inaba"}, `C:\Program Files\a&b\inaba.exe`, []string{"connect"}, `PC\a`, `C:\Users\a\AppData\Local\inaba`, `C:\Users\a\AppData\Local\inaba\inaba.log`)
 	var task struct {
 		Trigger string `xml:"Triggers>LogonTrigger>UserId"`
 		Command string `xml:"Actions>Exec>Command"`

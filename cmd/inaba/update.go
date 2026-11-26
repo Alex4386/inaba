@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bufio"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -11,9 +9,9 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 
 	"github.com/Alex4386/inaba/internal/control"
+	"github.com/Alex4386/inaba/internal/prompt"
 	"github.com/Alex4386/inaba/internal/selfupdate"
 	"github.com/Alex4386/inaba/internal/version"
 )
@@ -117,24 +115,5 @@ yes to all of it, for scripts and timers.`,
 	return cmd
 }
 
-// stdin is read through one buffer, so an answer typed ahead is not lost between questions.
-var stdin = bufio.NewReader(os.Stdin)
-
-// confirm asks a yes-or-no question whose answer is yes unless told otherwise. Without
-// someone to answer it, it fails with noTerminal: --yes is how a script says yes.
-func confirm(question, noTerminal, declined string) error {
-	if !term.IsTerminal(int(os.Stdin.Fd())) {
-		return errors.New(noTerminal)
-	}
-	fmt.Print(question + " (Y/n) ")
-	answer, err := stdin.ReadString('\n')
-	if err != nil && answer == "" {
-		fmt.Println()
-		return errors.New("no answer, so nothing was changed")
-	}
-	switch strings.ToLower(strings.TrimSpace(answer)) {
-	case "", "y", "yes":
-		return nil
-	}
-	return errors.New(declined)
-}
+// confirm asks the person at the terminal; see prompt.Confirm.
+var confirm = prompt.Confirm

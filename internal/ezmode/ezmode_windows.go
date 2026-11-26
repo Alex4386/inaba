@@ -1,4 +1,4 @@
-package main
+package ezmode
 
 import (
 	"bytes"
@@ -15,46 +15,44 @@ import (
 	"unicode/utf16"
 )
 
-// On Windows the host is a Task Scheduler task started when its user signs in. A console
+// On Windows it is a Task Scheduler task started when its user signs in. A console
 // program would open a window there, so the task runs it in a headless console host,
 // and its log goes to a file.
 
-const ezTask = "inaba"
+func logPath(s Spec) string { return filepath.Join(s.Dir, s.Name+".log") }
 
-func ezLogPath() string { return filepath.Join(filepath.Dir(dataPath), "inaba.log") }
-
-func ezCheck() error {
+func check() error {
 	if _, err := exec.LookPath("schtasks"); err != nil {
-		return fmt.Errorf("ezmode runs the host as a Task Scheduler task, and schtasks is not here: %w", err)
+		return fmt.Errorf("ezmode runs it as a Task Scheduler task, and schtasks is not here: %w", err)
 	}
 	return nil
 }
 
-func ezInstalled() bool { return exec.Command("schtasks", "/Query", "/TN", ezTask).Run() == nil }
+func installed(s Spec) bool { return exec.Command("schtasks", "/Query", "/TN", s.Name).Run() == nil }
 
-func ezWhat() string { return `the Task Scheduler task \` + ezTask }
+func what(s Spec) string { return `the Task Scheduler task \` + s.Name }
 
-func ezLog() string { return ezLogPath() }
+func logOf(s Spec) string { return logPath(s) }
 
-func ezStop() error {
+func stop(s Spec) error {
 	// Ending a task that is not running is not a failure here.
-	_ = sysRun("schtasks", "/End", "/TN", ezTask)
-	if waitHost(false, 5*time.Second) {
+	_ = run("schtasks", "/End", "/TN", s.Name)
+	if wait(s, false, 5*time.Second) {
 		return nil
 	}
-	// Ending the task ends the console host it started, which may leave inaba behind.
+	// Ending the task ends the console host it started, which may leave the program behind.
 	exe, err := os.Executable()
 	if err != nil {
 		return err
 	}
 	quote := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
-	script := fmt.Sprintf(`Get-CimInstance Win32_Process -Filter "Name=%s" | Where-Object { $_.ProcessId -ne %d -and $_.CommandLine -match ' connect( |$)' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`,
-		quote(filepath.Base(exe)), os.Getpid())
-	return sysRun("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+	script := fmt.Sprintf(`Get-CimInstance Win32_Process -Filter "Name=%s" | Where-Object { $_.ProcessId -ne %d -and $_.CommandLine -match ' %s( |$)' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`,
+		quote(filepath.Base(exe)), os.Getpid(), s.Sub)
+	return run("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
 }
 
-// ezTaskText is the task running exe with args as account at its sign-in, in dir, logging to log.
-func ezTaskText(exe string, args []string, account, dir, log string) string {
+// taskText is the task running exe with args as account at its sign-in, in dir, logging to log.
+func taskText(s Spec, exe string, args []string, account, dir, log string) string {
 	esc := func(s string) string {
 		var b bytes.Buffer
 		_ = xml.EscapeText(&b, []byte(s))
@@ -66,10 +64,10 @@ func ezTaskText(exe string, args []string, account, dir, log string) string {
 	}
 	conhost := filepath.Join(os.Getenv("SystemRoot"), "System32", "conhost.exe")
 	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-16"?>
-<!-- Written by inaba ezmode install, which writes it afresh; inaba ezmode uninstall removes it. -->
+<!-- Written by %[5]s ezmode install, which writes it afresh; %[5]s ezmode uninstall removes it. -->
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
-    <Description>inaba host: runs coding agents on this machine for an inaba-server.</Description>
+    <Description>%[5]s, run in the background by ezmode.</Description>
   </RegistrationInfo>
   <Triggers>
     <LogonTrigger>
@@ -107,20 +105,20 @@ func ezTaskText(exe string, args []string, account, dir, log string) string {
     </Exec>
   </Actions>
 </Task>
-`, esc(account), esc(conhost), esc(strings.Join(line, " ")), esc(dir))
+`, esc(account), esc(conhost), esc(strings.Join(line, " ")), esc(dir), esc(s.Name))
 }
 
-func ezStart(exe string, args []string) ([]string, error) {
+func start(s Spec, exe string, args []string) ([]string, error) {
 	u, err := user.Current()
 	if err != nil {
 		return nil, err
 	}
-	task := ezTaskText(exe, args, u.Username, filepath.Dir(dataPath), ezLogPath())
-	if err := os.MkdirAll(filepath.Dir(dataPath), 0o700); err != nil {
+	task := taskText(s, exe, args, u.Username, s.Dir, logPath(s))
+	if err := os.MkdirAll(s.Dir, 0o700); err != nil {
 		return nil, err
 	}
 	// schtasks reads the definition as UTF-16, as its declaration says.
-	f, err := os.CreateTemp("", "inaba-task-*.xml")
+	f, err := os.CreateTemp("", s.Name+"-task-*.xml")
 	if err != nil {
 		return nil, err
 	}
@@ -133,16 +131,16 @@ func ezStart(exe string, args []string) ([]string, error) {
 	if err := f.Close(); err != nil {
 		return nil, err
 	}
-	if err := sysRun("schtasks", "/Create", "/TN", ezTask, "/XML", f.Name(), "/F"); err != nil {
+	if err := run("schtasks", "/Create", "/TN", s.Name, "/XML", f.Name(), "/F"); err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "access is denied") {
-			return nil, fmt.Errorf("%w; this Windows lets only administrators add a task that starts at sign-in: run this once from a terminal opened as administrator (the host still runs as %s)", err, u.Username)
+			return nil, fmt.Errorf("%w; this Windows lets only administrators add a task that starts at sign-in: run this once from a terminal opened as administrator (it still runs as %s)", err, u.Username)
 		}
 		return nil, err
 	}
-	if err := sysRun("schtasks", "/Run", "/TN", ezTask); err != nil {
+	if err := run("schtasks", "/Run", "/TN", s.Name); err != nil {
 		return nil, err
 	}
 	return []string{"It starts whenever you sign in to Windows as " + u.Username + ", and runs while you are signed in."}, nil
 }
 
-func ezRemove() error { return sysRun("schtasks", "/Delete", "/TN", ezTask, "/F") }
+func remove(s Spec) error { return run("schtasks", "/Delete", "/TN", s.Name, "/F") }

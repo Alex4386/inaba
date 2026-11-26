@@ -1,4 +1,4 @@
-package main
+package ezmode
 
 import (
 	"os"
@@ -12,7 +12,8 @@ import (
 func TestEzPlist(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "a.plist")
 	exe := "/Users/a & b/<bin>/inaba"
-	text := ezPlistText(exe, []string{"connect", "--config", "/x/\"q\".json"}, "/usr/bin:/bin", "/Users/a & b", "/Users/a & b/Library/Logs/inaba.log")
+	s := Spec{Name: "inaba-server"}
+	text := plistText(s, exe, []string{"connect", "--config", "/x/\"q\".json"}, "/usr/bin:/bin", "/Users/a & b", "/Users/a & b/Library/Logs/inaba.log")
 	if err := os.WriteFile(p, []byte(text), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -23,7 +24,7 @@ func TestEzPlist(t *testing.T) {
 		"ProgramArguments.0":        exe,
 		"ProgramArguments.3":        `/x/"q".json`,
 		"EnvironmentVariables.PATH": "/usr/bin:/bin",
-		"Label":                     ezLabel,
+		"Label":                     "io.github.alex4386.inaba-server",
 	} {
 		out, err := exec.Command("plutil", "-extract", key, "raw", "-o", "-", p).Output()
 		if got := strings.TrimSpace(string(out)); err != nil || got != want {
