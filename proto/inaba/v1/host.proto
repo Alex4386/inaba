@@ -1274,11 +1274,38 @@ service SystemService {
       body: "*"
     };
   }
+  // Replaces the host's inaba with the newest build of a channel from GitHub, as
+  // inaba update does, then restarts it onto that build. When it runs the newest
+  // already, nothing changes. The same people as RestartHost may.
+  rpc UpgradeHost(UpgradeHostRequest) returns (UpgradeHostResponse) {
+    option (google.api.http) = {
+      post: "/v1/system/upgrade"
+      body: "*"
+    };
+  }
 }
 
 message GetSystemInfoRequest {}
 message RestartHostRequest {}
 message RestartHostResponse {}
+
+message UpgradeHostRequest {
+  // "release", "pre-release" or "nightly"; empty for the one the running build came from.
+  string channel = 1;
+  // Nightly builds are GitHub Actions artifacts, which the host fetches with the gh CLI
+  // and so with the GitHub account signed in to it there. Set to agree to that; a
+  // nightly is refused without it.
+  bool use_gh = 2;
+}
+
+message UpgradeHostResponse {
+  // The version it ran, and the one it runs after restarting; the same when it was
+  // the newest already.
+  string from = 1;
+  string to = 2;
+  bool updated = 3;
+  string channel = 4;
+}
 
 message SystemInfo {
   string hostname = 1;

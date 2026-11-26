@@ -71,6 +71,8 @@ type Host struct {
 	// restart is closed once a restart has been asked for; see Restarts.
 	restart    chan struct{}
 	restarting sync.Once
+	// upgrading is held while UpgradeHost replaces the binary.
+	upgrading sync.Mutex
 }
 
 // ProviderInfo is how a provider is presented, from the host's config.

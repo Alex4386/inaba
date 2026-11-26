@@ -171,6 +171,8 @@ const (
 	SystemServiceGetSystemInfoProcedure = "/inaba.v1.SystemService/GetSystemInfo"
 	// SystemServiceRestartHostProcedure is the procedure name of the SystemService's RestartHost RPC.
 	SystemServiceRestartHostProcedure = "/inaba.v1.SystemService/RestartHost"
+	// SystemServiceUpgradeHostProcedure is the procedure name of the SystemService's UpgradeHost RPC.
+	SystemServiceUpgradeHostProcedure = "/inaba.v1.SystemService/UpgradeHost"
 	// UsageServiceGetUsageSummaryProcedure is the procedure name of the UsageService's GetUsageSummary
 	// RPC.
 	UsageServiceGetUsageSummaryProcedure = "/inaba.v1.UsageService/GetUsageSummary"
@@ -2407,6 +2409,13 @@ var (
 			Procedure:  SystemServiceRestartHostProcedure,
 		}
 	})
+	systemServiceUpgradeHostSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_inaba_v1_host_proto.Services().ByName("SystemService").Methods().ByName("UpgradeHost"),
+			Procedure:  SystemServiceUpgradeHostProcedure,
+		}
+	})
 )
 
 // SystemServiceClient is a client for the inaba.v1.SystemService service.
@@ -2418,6 +2427,10 @@ type SystemServiceClient interface {
 	// first and restarts a moment later. Only the host's owner and administrators may,
 	// and on a shared host those who may add shared hosts.
 	RestartHost(context.Context, *v1.RestartHostRequest) (*v1.RestartHostResponse, error)
+	// Replaces the host's inaba with the newest build of a channel from GitHub, as
+	// inaba update does, then restarts it onto that build. When it runs the newest
+	// already, nothing changes. The same people as RestartHost may.
+	UpgradeHost(context.Context, *v1.UpgradeHostRequest) (*v1.UpgradeHostResponse, error)
 }
 
 // NewSystemServiceClient constructs a client for the inaba.v1.SystemService service. Multiple
@@ -2435,6 +2448,10 @@ type SystemServiceHandler interface {
 	// first and restarts a moment later. Only the host's owner and administrators may,
 	// and on a shared host those who may add shared hosts.
 	RestartHost(context.Context, *v1.RestartHostRequest) (*v1.RestartHostResponse, error)
+	// Replaces the host's inaba with the newest build of a channel from GitHub, as
+	// inaba update does, then restarts it onto that build. When it runs the newest
+	// already, nothing changes. The same people as RestartHost may.
+	UpgradeHost(context.Context, *v1.UpgradeHostRequest) (*v1.UpgradeHostResponse, error)
 }
 
 // RegisterSystemServiceHandler registers svc as the inaba.v1.SystemService implementation on
@@ -2444,6 +2461,7 @@ func RegisterSystemServiceHandler(server *connect.Server, svc SystemServiceHandl
 	server.Register(
 		connect.Method{Spec: systemServiceGetSystemInfoSpec(), Handler: adapter.getSystemInfo},
 		connect.Method{Spec: systemServiceRestartHostSpec(), Handler: adapter.restartHost},
+		connect.Method{Spec: systemServiceUpgradeHostSpec(), Handler: adapter.upgradeHost},
 	)
 }
 
@@ -2456,6 +2474,10 @@ func (UnimplementedSystemServiceHandler) GetSystemInfo(context.Context, *v1.GetS
 
 func (UnimplementedSystemServiceHandler) RestartHost(context.Context, *v1.RestartHostRequest) (*v1.RestartHostResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.SystemService.RestartHost is not implemented")
+}
+
+func (UnimplementedSystemServiceHandler) UpgradeHost(context.Context, *v1.UpgradeHostRequest) (*v1.UpgradeHostResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.SystemService.UpgradeHost is not implemented")
 }
 
 type systemServiceClient struct {
@@ -2473,6 +2495,14 @@ func (c *systemServiceClient) GetSystemInfo(ctx context.Context, req *v1.GetSyst
 func (c *systemServiceClient) RestartHost(ctx context.Context, req *v1.RestartHostRequest) (*v1.RestartHostResponse, error) {
 	var res v1.RestartHostResponse
 	if err := c.client.CallUnary(ctx, systemServiceRestartHostSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *systemServiceClient) UpgradeHost(ctx context.Context, req *v1.UpgradeHostRequest) (*v1.UpgradeHostResponse, error) {
+	var res v1.UpgradeHostResponse
+	if err := c.client.CallUnary(ctx, systemServiceUpgradeHostSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -2498,6 +2528,18 @@ func (h systemServiceHandler) restartHost(ctx context.Context, _ connect.Spec, s
 		return err
 	}
 	res, err := h.svc.RestartHost(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h systemServiceHandler) upgradeHost(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.UpgradeHostRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.UpgradeHost(ctx, &req)
 	if err != nil {
 		return err
 	}

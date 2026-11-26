@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"connectrpc.com/connect/v2"
+
 	inabav1 "github.com/Alex4386/inaba/gen/inaba/v1"
 )
 
@@ -29,5 +31,29 @@ func TestRestartHost(t *testing.T) {
 	case <-h.Restarts():
 	case <-time.After(5 * time.Second):
 		t.Fatal("no restart after it was asked for")
+	}
+}
+
+// An update is the restart permission's too, names a channel there is, and fetches a
+// nightly with the host's gh sign-in only when told it may.
+func TestUpgradeHostRefuses(t *testing.T) {
+	h := New()
+	for name, c := range map[string]struct {
+		ctx  context.Context
+		req  *inabav1.UpgradeHostRequest
+		code connect.Code
+	}{
+		"not allowed":        {context.Background(), &inabav1.UpgradeHostRequest{Channel: "release"}, connect.CodePermissionDenied},
+		"no such channel":    {Trusted(context.Background()), &inabav1.UpgradeHostRequest{Channel: "beta"}, connect.CodeInvalidArgument},
+		"nightly without gh": {Trusted(context.Background()), &inabav1.UpgradeHostRequest{Channel: "nightly"}, connect.CodeFailedPrecondition},
+	} {
+		if _, err := h.UpgradeHost(c.ctx, c.req); connect.CodeOf(err) != c.code {
+			t.Errorf("%s: %v, want %v", name, err, c.code)
+		}
+	}
+	select {
+	case <-h.Restarts():
+		t.Fatal("a refused update restarted the host")
+	case <-time.After(2 * restartDelay):
 	}
 }

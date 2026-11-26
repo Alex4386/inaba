@@ -2629,6 +2629,41 @@ paths:
                   description: The id of the host, from GET /v1/hosts.
                   schema:
                     type: string
+    /v1/hosts/{host_id}/system/upgrade:
+        post:
+            tags:
+                - SystemService
+            description: |-
+                Replaces the host's inaba with the newest build of a channel from GitHub, as
+                 inaba update does, then restarts it onto that build. When it runs the newest
+                 already, nothing changes. The same people as RestartHost may.
+            operationId: SystemService_UpgradeHost
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpgradeHostRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UpgradeHostResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+            parameters:
+                - name: host_id
+                  in: path
+                  required: true
+                  description: The id of the host, from GET /v1/hosts.
+                  schema:
+                    type: string
     /v1/hosts/{host_id}/threads:
         get:
             tags:
@@ -7012,6 +7047,32 @@ components:
                         Moves the thread to another provider's agent while it is idle. The new agent does not share the
                          old one's memory, so its first turn is handed the conversation so far.
             description: Changes what is set; a field left out stays as it is.
+        UpgradeHostRequest:
+            type: object
+            properties:
+                channel:
+                    type: string
+                    description: '"release", "pre-release" or "nightly"; empty for the one the running build came from.'
+                use_gh:
+                    type: boolean
+                    description: |-
+                        Nightly builds are GitHub Actions artifacts, which the host fetches with the gh CLI
+                         and so with the GitHub account signed in to it there. Set to agree to that; a
+                         nightly is refused without it.
+        UpgradeHostResponse:
+            type: object
+            properties:
+                from:
+                    type: string
+                    description: |-
+                        The version it ran, and the one it runs after restarting; the same when it was
+                         the newest already.
+                to:
+                    type: string
+                updated:
+                    type: boolean
+                channel:
+                    type: string
         Usage:
             type: object
             properties:

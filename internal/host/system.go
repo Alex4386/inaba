@@ -1,9 +1,15 @@
 package host
 
 import (
+	"cmp"
 	"context"
+	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"runtime"
+	"slices"
+	"strings"
 	"time"
 
 	"connectrpc.com/connect/v2"
@@ -16,6 +22,7 @@ import (
 
 	inabav1 "github.com/Alex4386/inaba/gen/inaba/v1"
 	"github.com/Alex4386/inaba/internal/rpc"
+	"github.com/Alex4386/inaba/internal/selfupdate"
 	"github.com/Alex4386/inaba/internal/version"
 )
 
@@ -31,11 +38,61 @@ func (h *Host) RestartHost(ctx context.Context, _ *inabav1.RestartHostRequest) (
 	if rpc.May(ctx, rpc.PermRestart) != nil {
 		return nil, connect.NewError(connect.CodePermissionDenied, "only the host's owner or an administrator can restart it")
 	}
+	h.scheduleRestart("restarting, as asked")
+	return &inabav1.RestartHostResponse{}, nil
+}
+
+// scheduleRestart closes Restarts after restartDelay, once however often it is called.
+func (h *Host) scheduleRestart(why string) {
 	h.restarting.Do(func() {
-		slog.Info("restarting, as asked")
+		slog.Info(why)
 		time.AfterFunc(restartDelay, func() { close(h.restart) })
 	})
-	return &inabav1.RestartHostResponse{}, nil
+}
+
+// UpgradeHost answers SystemService: it puts the newest build of a channel in place of
+// the running binary, as inaba update does, then restarts onto it.
+func (h *Host) UpgradeHost(ctx context.Context, req *inabav1.UpgradeHostRequest) (*inabav1.UpgradeHostResponse, error) {
+	if rpc.May(ctx, rpc.PermRestart) != nil {
+		return nil, connect.NewError(connect.CodePermissionDenied, "only the host's owner or an administrator can update it")
+	}
+	now := version.String()
+	channel := cmp.Or(req.Channel, selfupdate.ChannelOf(now))
+	if !slices.Contains(selfupdate.Channels, channel) {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Sprintf("no channel %q: it is one of %s", channel, strings.Join(selfupdate.Channels, ", ")))
+	}
+	// The gh sign-in is whoever runs the host's, so using it is asked for each time.
+	if channel == selfupdate.Nightly && !req.UseGh {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, "a nightly build is fetched with the gh CLI, as the GitHub account signed in to it on the host; agree to that first")
+	}
+	// One at a time: two would race to replace the same file.
+	if !h.upgrading.TryLock() {
+		return nil, connect.NewError(connect.CodeAborted, "an update is already under way")
+	}
+	defer h.upgrading.Unlock()
+	b, err := selfupdate.Latest(ctx, channel)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, err.Error())
+	}
+	res := &inabav1.UpgradeHostResponse{From: now, To: now, Channel: channel}
+	if b.Current(now) {
+		return res, nil
+	}
+	exe, err := os.Executable()
+	if err == nil {
+		exe, err = filepath.EvalSymlinks(exe)
+	}
+	if err != nil {
+		return nil, err
+	}
+	slog.Info("updating", "from", now, "channel", channel, "to", b.Version)
+	said, err := selfupdate.Install(ctx, b, "inaba", exe)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, err.Error())
+	}
+	res.To, res.Updated = strings.TrimPrefix(said, "inaba version "), true
+	h.scheduleRestart("restarting onto " + res.To)
+	return res, nil
 }
 
 // GetSystemInfo answers SystemService: what the machine is and how busy it is. What

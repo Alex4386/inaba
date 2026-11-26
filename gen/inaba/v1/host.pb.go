@@ -7398,6 +7398,132 @@ func (*RestartHostResponse) Descriptor() ([]byte, []int) {
 	return file_inaba_v1_host_proto_rawDescGZIP(), []int{117}
 }
 
+type UpgradeHostRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// "release", "pre-release" or "nightly"; empty for the one the running build came from.
+	Channel string `protobuf:"bytes,1,opt,name=channel,proto3" json:"channel,omitempty"`
+	// Nightly builds are GitHub Actions artifacts, which the host fetches with the gh CLI
+	// and so with the GitHub account signed in to it there. Set to agree to that; a
+	// nightly is refused without it.
+	UseGh         bool `protobuf:"varint,2,opt,name=use_gh,json=useGh,proto3" json:"use_gh,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpgradeHostRequest) Reset() {
+	*x = UpgradeHostRequest{}
+	mi := &file_inaba_v1_host_proto_msgTypes[118]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpgradeHostRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpgradeHostRequest) ProtoMessage() {}
+
+func (x *UpgradeHostRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inaba_v1_host_proto_msgTypes[118]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpgradeHostRequest.ProtoReflect.Descriptor instead.
+func (*UpgradeHostRequest) Descriptor() ([]byte, []int) {
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{118}
+}
+
+func (x *UpgradeHostRequest) GetChannel() string {
+	if x != nil {
+		return x.Channel
+	}
+	return ""
+}
+
+func (x *UpgradeHostRequest) GetUseGh() bool {
+	if x != nil {
+		return x.UseGh
+	}
+	return false
+}
+
+type UpgradeHostResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The version it ran, and the one it runs after restarting; the same when it was
+	// the newest already.
+	From          string `protobuf:"bytes,1,opt,name=from,proto3" json:"from,omitempty"`
+	To            string `protobuf:"bytes,2,opt,name=to,proto3" json:"to,omitempty"`
+	Updated       bool   `protobuf:"varint,3,opt,name=updated,proto3" json:"updated,omitempty"`
+	Channel       string `protobuf:"bytes,4,opt,name=channel,proto3" json:"channel,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpgradeHostResponse) Reset() {
+	*x = UpgradeHostResponse{}
+	mi := &file_inaba_v1_host_proto_msgTypes[119]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpgradeHostResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpgradeHostResponse) ProtoMessage() {}
+
+func (x *UpgradeHostResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_inaba_v1_host_proto_msgTypes[119]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpgradeHostResponse.ProtoReflect.Descriptor instead.
+func (*UpgradeHostResponse) Descriptor() ([]byte, []int) {
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{119}
+}
+
+func (x *UpgradeHostResponse) GetFrom() string {
+	if x != nil {
+		return x.From
+	}
+	return ""
+}
+
+func (x *UpgradeHostResponse) GetTo() string {
+	if x != nil {
+		return x.To
+	}
+	return ""
+}
+
+func (x *UpgradeHostResponse) GetUpdated() bool {
+	if x != nil {
+		return x.Updated
+	}
+	return false
+}
+
+func (x *UpgradeHostResponse) GetChannel() string {
+	if x != nil {
+		return x.Channel
+	}
+	return ""
+}
+
 type SystemInfo struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	Hostname string                 `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname,omitempty"`
@@ -7429,7 +7555,7 @@ type SystemInfo struct {
 
 func (x *SystemInfo) Reset() {
 	*x = SystemInfo{}
-	mi := &file_inaba_v1_host_proto_msgTypes[118]
+	mi := &file_inaba_v1_host_proto_msgTypes[120]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7441,7 +7567,7 @@ func (x *SystemInfo) String() string {
 func (*SystemInfo) ProtoMessage() {}
 
 func (x *SystemInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[118]
+	mi := &file_inaba_v1_host_proto_msgTypes[120]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7454,7 +7580,7 @@ func (x *SystemInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SystemInfo.ProtoReflect.Descriptor instead.
 func (*SystemInfo) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{118}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{120}
 }
 
 func (x *SystemInfo) GetHostname() string {
@@ -7595,7 +7721,7 @@ type GetUsageSummaryRequest struct {
 
 func (x *GetUsageSummaryRequest) Reset() {
 	*x = GetUsageSummaryRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[119]
+	mi := &file_inaba_v1_host_proto_msgTypes[121]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7607,7 +7733,7 @@ func (x *GetUsageSummaryRequest) String() string {
 func (*GetUsageSummaryRequest) ProtoMessage() {}
 
 func (x *GetUsageSummaryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[119]
+	mi := &file_inaba_v1_host_proto_msgTypes[121]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7620,7 +7746,7 @@ func (x *GetUsageSummaryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUsageSummaryRequest.ProtoReflect.Descriptor instead.
 func (*GetUsageSummaryRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{119}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{121}
 }
 
 func (x *GetUsageSummaryRequest) GetFrom() *timestamppb.Timestamp {
@@ -7657,7 +7783,7 @@ type UsageTotals struct {
 
 func (x *UsageTotals) Reset() {
 	*x = UsageTotals{}
-	mi := &file_inaba_v1_host_proto_msgTypes[120]
+	mi := &file_inaba_v1_host_proto_msgTypes[122]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7669,7 +7795,7 @@ func (x *UsageTotals) String() string {
 func (*UsageTotals) ProtoMessage() {}
 
 func (x *UsageTotals) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[120]
+	mi := &file_inaba_v1_host_proto_msgTypes[122]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7682,7 +7808,7 @@ func (x *UsageTotals) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageTotals.ProtoReflect.Descriptor instead.
 func (*UsageTotals) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{120}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{122}
 }
 
 func (x *UsageTotals) GetCost() float64 {
@@ -7771,7 +7897,7 @@ type UsageSummary struct {
 
 func (x *UsageSummary) Reset() {
 	*x = UsageSummary{}
-	mi := &file_inaba_v1_host_proto_msgTypes[121]
+	mi := &file_inaba_v1_host_proto_msgTypes[123]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7783,7 +7909,7 @@ func (x *UsageSummary) String() string {
 func (*UsageSummary) ProtoMessage() {}
 
 func (x *UsageSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[121]
+	mi := &file_inaba_v1_host_proto_msgTypes[123]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7796,7 +7922,7 @@ func (x *UsageSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageSummary.ProtoReflect.Descriptor instead.
 func (*UsageSummary) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{121}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{123}
 }
 
 func (x *UsageSummary) GetFrom() *timestamppb.Timestamp {
@@ -7870,7 +7996,7 @@ type WatchAlertsRequest struct {
 
 func (x *WatchAlertsRequest) Reset() {
 	*x = WatchAlertsRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[122]
+	mi := &file_inaba_v1_host_proto_msgTypes[124]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7882,7 +8008,7 @@ func (x *WatchAlertsRequest) String() string {
 func (*WatchAlertsRequest) ProtoMessage() {}
 
 func (x *WatchAlertsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[122]
+	mi := &file_inaba_v1_host_proto_msgTypes[124]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7895,7 +8021,7 @@ func (x *WatchAlertsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchAlertsRequest.ProtoReflect.Descriptor instead.
 func (*WatchAlertsRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{122}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{124}
 }
 
 type Alert struct {
@@ -7918,7 +8044,7 @@ type Alert struct {
 
 func (x *Alert) Reset() {
 	*x = Alert{}
-	mi := &file_inaba_v1_host_proto_msgTypes[123]
+	mi := &file_inaba_v1_host_proto_msgTypes[125]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7930,7 +8056,7 @@ func (x *Alert) String() string {
 func (*Alert) ProtoMessage() {}
 
 func (x *Alert) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[123]
+	mi := &file_inaba_v1_host_proto_msgTypes[125]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7943,7 +8069,7 @@ func (x *Alert) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Alert.ProtoReflect.Descriptor instead.
 func (*Alert) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{123}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{125}
 }
 
 func (x *Alert) GetEvent() string {
@@ -8015,7 +8141,7 @@ type SessionOption_Choice struct {
 
 func (x *SessionOption_Choice) Reset() {
 	*x = SessionOption_Choice{}
-	mi := &file_inaba_v1_host_proto_msgTypes[125]
+	mi := &file_inaba_v1_host_proto_msgTypes[127]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8027,7 +8153,7 @@ func (x *SessionOption_Choice) String() string {
 func (*SessionOption_Choice) ProtoMessage() {}
 
 func (x *SessionOption_Choice) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[125]
+	mi := &file_inaba_v1_host_proto_msgTypes[127]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8084,7 +8210,7 @@ type Plan_Entry struct {
 
 func (x *Plan_Entry) Reset() {
 	*x = Plan_Entry{}
-	mi := &file_inaba_v1_host_proto_msgTypes[127]
+	mi := &file_inaba_v1_host_proto_msgTypes[129]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8096,7 +8222,7 @@ func (x *Plan_Entry) String() string {
 func (*Plan_Entry) ProtoMessage() {}
 
 func (x *Plan_Entry) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[127]
+	mi := &file_inaba_v1_host_proto_msgTypes[129]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8145,7 +8271,7 @@ type PermissionRequest_Option struct {
 
 func (x *PermissionRequest_Option) Reset() {
 	*x = PermissionRequest_Option{}
-	mi := &file_inaba_v1_host_proto_msgTypes[128]
+	mi := &file_inaba_v1_host_proto_msgTypes[130]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8157,7 +8283,7 @@ func (x *PermissionRequest_Option) String() string {
 func (*PermissionRequest_Option) ProtoMessage() {}
 
 func (x *PermissionRequest_Option) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[128]
+	mi := &file_inaba_v1_host_proto_msgTypes[130]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8205,7 +8331,7 @@ type ListDirectoryResponse_Entry struct {
 
 func (x *ListDirectoryResponse_Entry) Reset() {
 	*x = ListDirectoryResponse_Entry{}
-	mi := &file_inaba_v1_host_proto_msgTypes[130]
+	mi := &file_inaba_v1_host_proto_msgTypes[132]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8217,7 +8343,7 @@ func (x *ListDirectoryResponse_Entry) String() string {
 func (*ListDirectoryResponse_Entry) ProtoMessage() {}
 
 func (x *ListDirectoryResponse_Entry) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[130]
+	mi := &file_inaba_v1_host_proto_msgTypes[132]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8260,7 +8386,7 @@ type GitStatus_File struct {
 
 func (x *GitStatus_File) Reset() {
 	*x = GitStatus_File{}
-	mi := &file_inaba_v1_host_proto_msgTypes[131]
+	mi := &file_inaba_v1_host_proto_msgTypes[133]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8272,7 +8398,7 @@ func (x *GitStatus_File) String() string {
 func (*GitStatus_File) ProtoMessage() {}
 
 func (x *GitStatus_File) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[131]
+	mi := &file_inaba_v1_host_proto_msgTypes[133]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8333,7 +8459,7 @@ type Housekeeping_Worktree struct {
 
 func (x *Housekeeping_Worktree) Reset() {
 	*x = Housekeeping_Worktree{}
-	mi := &file_inaba_v1_host_proto_msgTypes[132]
+	mi := &file_inaba_v1_host_proto_msgTypes[134]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8345,7 +8471,7 @@ func (x *Housekeeping_Worktree) String() string {
 func (*Housekeeping_Worktree) ProtoMessage() {}
 
 func (x *Housekeeping_Worktree) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[132]
+	mi := &file_inaba_v1_host_proto_msgTypes[134]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8409,7 +8535,7 @@ type Housekeeping_Snapshots struct {
 
 func (x *Housekeeping_Snapshots) Reset() {
 	*x = Housekeeping_Snapshots{}
-	mi := &file_inaba_v1_host_proto_msgTypes[133]
+	mi := &file_inaba_v1_host_proto_msgTypes[135]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8421,7 +8547,7 @@ func (x *Housekeeping_Snapshots) String() string {
 func (*Housekeeping_Snapshots) ProtoMessage() {}
 
 func (x *Housekeeping_Snapshots) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[133]
+	mi := &file_inaba_v1_host_proto_msgTypes[135]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8471,7 +8597,7 @@ type UsageSummary_Day struct {
 
 func (x *UsageSummary_Day) Reset() {
 	*x = UsageSummary_Day{}
-	mi := &file_inaba_v1_host_proto_msgTypes[136]
+	mi := &file_inaba_v1_host_proto_msgTypes[138]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8483,7 +8609,7 @@ func (x *UsageSummary_Day) String() string {
 func (*UsageSummary_Day) ProtoMessage() {}
 
 func (x *UsageSummary_Day) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[136]
+	mi := &file_inaba_v1_host_proto_msgTypes[138]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8496,7 +8622,7 @@ func (x *UsageSummary_Day) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageSummary_Day.ProtoReflect.Descriptor instead.
 func (*UsageSummary_Day) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{121, 0}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{123, 0}
 }
 
 func (x *UsageSummary_Day) GetDate() string {
@@ -8531,7 +8657,7 @@ type UsageSummary_Group struct {
 
 func (x *UsageSummary_Group) Reset() {
 	*x = UsageSummary_Group{}
-	mi := &file_inaba_v1_host_proto_msgTypes[137]
+	mi := &file_inaba_v1_host_proto_msgTypes[139]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8543,7 +8669,7 @@ func (x *UsageSummary_Group) String() string {
 func (*UsageSummary_Group) ProtoMessage() {}
 
 func (x *UsageSummary_Group) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[137]
+	mi := &file_inaba_v1_host_proto_msgTypes[139]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8556,7 +8682,7 @@ func (x *UsageSummary_Group) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageSummary_Group.ProtoReflect.Descriptor instead.
 func (*UsageSummary_Group) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{121, 1}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{123, 1}
 }
 
 func (x *UsageSummary_Group) GetId() string {
@@ -8587,7 +8713,7 @@ type UsageSummary_ThreadUsage struct {
 
 func (x *UsageSummary_ThreadUsage) Reset() {
 	*x = UsageSummary_ThreadUsage{}
-	mi := &file_inaba_v1_host_proto_msgTypes[138]
+	mi := &file_inaba_v1_host_proto_msgTypes[140]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8599,7 +8725,7 @@ func (x *UsageSummary_ThreadUsage) String() string {
 func (*UsageSummary_ThreadUsage) ProtoMessage() {}
 
 func (x *UsageSummary_ThreadUsage) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[138]
+	mi := &file_inaba_v1_host_proto_msgTypes[140]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8612,7 +8738,7 @@ func (x *UsageSummary_ThreadUsage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageSummary_ThreadUsage.ProtoReflect.Descriptor instead.
 func (*UsageSummary_ThreadUsage) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{121, 2}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{123, 2}
 }
 
 func (x *UsageSummary_ThreadUsage) GetThreadId() string {
@@ -8662,7 +8788,7 @@ type UsageSummary_ProviderLimits struct {
 
 func (x *UsageSummary_ProviderLimits) Reset() {
 	*x = UsageSummary_ProviderLimits{}
-	mi := &file_inaba_v1_host_proto_msgTypes[139]
+	mi := &file_inaba_v1_host_proto_msgTypes[141]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8674,7 +8800,7 @@ func (x *UsageSummary_ProviderLimits) String() string {
 func (*UsageSummary_ProviderLimits) ProtoMessage() {}
 
 func (x *UsageSummary_ProviderLimits) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[139]
+	mi := &file_inaba_v1_host_proto_msgTypes[141]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8687,7 +8813,7 @@ func (x *UsageSummary_ProviderLimits) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageSummary_ProviderLimits.ProtoReflect.Descriptor instead.
 func (*UsageSummary_ProviderLimits) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{121, 3}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{123, 3}
 }
 
 func (x *UsageSummary_ProviderLimits) GetProvider() string {
@@ -9260,7 +9386,15 @@ const file_inaba_v1_host_proto_rawDesc = "" +
 	"\x1cDeleteProviderConfigResponse\"\x16\n" +
 	"\x14GetSystemInfoRequest\"\x14\n" +
 	"\x12RestartHostRequest\"\x15\n" +
-	"\x13RestartHostResponse\"\x9e\x04\n" +
+	"\x13RestartHostResponse\"E\n" +
+	"\x12UpgradeHostRequest\x12\x18\n" +
+	"\achannel\x18\x01 \x01(\tR\achannel\x12\x15\n" +
+	"\x06use_gh\x18\x02 \x01(\bR\x05useGh\"m\n" +
+	"\x13UpgradeHostResponse\x12\x12\n" +
+	"\x04from\x18\x01 \x01(\tR\x04from\x12\x0e\n" +
+	"\x02to\x18\x02 \x01(\tR\x02to\x12\x18\n" +
+	"\aupdated\x18\x03 \x01(\bR\aupdated\x12\x18\n" +
+	"\achannel\x18\x04 \x01(\tR\achannel\"\x9e\x04\n" +
 	"\n" +
 	"SystemInfo\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x1a\n" +
@@ -9415,11 +9549,12 @@ const file_inaba_v1_host_proto_rawDesc = "" +
 	"\x12SaveProviderConfig\x12#.inaba.v1.SaveProviderConfigRequest\x1a\x18.inaba.v1.ProviderConfig\"0\x82\xd3\xe4\x93\x02*:\x06config\x1a /v1/provider-configs/{config.id}\x12\x88\x01\n" +
 	"\x14DeleteProviderConfig\x12%.inaba.v1.DeleteProviderConfigRequest\x1a&.inaba.v1.DeleteProviderConfigResponse\"!\x82\xd3\xe4\x93\x02\x1b*\x19/v1/provider-configs/{id}\x12\x7f\n" +
 	"\x0eCheckProviders\x12\x1f.inaba.v1.CheckProvidersRequest\x1a%.inaba.v1.ListProviderConfigsResponse\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/provider-configs/check\x12h\n" +
-	"\rListAcpAgents\x12\x1e.inaba.v1.ListAcpAgentsRequest\x1a\x1f.inaba.v1.ListAcpAgentsResponse\"\x16\x82\xd3\xe4\x93\x02\x10\x12\x0e/v1/acp-agents2\xd5\x01\n" +
+	"\rListAcpAgents\x12\x1e.inaba.v1.ListAcpAgentsRequest\x1a\x1f.inaba.v1.ListAcpAgentsResponse\"\x16\x82\xd3\xe4\x93\x02\x10\x12\x0e/v1/acp-agents2\xc0\x02\n" +
 	"\rSystemService\x12Y\n" +
 	"\rGetSystemInfo\x12\x1e.inaba.v1.GetSystemInfoRequest\x1a\x14.inaba.v1.SystemInfo\"\x12\x82\xd3\xe4\x93\x02\f\x12\n" +
 	"/v1/system\x12i\n" +
-	"\vRestartHost\x12\x1c.inaba.v1.RestartHostRequest\x1a\x1d.inaba.v1.RestartHostResponse\"\x1d\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/v1/system/restart2n\n" +
+	"\vRestartHost\x12\x1c.inaba.v1.RestartHostRequest\x1a\x1d.inaba.v1.RestartHostResponse\"\x1d\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/v1/system/restart\x12i\n" +
+	"\vUpgradeHost\x12\x1c.inaba.v1.UpgradeHostRequest\x1a\x1d.inaba.v1.UpgradeHostResponse\"\x1d\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/v1/system/upgrade2n\n" +
 	"\fUsageService\x12^\n" +
 	"\x0fGetUsageSummary\x12 .inaba.v1.GetUsageSummaryRequest\x1a\x16.inaba.v1.UsageSummary\"\x11\x82\xd3\xe4\x93\x02\v\x12\t/v1/usage2N\n" +
 	"\fAlertService\x12>\n" +
@@ -9439,7 +9574,7 @@ func file_inaba_v1_host_proto_rawDescGZIP() []byte {
 }
 
 var file_inaba_v1_host_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_inaba_v1_host_proto_msgTypes = make([]protoimpl.MessageInfo, 140)
+var file_inaba_v1_host_proto_msgTypes = make([]protoimpl.MessageInfo, 142)
 var file_inaba_v1_host_proto_goTypes = []any{
 	(ThreadMode)(0),                      // 0: inaba.v1.ThreadMode
 	(ThreadStatus)(0),                    // 1: inaba.v1.ThreadStatus
@@ -9562,50 +9697,52 @@ var file_inaba_v1_host_proto_goTypes = []any{
 	(*GetSystemInfoRequest)(nil),         // 118: inaba.v1.GetSystemInfoRequest
 	(*RestartHostRequest)(nil),           // 119: inaba.v1.RestartHostRequest
 	(*RestartHostResponse)(nil),          // 120: inaba.v1.RestartHostResponse
-	(*SystemInfo)(nil),                   // 121: inaba.v1.SystemInfo
-	(*GetUsageSummaryRequest)(nil),       // 122: inaba.v1.GetUsageSummaryRequest
-	(*UsageTotals)(nil),                  // 123: inaba.v1.UsageTotals
-	(*UsageSummary)(nil),                 // 124: inaba.v1.UsageSummary
-	(*WatchAlertsRequest)(nil),           // 125: inaba.v1.WatchAlertsRequest
-	(*Alert)(nil),                        // 126: inaba.v1.Alert
-	nil,                                  // 127: inaba.v1.Thread.LabelsEntry
-	(*SessionOption_Choice)(nil),         // 128: inaba.v1.SessionOption.Choice
-	nil,                                  // 129: inaba.v1.NewThreadDefaults.OptionsEntry
-	(*Plan_Entry)(nil),                   // 130: inaba.v1.Plan.Entry
-	(*PermissionRequest_Option)(nil),     // 131: inaba.v1.PermissionRequest.Option
-	nil,                                  // 132: inaba.v1.CreateThreadRequest.OptionsEntry
-	(*ListDirectoryResponse_Entry)(nil),  // 133: inaba.v1.ListDirectoryResponse.Entry
-	(*GitStatus_File)(nil),               // 134: inaba.v1.GitStatus.File
-	(*Housekeeping_Worktree)(nil),        // 135: inaba.v1.Housekeeping.Worktree
-	(*Housekeeping_Snapshots)(nil),       // 136: inaba.v1.Housekeeping.Snapshots
-	nil,                                  // 137: inaba.v1.AcpAgent.EnvEntry
-	nil,                                  // 138: inaba.v1.ProviderConfig.EnvEntry
-	(*UsageSummary_Day)(nil),             // 139: inaba.v1.UsageSummary.Day
-	(*UsageSummary_Group)(nil),           // 140: inaba.v1.UsageSummary.Group
-	(*UsageSummary_ThreadUsage)(nil),     // 141: inaba.v1.UsageSummary.ThreadUsage
-	(*UsageSummary_ProviderLimits)(nil),  // 142: inaba.v1.UsageSummary.ProviderLimits
-	(*timestamppb.Timestamp)(nil),        // 143: google.protobuf.Timestamp
-	(*structpb.Value)(nil),               // 144: google.protobuf.Value
+	(*UpgradeHostRequest)(nil),           // 121: inaba.v1.UpgradeHostRequest
+	(*UpgradeHostResponse)(nil),          // 122: inaba.v1.UpgradeHostResponse
+	(*SystemInfo)(nil),                   // 123: inaba.v1.SystemInfo
+	(*GetUsageSummaryRequest)(nil),       // 124: inaba.v1.GetUsageSummaryRequest
+	(*UsageTotals)(nil),                  // 125: inaba.v1.UsageTotals
+	(*UsageSummary)(nil),                 // 126: inaba.v1.UsageSummary
+	(*WatchAlertsRequest)(nil),           // 127: inaba.v1.WatchAlertsRequest
+	(*Alert)(nil),                        // 128: inaba.v1.Alert
+	nil,                                  // 129: inaba.v1.Thread.LabelsEntry
+	(*SessionOption_Choice)(nil),         // 130: inaba.v1.SessionOption.Choice
+	nil,                                  // 131: inaba.v1.NewThreadDefaults.OptionsEntry
+	(*Plan_Entry)(nil),                   // 132: inaba.v1.Plan.Entry
+	(*PermissionRequest_Option)(nil),     // 133: inaba.v1.PermissionRequest.Option
+	nil,                                  // 134: inaba.v1.CreateThreadRequest.OptionsEntry
+	(*ListDirectoryResponse_Entry)(nil),  // 135: inaba.v1.ListDirectoryResponse.Entry
+	(*GitStatus_File)(nil),               // 136: inaba.v1.GitStatus.File
+	(*Housekeeping_Worktree)(nil),        // 137: inaba.v1.Housekeeping.Worktree
+	(*Housekeeping_Snapshots)(nil),       // 138: inaba.v1.Housekeeping.Snapshots
+	nil,                                  // 139: inaba.v1.AcpAgent.EnvEntry
+	nil,                                  // 140: inaba.v1.ProviderConfig.EnvEntry
+	(*UsageSummary_Day)(nil),             // 141: inaba.v1.UsageSummary.Day
+	(*UsageSummary_Group)(nil),           // 142: inaba.v1.UsageSummary.Group
+	(*UsageSummary_ThreadUsage)(nil),     // 143: inaba.v1.UsageSummary.ThreadUsage
+	(*UsageSummary_ProviderLimits)(nil),  // 144: inaba.v1.UsageSummary.ProviderLimits
+	(*timestamppb.Timestamp)(nil),        // 145: google.protobuf.Timestamp
+	(*structpb.Value)(nil),               // 146: google.protobuf.Value
 }
 var file_inaba_v1_host_proto_depIdxs = []int32{
 	10,  // 0: inaba.v1.Provider.options:type_name -> inaba.v1.SessionOption
 	0,   // 1: inaba.v1.Thread.mode:type_name -> inaba.v1.ThreadMode
 	1,   // 2: inaba.v1.Thread.status:type_name -> inaba.v1.ThreadStatus
-	143, // 3: inaba.v1.Thread.created_at:type_name -> google.protobuf.Timestamp
-	143, // 4: inaba.v1.Thread.updated_at:type_name -> google.protobuf.Timestamp
+	145, // 3: inaba.v1.Thread.created_at:type_name -> google.protobuf.Timestamp
+	145, // 4: inaba.v1.Thread.updated_at:type_name -> google.protobuf.Timestamp
 	11,  // 5: inaba.v1.Thread.queue:type_name -> inaba.v1.QueuedMessage
 	10,  // 6: inaba.v1.Thread.options:type_name -> inaba.v1.SessionOption
 	5,   // 7: inaba.v1.Thread.commands:type_name -> inaba.v1.Command
 	6,   // 8: inaba.v1.Thread.usage:type_name -> inaba.v1.Usage
-	127, // 9: inaba.v1.Thread.labels:type_name -> inaba.v1.Thread.LabelsEntry
+	129, // 9: inaba.v1.Thread.labels:type_name -> inaba.v1.Thread.LabelsEntry
 	7,   // 10: inaba.v1.Usage.limits:type_name -> inaba.v1.UsageLimit
-	143, // 11: inaba.v1.UsageLimit.resets_at:type_name -> google.protobuf.Timestamp
-	128, // 12: inaba.v1.SessionOption.choices:type_name -> inaba.v1.SessionOption.Choice
+	145, // 11: inaba.v1.UsageLimit.resets_at:type_name -> google.protobuf.Timestamp
+	130, // 12: inaba.v1.SessionOption.choices:type_name -> inaba.v1.SessionOption.Choice
 	9,   // 13: inaba.v1.QueuedMessage.attachments:type_name -> inaba.v1.Attachment
-	143, // 14: inaba.v1.Project.created_at:type_name -> google.protobuf.Timestamp
+	145, // 14: inaba.v1.Project.created_at:type_name -> google.protobuf.Timestamp
 	13,  // 15: inaba.v1.Project.new_thread:type_name -> inaba.v1.NewThreadDefaults
-	129, // 16: inaba.v1.NewThreadDefaults.options:type_name -> inaba.v1.NewThreadDefaults.OptionsEntry
-	143, // 17: inaba.v1.Event.time:type_name -> google.protobuf.Timestamp
+	131, // 16: inaba.v1.NewThreadDefaults.options:type_name -> inaba.v1.NewThreadDefaults.OptionsEntry
+	145, // 17: inaba.v1.Event.time:type_name -> google.protobuf.Timestamp
 	19,  // 18: inaba.v1.Event.user_message:type_name -> inaba.v1.UserMessage
 	24,  // 19: inaba.v1.Event.text_delta:type_name -> inaba.v1.TextDelta
 	25,  // 20: inaba.v1.Event.tool_call:type_name -> inaba.v1.ToolCall
@@ -9626,64 +9763,64 @@ var file_inaba_v1_host_proto_depIdxs = []int32{
 	40,  // 35: inaba.v1.Event.provider_changed:type_name -> inaba.v1.ProviderChanged
 	10,  // 36: inaba.v1.OptionsChanged.options:type_name -> inaba.v1.SessionOption
 	9,   // 37: inaba.v1.UserMessage.attachments:type_name -> inaba.v1.Attachment
-	130, // 38: inaba.v1.Plan.entries:type_name -> inaba.v1.Plan.Entry
+	132, // 38: inaba.v1.Plan.entries:type_name -> inaba.v1.Plan.Entry
 	5,   // 39: inaba.v1.CommandsChanged.commands:type_name -> inaba.v1.Command
 	6,   // 40: inaba.v1.UsageChanged.usage:type_name -> inaba.v1.Usage
 	2,   // 41: inaba.v1.TextDelta.kind:type_name -> inaba.v1.TextDelta.Kind
-	144, // 42: inaba.v1.ToolCall.raw:type_name -> google.protobuf.Value
-	131, // 43: inaba.v1.PermissionRequest.options:type_name -> inaba.v1.PermissionRequest.Option
-	144, // 44: inaba.v1.PermissionRequest.raw:type_name -> google.protobuf.Value
+	146, // 42: inaba.v1.ToolCall.raw:type_name -> google.protobuf.Value
+	133, // 43: inaba.v1.PermissionRequest.options:type_name -> inaba.v1.PermissionRequest.Option
+	146, // 44: inaba.v1.PermissionRequest.raw:type_name -> google.protobuf.Value
 	8,   // 45: inaba.v1.TurnEnded.usage:type_name -> inaba.v1.TurnUsage
 	0,   // 46: inaba.v1.ModeChanged.mode:type_name -> inaba.v1.ThreadMode
-	144, // 47: inaba.v1.RawEvent.params:type_name -> google.protobuf.Value
+	146, // 47: inaba.v1.RawEvent.params:type_name -> google.protobuf.Value
 	3,   // 48: inaba.v1.ListProvidersResponse.providers:type_name -> inaba.v1.Provider
 	0,   // 49: inaba.v1.CreateThreadRequest.mode:type_name -> inaba.v1.ThreadMode
-	132, // 50: inaba.v1.CreateThreadRequest.options:type_name -> inaba.v1.CreateThreadRequest.OptionsEntry
+	134, // 50: inaba.v1.CreateThreadRequest.options:type_name -> inaba.v1.CreateThreadRequest.OptionsEntry
 	35,  // 51: inaba.v1.CreateThreadRequest.worktree:type_name -> inaba.v1.Worktree
 	4,   // 52: inaba.v1.ListThreadsResponse.threads:type_name -> inaba.v1.Thread
 	9,   // 53: inaba.v1.StartTurnRequest.attachments:type_name -> inaba.v1.Attachment
 	4,   // 54: inaba.v1.RewindResponse.thread:type_name -> inaba.v1.Thread
 	19,  // 55: inaba.v1.RewindResponse.message:type_name -> inaba.v1.UserMessage
 	0,   // 56: inaba.v1.SetModeRequest.mode:type_name -> inaba.v1.ThreadMode
-	144, // 57: inaba.v1.RawRequest.params:type_name -> google.protobuf.Value
-	144, // 58: inaba.v1.RawResponse.result:type_name -> google.protobuf.Value
+	146, // 57: inaba.v1.RawRequest.params:type_name -> google.protobuf.Value
+	146, // 58: inaba.v1.RawResponse.result:type_name -> google.protobuf.Value
 	14,  // 59: inaba.v1.ListEventsResponse.events:type_name -> inaba.v1.Event
 	12,  // 60: inaba.v1.ListProjectsResponse.projects:type_name -> inaba.v1.Project
-	133, // 61: inaba.v1.ListDirectoryResponse.entries:type_name -> inaba.v1.ListDirectoryResponse.Entry
+	135, // 61: inaba.v1.ListDirectoryResponse.entries:type_name -> inaba.v1.ListDirectoryResponse.Entry
 	13,  // 62: inaba.v1.UpdateProjectRequest.new_thread:type_name -> inaba.v1.NewThreadDefaults
 	82,  // 63: inaba.v1.GitRestoreResponse.status:type_name -> inaba.v1.GitStatus
-	134, // 64: inaba.v1.GitStatus.files:type_name -> inaba.v1.GitStatus.File
+	136, // 64: inaba.v1.GitStatus.files:type_name -> inaba.v1.GitStatus.File
 	82,  // 65: inaba.v1.GitPullRequestResponse.status:type_name -> inaba.v1.GitStatus
 	82,  // 66: inaba.v1.GitCommitResponse.status:type_name -> inaba.v1.GitStatus
 	89,  // 67: inaba.v1.ListModulesResponse.modules:type_name -> inaba.v1.Module
-	135, // 68: inaba.v1.Housekeeping.worktrees:type_name -> inaba.v1.Housekeeping.Worktree
-	136, // 69: inaba.v1.Housekeeping.snapshots:type_name -> inaba.v1.Housekeeping.Snapshots
+	137, // 68: inaba.v1.Housekeeping.worktrees:type_name -> inaba.v1.Housekeeping.Worktree
+	138, // 69: inaba.v1.Housekeeping.snapshots:type_name -> inaba.v1.Housekeeping.Snapshots
 	94,  // 70: inaba.v1.CleanUpResponse.housekeeping:type_name -> inaba.v1.Housekeeping
 	109, // 71: inaba.v1.ListAcpAgentsResponse.agents:type_name -> inaba.v1.AcpAgent
-	137, // 72: inaba.v1.AcpAgent.env:type_name -> inaba.v1.AcpAgent.EnvEntry
-	138, // 73: inaba.v1.ProviderConfig.env:type_name -> inaba.v1.ProviderConfig.EnvEntry
+	139, // 72: inaba.v1.AcpAgent.env:type_name -> inaba.v1.AcpAgent.EnvEntry
+	140, // 73: inaba.v1.ProviderConfig.env:type_name -> inaba.v1.ProviderConfig.EnvEntry
 	111, // 74: inaba.v1.ProviderConfig.status:type_name -> inaba.v1.ProviderStatus
-	128, // 75: inaba.v1.ProviderConfig.models:type_name -> inaba.v1.SessionOption.Choice
-	143, // 76: inaba.v1.ProviderStatus.checked_at:type_name -> google.protobuf.Timestamp
+	130, // 75: inaba.v1.ProviderConfig.models:type_name -> inaba.v1.SessionOption.Choice
+	145, // 76: inaba.v1.ProviderStatus.checked_at:type_name -> google.protobuf.Timestamp
 	110, // 77: inaba.v1.ListProviderConfigsResponse.configs:type_name -> inaba.v1.ProviderConfig
 	110, // 78: inaba.v1.SaveProviderConfigRequest.config:type_name -> inaba.v1.ProviderConfig
-	143, // 79: inaba.v1.GetUsageSummaryRequest.from:type_name -> google.protobuf.Timestamp
-	143, // 80: inaba.v1.GetUsageSummaryRequest.to:type_name -> google.protobuf.Timestamp
-	143, // 81: inaba.v1.UsageSummary.from:type_name -> google.protobuf.Timestamp
-	143, // 82: inaba.v1.UsageSummary.to:type_name -> google.protobuf.Timestamp
-	123, // 83: inaba.v1.UsageSummary.totals:type_name -> inaba.v1.UsageTotals
-	139, // 84: inaba.v1.UsageSummary.days:type_name -> inaba.v1.UsageSummary.Day
-	140, // 85: inaba.v1.UsageSummary.providers:type_name -> inaba.v1.UsageSummary.Group
-	140, // 86: inaba.v1.UsageSummary.projects:type_name -> inaba.v1.UsageSummary.Group
-	141, // 87: inaba.v1.UsageSummary.top_threads:type_name -> inaba.v1.UsageSummary.ThreadUsage
-	142, // 88: inaba.v1.UsageSummary.limits:type_name -> inaba.v1.UsageSummary.ProviderLimits
-	143, // 89: inaba.v1.Alert.at:type_name -> google.protobuf.Timestamp
-	123, // 90: inaba.v1.UsageSummary.Day.totals:type_name -> inaba.v1.UsageTotals
-	140, // 91: inaba.v1.UsageSummary.Day.providers:type_name -> inaba.v1.UsageSummary.Group
-	123, // 92: inaba.v1.UsageSummary.Group.totals:type_name -> inaba.v1.UsageTotals
-	123, // 93: inaba.v1.UsageSummary.ThreadUsage.totals:type_name -> inaba.v1.UsageTotals
+	145, // 79: inaba.v1.GetUsageSummaryRequest.from:type_name -> google.protobuf.Timestamp
+	145, // 80: inaba.v1.GetUsageSummaryRequest.to:type_name -> google.protobuf.Timestamp
+	145, // 81: inaba.v1.UsageSummary.from:type_name -> google.protobuf.Timestamp
+	145, // 82: inaba.v1.UsageSummary.to:type_name -> google.protobuf.Timestamp
+	125, // 83: inaba.v1.UsageSummary.totals:type_name -> inaba.v1.UsageTotals
+	141, // 84: inaba.v1.UsageSummary.days:type_name -> inaba.v1.UsageSummary.Day
+	142, // 85: inaba.v1.UsageSummary.providers:type_name -> inaba.v1.UsageSummary.Group
+	142, // 86: inaba.v1.UsageSummary.projects:type_name -> inaba.v1.UsageSummary.Group
+	143, // 87: inaba.v1.UsageSummary.top_threads:type_name -> inaba.v1.UsageSummary.ThreadUsage
+	144, // 88: inaba.v1.UsageSummary.limits:type_name -> inaba.v1.UsageSummary.ProviderLimits
+	145, // 89: inaba.v1.Alert.at:type_name -> google.protobuf.Timestamp
+	125, // 90: inaba.v1.UsageSummary.Day.totals:type_name -> inaba.v1.UsageTotals
+	142, // 91: inaba.v1.UsageSummary.Day.providers:type_name -> inaba.v1.UsageSummary.Group
+	125, // 92: inaba.v1.UsageSummary.Group.totals:type_name -> inaba.v1.UsageTotals
+	125, // 93: inaba.v1.UsageSummary.ThreadUsage.totals:type_name -> inaba.v1.UsageTotals
 	7,   // 94: inaba.v1.UsageSummary.ProviderLimits.limits:type_name -> inaba.v1.UsageLimit
-	143, // 95: inaba.v1.UsageSummary.ProviderLimits.reported_at:type_name -> google.protobuf.Timestamp
+	145, // 95: inaba.v1.UsageSummary.ProviderLimits.reported_at:type_name -> google.protobuf.Timestamp
 	32,  // 96: inaba.v1.ThreadService.ListProviders:input_type -> inaba.v1.ListProvidersRequest
 	34,  // 97: inaba.v1.ThreadService.CreateThread:input_type -> inaba.v1.CreateThreadRequest
 	36,  // 98: inaba.v1.ThreadService.ListThreads:input_type -> inaba.v1.ListThreadsRequest
@@ -9738,66 +9875,68 @@ var file_inaba_v1_host_proto_depIdxs = []int32{
 	107, // 147: inaba.v1.ProviderConfigService.ListAcpAgents:input_type -> inaba.v1.ListAcpAgentsRequest
 	118, // 148: inaba.v1.SystemService.GetSystemInfo:input_type -> inaba.v1.GetSystemInfoRequest
 	119, // 149: inaba.v1.SystemService.RestartHost:input_type -> inaba.v1.RestartHostRequest
-	122, // 150: inaba.v1.UsageService.GetUsageSummary:input_type -> inaba.v1.GetUsageSummaryRequest
-	125, // 151: inaba.v1.AlertService.WatchAlerts:input_type -> inaba.v1.WatchAlertsRequest
-	33,  // 152: inaba.v1.ThreadService.ListProviders:output_type -> inaba.v1.ListProvidersResponse
-	4,   // 153: inaba.v1.ThreadService.CreateThread:output_type -> inaba.v1.Thread
-	37,  // 154: inaba.v1.ThreadService.ListThreads:output_type -> inaba.v1.ListThreadsResponse
-	4,   // 155: inaba.v1.ThreadService.GetThread:output_type -> inaba.v1.Thread
-	4,   // 156: inaba.v1.ThreadService.UpdateThread:output_type -> inaba.v1.Thread
-	42,  // 157: inaba.v1.ThreadService.DeleteThread:output_type -> inaba.v1.DeleteThreadResponse
-	48,  // 158: inaba.v1.ThreadService.StartTurn:output_type -> inaba.v1.StartTurnResponse
-	56,  // 159: inaba.v1.ThreadService.Interrupt:output_type -> inaba.v1.InterruptResponse
-	4,   // 160: inaba.v1.ThreadService.SetOption:output_type -> inaba.v1.Thread
-	4,   // 161: inaba.v1.ThreadService.CancelQueued:output_type -> inaba.v1.Thread
-	4,   // 162: inaba.v1.ThreadService.EditQueued:output_type -> inaba.v1.Thread
-	4,   // 163: inaba.v1.ThreadService.MoveQueued:output_type -> inaba.v1.Thread
-	4,   // 164: inaba.v1.ThreadService.SendQueuedNow:output_type -> inaba.v1.Thread
-	4,   // 165: inaba.v1.ThreadService.ResumeQueue:output_type -> inaba.v1.Thread
-	58,  // 166: inaba.v1.ThreadService.Respond:output_type -> inaba.v1.RespondResponse
-	4,   // 167: inaba.v1.ThreadService.SetMode:output_type -> inaba.v1.Thread
-	61,  // 168: inaba.v1.ThreadService.Raw:output_type -> inaba.v1.RawResponse
-	45,  // 169: inaba.v1.ThreadService.Rewind:output_type -> inaba.v1.RewindResponse
-	4,   // 170: inaba.v1.ThreadService.SetLayout:output_type -> inaba.v1.Thread
-	4,   // 171: inaba.v1.ThreadService.ForkThread:output_type -> inaba.v1.Thread
-	63,  // 172: inaba.v1.ThreadService.ListEvents:output_type -> inaba.v1.ListEventsResponse
-	14,  // 173: inaba.v1.ThreadService.Subscribe:output_type -> inaba.v1.Event
-	12,  // 174: inaba.v1.ProjectService.CreateProject:output_type -> inaba.v1.Project
-	12,  // 175: inaba.v1.ProjectService.UpdateProject:output_type -> inaba.v1.Project
-	67,  // 176: inaba.v1.ProjectService.ListProjects:output_type -> inaba.v1.ListProjectsResponse
-	69,  // 177: inaba.v1.ProjectService.ListDirectory:output_type -> inaba.v1.ListDirectoryResponse
-	72,  // 178: inaba.v1.ProjectService.DeleteProject:output_type -> inaba.v1.DeleteProjectResponse
-	82,  // 179: inaba.v1.GitService.GetStatus:output_type -> inaba.v1.GitStatus
-	84,  // 180: inaba.v1.GitService.GetDiff:output_type -> inaba.v1.GetGitDiffResponse
-	74,  // 181: inaba.v1.GitService.ListBranches:output_type -> inaba.v1.ListBranchesResponse
-	82,  // 182: inaba.v1.GitService.Checkout:output_type -> inaba.v1.GitStatus
-	77,  // 183: inaba.v1.GitService.Restore:output_type -> inaba.v1.GitRestoreResponse
-	88,  // 184: inaba.v1.GitService.Push:output_type -> inaba.v1.GitCommitResponse
-	88,  // 185: inaba.v1.GitService.Fetch:output_type -> inaba.v1.GitCommitResponse
-	88,  // 186: inaba.v1.GitService.Pull:output_type -> inaba.v1.GitCommitResponse
-	87,  // 187: inaba.v1.GitService.CreatePullRequest:output_type -> inaba.v1.GitPullRequestResponse
-	88,  // 188: inaba.v1.GitService.Commit:output_type -> inaba.v1.GitCommitResponse
-	91,  // 189: inaba.v1.ModuleService.ListModules:output_type -> inaba.v1.ListModulesResponse
-	89,  // 190: inaba.v1.ModuleService.SetModule:output_type -> inaba.v1.Module
-	94,  // 191: inaba.v1.HousekeepingService.GetHousekeeping:output_type -> inaba.v1.Housekeeping
-	97,  // 192: inaba.v1.HousekeepingService.GetArchivePolicy:output_type -> inaba.v1.ArchivePolicy
-	97,  // 193: inaba.v1.HousekeepingService.SetArchivePolicy:output_type -> inaba.v1.ArchivePolicy
-	98,  // 194: inaba.v1.HousekeepingService.CleanUp:output_type -> inaba.v1.CleanUpResponse
-	100, // 195: inaba.v1.TerminalService.Attach:output_type -> inaba.v1.TerminalOutput
-	102, // 196: inaba.v1.TerminalService.Write:output_type -> inaba.v1.WriteResponse
-	104, // 197: inaba.v1.TerminalService.Resize:output_type -> inaba.v1.ResizeResponse
-	106, // 198: inaba.v1.PeerService.Connect:output_type -> inaba.v1.ConnectResponse
-	114, // 199: inaba.v1.ProviderConfigService.ListProviderConfigs:output_type -> inaba.v1.ListProviderConfigsResponse
-	110, // 200: inaba.v1.ProviderConfigService.SaveProviderConfig:output_type -> inaba.v1.ProviderConfig
-	117, // 201: inaba.v1.ProviderConfigService.DeleteProviderConfig:output_type -> inaba.v1.DeleteProviderConfigResponse
-	114, // 202: inaba.v1.ProviderConfigService.CheckProviders:output_type -> inaba.v1.ListProviderConfigsResponse
-	108, // 203: inaba.v1.ProviderConfigService.ListAcpAgents:output_type -> inaba.v1.ListAcpAgentsResponse
-	121, // 204: inaba.v1.SystemService.GetSystemInfo:output_type -> inaba.v1.SystemInfo
-	120, // 205: inaba.v1.SystemService.RestartHost:output_type -> inaba.v1.RestartHostResponse
-	124, // 206: inaba.v1.UsageService.GetUsageSummary:output_type -> inaba.v1.UsageSummary
-	126, // 207: inaba.v1.AlertService.WatchAlerts:output_type -> inaba.v1.Alert
-	152, // [152:208] is the sub-list for method output_type
-	96,  // [96:152] is the sub-list for method input_type
+	121, // 150: inaba.v1.SystemService.UpgradeHost:input_type -> inaba.v1.UpgradeHostRequest
+	124, // 151: inaba.v1.UsageService.GetUsageSummary:input_type -> inaba.v1.GetUsageSummaryRequest
+	127, // 152: inaba.v1.AlertService.WatchAlerts:input_type -> inaba.v1.WatchAlertsRequest
+	33,  // 153: inaba.v1.ThreadService.ListProviders:output_type -> inaba.v1.ListProvidersResponse
+	4,   // 154: inaba.v1.ThreadService.CreateThread:output_type -> inaba.v1.Thread
+	37,  // 155: inaba.v1.ThreadService.ListThreads:output_type -> inaba.v1.ListThreadsResponse
+	4,   // 156: inaba.v1.ThreadService.GetThread:output_type -> inaba.v1.Thread
+	4,   // 157: inaba.v1.ThreadService.UpdateThread:output_type -> inaba.v1.Thread
+	42,  // 158: inaba.v1.ThreadService.DeleteThread:output_type -> inaba.v1.DeleteThreadResponse
+	48,  // 159: inaba.v1.ThreadService.StartTurn:output_type -> inaba.v1.StartTurnResponse
+	56,  // 160: inaba.v1.ThreadService.Interrupt:output_type -> inaba.v1.InterruptResponse
+	4,   // 161: inaba.v1.ThreadService.SetOption:output_type -> inaba.v1.Thread
+	4,   // 162: inaba.v1.ThreadService.CancelQueued:output_type -> inaba.v1.Thread
+	4,   // 163: inaba.v1.ThreadService.EditQueued:output_type -> inaba.v1.Thread
+	4,   // 164: inaba.v1.ThreadService.MoveQueued:output_type -> inaba.v1.Thread
+	4,   // 165: inaba.v1.ThreadService.SendQueuedNow:output_type -> inaba.v1.Thread
+	4,   // 166: inaba.v1.ThreadService.ResumeQueue:output_type -> inaba.v1.Thread
+	58,  // 167: inaba.v1.ThreadService.Respond:output_type -> inaba.v1.RespondResponse
+	4,   // 168: inaba.v1.ThreadService.SetMode:output_type -> inaba.v1.Thread
+	61,  // 169: inaba.v1.ThreadService.Raw:output_type -> inaba.v1.RawResponse
+	45,  // 170: inaba.v1.ThreadService.Rewind:output_type -> inaba.v1.RewindResponse
+	4,   // 171: inaba.v1.ThreadService.SetLayout:output_type -> inaba.v1.Thread
+	4,   // 172: inaba.v1.ThreadService.ForkThread:output_type -> inaba.v1.Thread
+	63,  // 173: inaba.v1.ThreadService.ListEvents:output_type -> inaba.v1.ListEventsResponse
+	14,  // 174: inaba.v1.ThreadService.Subscribe:output_type -> inaba.v1.Event
+	12,  // 175: inaba.v1.ProjectService.CreateProject:output_type -> inaba.v1.Project
+	12,  // 176: inaba.v1.ProjectService.UpdateProject:output_type -> inaba.v1.Project
+	67,  // 177: inaba.v1.ProjectService.ListProjects:output_type -> inaba.v1.ListProjectsResponse
+	69,  // 178: inaba.v1.ProjectService.ListDirectory:output_type -> inaba.v1.ListDirectoryResponse
+	72,  // 179: inaba.v1.ProjectService.DeleteProject:output_type -> inaba.v1.DeleteProjectResponse
+	82,  // 180: inaba.v1.GitService.GetStatus:output_type -> inaba.v1.GitStatus
+	84,  // 181: inaba.v1.GitService.GetDiff:output_type -> inaba.v1.GetGitDiffResponse
+	74,  // 182: inaba.v1.GitService.ListBranches:output_type -> inaba.v1.ListBranchesResponse
+	82,  // 183: inaba.v1.GitService.Checkout:output_type -> inaba.v1.GitStatus
+	77,  // 184: inaba.v1.GitService.Restore:output_type -> inaba.v1.GitRestoreResponse
+	88,  // 185: inaba.v1.GitService.Push:output_type -> inaba.v1.GitCommitResponse
+	88,  // 186: inaba.v1.GitService.Fetch:output_type -> inaba.v1.GitCommitResponse
+	88,  // 187: inaba.v1.GitService.Pull:output_type -> inaba.v1.GitCommitResponse
+	87,  // 188: inaba.v1.GitService.CreatePullRequest:output_type -> inaba.v1.GitPullRequestResponse
+	88,  // 189: inaba.v1.GitService.Commit:output_type -> inaba.v1.GitCommitResponse
+	91,  // 190: inaba.v1.ModuleService.ListModules:output_type -> inaba.v1.ListModulesResponse
+	89,  // 191: inaba.v1.ModuleService.SetModule:output_type -> inaba.v1.Module
+	94,  // 192: inaba.v1.HousekeepingService.GetHousekeeping:output_type -> inaba.v1.Housekeeping
+	97,  // 193: inaba.v1.HousekeepingService.GetArchivePolicy:output_type -> inaba.v1.ArchivePolicy
+	97,  // 194: inaba.v1.HousekeepingService.SetArchivePolicy:output_type -> inaba.v1.ArchivePolicy
+	98,  // 195: inaba.v1.HousekeepingService.CleanUp:output_type -> inaba.v1.CleanUpResponse
+	100, // 196: inaba.v1.TerminalService.Attach:output_type -> inaba.v1.TerminalOutput
+	102, // 197: inaba.v1.TerminalService.Write:output_type -> inaba.v1.WriteResponse
+	104, // 198: inaba.v1.TerminalService.Resize:output_type -> inaba.v1.ResizeResponse
+	106, // 199: inaba.v1.PeerService.Connect:output_type -> inaba.v1.ConnectResponse
+	114, // 200: inaba.v1.ProviderConfigService.ListProviderConfigs:output_type -> inaba.v1.ListProviderConfigsResponse
+	110, // 201: inaba.v1.ProviderConfigService.SaveProviderConfig:output_type -> inaba.v1.ProviderConfig
+	117, // 202: inaba.v1.ProviderConfigService.DeleteProviderConfig:output_type -> inaba.v1.DeleteProviderConfigResponse
+	114, // 203: inaba.v1.ProviderConfigService.CheckProviders:output_type -> inaba.v1.ListProviderConfigsResponse
+	108, // 204: inaba.v1.ProviderConfigService.ListAcpAgents:output_type -> inaba.v1.ListAcpAgentsResponse
+	123, // 205: inaba.v1.SystemService.GetSystemInfo:output_type -> inaba.v1.SystemInfo
+	120, // 206: inaba.v1.SystemService.RestartHost:output_type -> inaba.v1.RestartHostResponse
+	122, // 207: inaba.v1.SystemService.UpgradeHost:output_type -> inaba.v1.UpgradeHostResponse
+	126, // 208: inaba.v1.UsageService.GetUsageSummary:output_type -> inaba.v1.UsageSummary
+	128, // 209: inaba.v1.AlertService.WatchAlerts:output_type -> inaba.v1.Alert
+	153, // [153:210] is the sub-list for method output_type
+	96,  // [96:153] is the sub-list for method input_type
 	96,  // [96:96] is the sub-list for extension type_name
 	96,  // [96:96] is the sub-list for extension extendee
 	0,   // [0:96] is the sub-list for field type_name
@@ -9837,7 +9976,7 @@ func file_inaba_v1_host_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_inaba_v1_host_proto_rawDesc), len(file_inaba_v1_host_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   140,
+			NumMessages:   142,
 			NumExtensions: 0,
 			NumServices:   11,
 		},

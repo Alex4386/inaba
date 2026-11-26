@@ -1,8 +1,9 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { ImageIcon, RotateCwIcon, Trash2Icon } from "lucide-react";
+import { DownloadIcon, ImageIcon, RotateCwIcon, Trash2Icon } from "lucide-react";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { hosts as hostsApi, onHost } from "@/api";
 import { ConfirmDialog } from "@/components/dialogs";
+import { Picker } from "@/components/picker";
 import { HostIcon, SystemIcon, hostIcons, platformName } from "@/components/host-icon";
 import { timeAgo } from "@/components/project-tree";
 import { Badge } from "@/components/reui/badge";
@@ -145,6 +146,15 @@ function LastKnownSystem({ host }: { host: Host }) {
   );
 }
 
+type Channel = "release" | "pre-release" | "nightly";
+
+/** The channel a build came from, as inaba update reads its version: nightly-…, a tag with a dash, or a release. */
+export function channelOf(version: string | undefined): Channel {
+  if (version?.startsWith("nightly-")) return "nightly";
+  if (version?.startsWith("v") && version.includes("-")) return "pre-release";
+  return "release";
+}
+
 /** A host's name, how it is shown, what it runs on, and how it connects. */
 export function HostAbout({
   host,
@@ -163,6 +173,22 @@ export function HostAbout({
   const { t } = useI18n();
   const [name, setName] = useState(host.name);
   const [restarting, setRestarting] = useState(false);
+  const [channel, setChannel] = useState<Channel>(() => channelOf(host.system?.inabaVersion));
+  const [upgrading, setUpgrading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const upgrade = () => {
+    setBusy(true);
+    onHost(host.id, SystemService)
+      .upgradeHost({ channel, useGh: channel === "nightly" })
+      .then(
+        (r) =>
+          void (r.updated
+            ? toast.success(t("hostAbout.upgraded", { name: host.name, version: r.to }))
+            : toast(t("hostAbout.upToDate", { name: host.name, channel: t(`hostAbout.channel.${channel}`) }))),
+        showError,
+      )
+      .finally(() => setBusy(false));
+  };
   const restart = () =>
     onHost(host.id, SystemService)
       .restartHost({})
@@ -266,6 +292,23 @@ export function HostAbout({
           <code className="text-muted-foreground text-xs">{host.id}</code>
         </Row>
         {canRestart && (
+          <Row title={t("hostAbout.upgrade")} description={t("hostAbout.upgradeHelp")}>
+            <div className="flex gap-2">
+              <Picker
+                value={channel}
+                onChange={setChannel}
+                label={t("hostAbout.channel")}
+                className="w-36"
+                options={(["release", "pre-release", "nightly"] as const).map((c) => ({ value: c, label: t(`hostAbout.channel.${c}`) }))}
+              />
+              <Button type="button" variant="outline" disabled={!host.online || busy} onClick={() => setUpgrading(true)}>
+                <DownloadIcon data-icon="inline-start" />
+                {t(busy ? "hostAbout.upgrading" : "hostAbout.upgrade")}
+              </Button>
+            </div>
+          </Row>
+        )}
+        {canRestart && (
           <Row title={t("hostAbout.restart")} description={t("hostAbout.restartHelp")}>
             <Button type="button" variant="outline" disabled={!host.online} onClick={() => setRestarting(true)}>
               <RotateCwIcon data-icon="inline-start" />
@@ -274,6 +317,26 @@ export function HostAbout({
           </Row>
         )}
       </Card>
+      <ConfirmDialog
+        open={upgrading}
+        onClose={() => setUpgrading(false)}
+        title={t("hostAbout.upgradeTitle", { name: host.name })}
+        description={
+          <>
+            {t("hostAbout.upgradeConfirm", { channel: t(`hostAbout.channel.${channel}`) })}
+            {channel === "nightly" && (
+              <>
+                <br />
+                <br />
+                {t("hostAbout.upgradeNightly")}
+              </>
+            )}
+          </>
+        }
+        cancel={t("hostAbout.restartCancel")}
+        confirm={t(channel === "nightly" ? "hostAbout.upgradeWithGh" : "hostAbout.upgrade")}
+        onConfirm={upgrade}
+      />
       <ConfirmDialog
         open={restarting}
         onClose={() => setRestarting(false)}
