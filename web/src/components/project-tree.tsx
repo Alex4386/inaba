@@ -91,10 +91,14 @@ export function timeAgo(date: Date, locale: string, justNow: string): string {
 /** Whether the thread's last turn ended in an error; a new turn clears it. */
 export const threadFailed = (thread: Thread) => thread.status === ThreadStatus.IDLE && thread.lastTurnFailed;
 
+/** Whether a thread is at work: in a turn, or with agents of a background workflow still running after it. */
+export const threadWorking = (thread: Thread) => thread.status === ThreadStatus.RUNNING || thread.backgroundAgents > 0;
+
 /** One line on what a thread is doing now, or how it was left. */
 export function threadState(thread: Thread, t: Translate): string {
   if (thread.status === ThreadStatus.WAITING) return t("thread.asks");
   if (thread.status === ThreadStatus.RUNNING) return thread.activity || t("thread.working");
+  if (thread.backgroundAgents > 0) return t("thread.background", { count: String(thread.backgroundAgents) });
   if (threadFailed(thread)) return t("thread.failed");
   if (thread.mode === ThreadMode.TERMINAL) return t("thread.inTerminal");
   return thread.activitySeq > 0n ? t("thread.done") : t("thread.notStarted");
@@ -188,7 +192,7 @@ function ThreadRow({
   const { t, locale } = useI18n();
   const people = usePeople();
   const [menu, setMenu] = useState(false);
-  const running = thread.status === ThreadStatus.RUNNING;
+  const running = threadWorking(thread);
   const waiting = thread.status === ThreadStatus.WAITING;
   const failed = threadFailed(thread);
   const pinned = Boolean(thread.labels.pinned);
@@ -363,6 +367,8 @@ export function ProjectTree({
   // works or asks, or holds what is on screen, so finished work does not crowd the sidebar.
   const [toggled, setToggled] = useState<Map<string, boolean>>(new Map());
   const toggle = (id: string, open: boolean) => setToggled((m) => new Map(m).set(id, open));
+  // The whole list of projects, folded under its heading as the terminals are.
+  const [listOpen, setListOpen] = useState(true);
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
   const [projects, setProjects] = useState<Project[]>();
@@ -425,7 +431,10 @@ export function ProjectTree({
   return (
     <>
       <SidebarGroup>
-        <SidebarGroupLabel>{t("project.projects")}</SidebarGroupLabel>
+        <SidebarGroupLabel render={<button type="button" onClick={() => setListOpen((o) => !o)} />} className="gap-1">
+          <ChevronRightIcon className={cn("size-3.5 transition-transform", listOpen && "rotate-90")} />
+          {t("project.projects")}
+        </SidebarGroupLabel>
         {canManage && (
           <SidebarGroupAction title={t("project.add")} onClick={() => {
               setOpenMobile(false);
@@ -435,7 +444,7 @@ export function ProjectTree({
             <span className="sr-only">{t("project.add")}</span>
           </SidebarGroupAction>
         )}
-        <SidebarMenu>
+        {listOpen && <SidebarMenu>
           {!projects && (
             <li className="flex justify-center py-2">
               <Spinner />
@@ -446,7 +455,7 @@ export function ProjectTree({
             const listedThreads = threads.filter((th) => th.projectId === project.id && shown(th));
             const open =
               toggled.get(project.id) ??
-              (openProject === project.id || listedThreads.some((th) => th.id === selected || th.status === ThreadStatus.RUNNING || th.status === ThreadStatus.WAITING));
+              (openProject === project.id || listedThreads.some((th) => th.id === selected || threadWorking(th) || th.status === ThreadStatus.WAITING));
             return (
               <Collapsible key={project.id} open={open} className="group/project" render={<SidebarMenuItem />}>
                 {/* The project's row stays at the top while its threads scroll under it. */}
@@ -469,7 +478,7 @@ export function ProjectTree({
                   <SnoozedMark muted={snoozes.project(project.id)} />
                   {/* Who has the project's own page open. */}
                   <PeopleStack size="xs" people={people.filter((p) => p.projectId === project.id && !p.threadId)} />
-                  {listedThreads.some((th) => th.status === ThreadStatus.RUNNING) && <Spinner className="group-data-open/project:hidden" />}
+                  {listedThreads.some(threadWorking) && <Spinner className="group-data-open/project:hidden" />}
                 </CollapsibleTrigger>
                 {/* One menu, shown on hover or while open, holds what a project offers. */}
                 <DropdownMenu>
@@ -564,9 +573,9 @@ export function ProjectTree({
               </Collapsible>
             );
           })}
-        </SidebarMenu>
+        </SidebarMenu>}
       </SidebarGroup>
-      {floating.length > 0 && (
+      {listOpen && floating.length > 0 && (
         <SidebarGroup className="group-data-[collapsible=icon]:hidden">
           <SidebarGroupLabel>{t("thread.other")}</SidebarGroupLabel>
           <SidebarMenuSub className="mx-0 border-l-0 px-0">

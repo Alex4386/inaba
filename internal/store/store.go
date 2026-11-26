@@ -192,7 +192,7 @@ type Store struct {
 }
 
 func Open(path string) (*Store, error) {
-	g, err := db.Open(path, &User{}, &Token{}, &Host{}, &Avatar{}, &Passkey{}, &HostMember{}, &PushDevice{}, &Snooze{}, &VAPIDKey{}, &ThreadSeen{})
+	g, err := db.Open(path, &User{}, &Token{}, &Host{}, &Avatar{}, &Passkey{}, &HostMember{}, &PushDevice{}, &Channel{}, &Snooze{}, &VAPIDKey{}, &ThreadSeen{})
 	if err != nil {
 		return nil, err
 	}
@@ -370,6 +370,9 @@ func (s *Store) DeleteUser(ref string) error {
 			return err
 		}
 		if err := tx.Where("user_id = ?", id).Delete(&PushDevice{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ?", id).Delete(&Channel{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Where("user_id = ? OR host_id IN (?)", id, tx.Model(&Host{}).Select("id").Where("owner = ?", id)).Delete(&Snooze{}).Error; err != nil {

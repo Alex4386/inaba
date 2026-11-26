@@ -1,5 +1,5 @@
 // Package automation is the automations module: work that starts on a schedule or
-// from a webhook, and notifiers that tell other services how threads are doing.
+// from a webhook.
 package automation
 
 import (
@@ -37,7 +37,7 @@ import (
 var Module = module.Module{
 	Name:        "automations",
 	Title:       "Automations",
-	Description: "Work that starts on a schedule or from a webhook, and notifications to other services when threads finish or need an answer.",
+	Description: "Work that starts on a schedule or from a webhook.",
 	Default:     true,
 	Option: fx.Options(
 		fx.Provide(newService),
@@ -48,19 +48,15 @@ var Module = module.Module{
 	),
 }
 
-// service is the module while it runs: the host's automations and notifiers, and
-// the clock that runs them.
+// service is the module while it runs: the host's automations and the clock that runs them.
 type service struct {
 	inabav1connect.UnimplementedAutomationServiceHandler
 	threads module.Threads
-	events  module.Events
 	*automations
-	// stopFollowing ends the subscription to the host's events.
-	stopFollowing func()
 }
 
-func newService(threads module.Threads, events module.Events, store module.Store) (*service, error) {
-	s := &service{threads: threads, events: events, automations: newAutomations()}
+func newService(threads module.Threads, store module.Store) (*service, error) {
+	s := &service{threads: threads, automations: newAutomations()}
 	if store.DB != nil {
 		if err := s.load(store.DB); err != nil {
 			return nil, err
@@ -76,19 +72,9 @@ func (s *service) contribution() module.Contribution {
 	}
 }
 
-func (s *service) start() {
-	go s.schedule()
-	s.stopFollowing = s.events.Follow(func(e *inabav1.Event) bool {
-		return e.GetTurnEnded() != nil || e.GetPermissionRequest() != nil
-	}, s.heard)
-}
+func (s *service) start() { go s.schedule() }
 
-func (s *service) stop() {
-	s.close()
-	if s.stopFollowing != nil {
-		s.stopFollowing()
-	}
-}
+func (s *service) stop() { s.close() }
 
 // automationLabel marks a thread an automation started, with the automation's id.
 const automationLabel = "automation"
@@ -137,10 +123,9 @@ type automation struct {
 
 // automations is the host's automations and the clock that runs them.
 type automations struct {
-	mu        sync.Mutex
-	list      map[string]*automation
-	notifiers map[string]*notifier
-	db        *gorm.DB
+	mu   sync.Mutex
+	list map[string]*automation
+	db   *gorm.DB
 	// wake makes the scheduler look again, after a change to what is due when.
 	wake chan struct{}
 	stop chan struct{}
@@ -148,7 +133,7 @@ type automations struct {
 }
 
 func newAutomations() *automations {
-	return &automations{list: map[string]*automation{}, notifiers: map[string]*notifier{}, wake: make(chan struct{}, 1), stop: make(chan struct{})}
+	return &automations{list: map[string]*automation{}, wake: make(chan struct{}, 1), stop: make(chan struct{})}
 }
 
 func (as *automations) close() { as.once.Do(func() { close(as.stop) }) }
@@ -175,15 +160,12 @@ func (as *automations) save(au *automation) {
 // load brings back the saved automations. One that came due while the host was down
 // runs once as soon as the scheduler looks.
 func (as *automations) load(db *gorm.DB) error {
-	if err := db.AutoMigrate(&automationRow{}, &notifierRow{}); err != nil {
+	// Old databases also hold a notifier_rows table from when hosts sent webhooks; it is left alone.
+	if err := db.AutoMigrate(&automationRow{}); err != nil {
 		return err
 	}
 	var rows []automationRow
 	if err := db.Find(&rows).Error; err != nil {
-		return err
-	}
-	var notifiers []notifierRow
-	if err := db.Find(&notifiers).Error; err != nil {
 		return err
 	}
 	as.mu.Lock()
@@ -199,13 +181,6 @@ func (as *automations) load(db *gorm.DB) error {
 			au.deliveries = strings.Split(row.Deliveries, "\n")
 		}
 		as.list[a.Id] = au
-	}
-	for _, row := range notifiers {
-		n := &inabav1.Notifier{}
-		if err := proto.Unmarshal(row.Data, n); err != nil {
-			return err
-		}
-		as.notifiers[n.Id] = &notifier{n: n, secret: row.Secret}
 	}
 	as.poke()
 	return nil

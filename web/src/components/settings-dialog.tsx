@@ -6,7 +6,8 @@ import { ProfilePanel } from "@/components/profile-panel";
 import { type PushDevice, PushPlatform, type User } from "@/gen/inaba/v1/server_pb";
 import { useTheme } from "next-themes";
 import { type ReactNode, useState } from "react";
-import { notifications } from "@/api";
+import { type HostLink, notifications } from "@/api";
+import { MutedList, NotificationChannels } from "@/components/notification-channels";
 import { DataTable } from "@/components/data-table";
 import { ConfirmDialog } from "@/components/dialogs";
 import { KeybindingsPanel } from "@/components/keybindings-panel";
@@ -16,6 +17,7 @@ import { ApiTokensPanel } from "@/components/api-tokens-panel";
 import { Picker } from "@/components/picker";
 import { Card, Row, SectionDialog } from "@/components/section-dialog";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ThemeEditor } from "@/components/theme-editor";
 import { type Locale, type MessageKey, localeNames, useI18n } from "@/lib/i18n";
 import { showError } from "@/lib/errors";
@@ -23,7 +25,7 @@ import { disablePush, enablePush, pushSupport, usePushDevices } from "@/lib/push
 import { setNotify, useNotify } from "@/lib/settings";
 
 // Hosts, and what each one offers, are set in each host's own settings, from the host switcher.
-export type SettingsSection = "profile" | "general" | "appearance" | "keyboard" | "tokens";
+export type SettingsSection = "profile" | "general" | "notifications" | "appearance" | "keyboard" | "tokens";
 
 export function SettingsDialog({
   section,
@@ -31,7 +33,10 @@ export function SettingsDialog({
   onClose,
   user,
   onUser,
+  host,
 }: {
+  /** The connected host, whose snoozes are listed under Muted. */
+  host?: { link: HostLink; hostName: string };
   /** The signed-in account, for its profile. */
   user: User;
   onUser: (user: User) => void;
@@ -47,6 +52,7 @@ export function SettingsDialog({
   const sections: [SettingsSection, MessageKey, ReactNode][] = [
     ["profile", "profile.title", <UserRoundIcon />],
     ["general", "settings.general", <SlidersHorizontalIcon />],
+    ["notifications", "notify.title", <BellIcon />],
     ["appearance", "settings.appearance", <PaletteIcon />],
     ["keyboard", "keys.title", <KeyboardIcon />],
     ["tokens", "user.apiTokens", <KeyRoundIcon />],
@@ -70,12 +76,36 @@ export function SettingsDialog({
                   }))}
                 />
               </Row>
-              <Row title={t("settings.notify")} description={t("settings.notifyHelp")}>
-                <Switch checked={notify} onCheckedChange={setNotify} aria-label={t("settings.notify")} />
-              </Row>
             </Card>
-            <PushSettings userId={user.id} />
             </div>
+          )}
+          {/* Every way to hear about a thread: in this tab, by push and the other channels, and what is muted. */}
+          {current === "notifications" && (
+            // This browser, the other ways to be told, and what is muted: one tab each.
+            <Tabs defaultValue="browser" className="gap-4">
+              <TabsList>
+                <TabsTrigger value="browser">{t("notify.browser")}</TabsTrigger>
+                <TabsTrigger value="channels">{t("channel.title")}</TabsTrigger>
+                {host && <TabsTrigger value="muted">{t("notify.muted")}</TabsTrigger>}
+              </TabsList>
+              <TabsContent value="browser" className="grid gap-4">
+                <Card>
+                  <Row title={t("settings.notify")} description={t("settings.notifyHelp")}>
+                    <Switch checked={notify} onCheckedChange={setNotify} aria-label={t("settings.notify")} />
+                  </Row>
+                </Card>
+                <PushSettings userId={user.id} />
+              </TabsContent>
+              <TabsContent value="channels" className="grid gap-4">
+                <NotificationChannels />
+              </TabsContent>
+              {host && (
+                <TabsContent value="muted" className="grid gap-4">
+                  <h3 className="text-sm font-medium">{t("muted.title", { host: host.hostName })}</h3>
+                  <MutedList link={host.link} />
+                </TabsContent>
+              )}
+            </Tabs>
           )}
           {current === "appearance" && (
             <Card>

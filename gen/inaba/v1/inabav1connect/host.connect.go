@@ -52,6 +52,9 @@ const (
 	ThreadServiceCreateThreadProcedure = "/inaba.v1.ThreadService/CreateThread"
 	// ThreadServiceListThreadsProcedure is the procedure name of the ThreadService's ListThreads RPC.
 	ThreadServiceListThreadsProcedure = "/inaba.v1.ThreadService/ListThreads"
+	// ThreadServiceSearchThreadsProcedure is the procedure name of the ThreadService's SearchThreads
+	// RPC.
+	ThreadServiceSearchThreadsProcedure = "/inaba.v1.ThreadService/SearchThreads"
 	// ThreadServiceGetThreadProcedure is the procedure name of the ThreadService's GetThread RPC.
 	ThreadServiceGetThreadProcedure = "/inaba.v1.ThreadService/GetThread"
 	// ThreadServiceUpdateThreadProcedure is the procedure name of the ThreadService's UpdateThread RPC.
@@ -209,6 +212,14 @@ var (
 			StreamType: connect.StreamTypeUnary,
 			Schema:     v1.File_inaba_v1_host_proto.Services().ByName("ThreadService").Methods().ByName("ListThreads"),
 			Procedure:  ThreadServiceListThreadsProcedure,
+		}
+	})
+	threadServiceSearchThreadsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType:       connect.StreamTypeUnary,
+			Schema:           v1.File_inaba_v1_host_proto.Services().ByName("ThreadService").Methods().ByName("SearchThreads"),
+			Procedure:        ThreadServiceSearchThreadsProcedure,
+			IdempotencyLevel: connect.IdempotencyNoSideEffects,
 		}
 	})
 	threadServiceGetThreadSpec = sync.OnceValue(func() connect.Spec {
@@ -373,6 +384,10 @@ type ThreadServiceClient interface {
 	ListProviders(context.Context, *v1.ListProvidersRequest) (*v1.ListProvidersResponse, error)
 	CreateThread(context.Context, *v1.CreateThreadRequest) (*v1.Thread, error)
 	ListThreads(context.Context, *v1.ListThreadsRequest) (*v1.ListThreadsResponse, error)
+	// Finds the threads whose conversation says something: what people wrote and what the
+	// agents answered, newest first. Text of three or more characters goes through the host's
+	// full-text index; shorter text is looked for directly.
+	SearchThreads(context.Context, *v1.SearchThreadsRequest) (*v1.SearchThreadsResponse, error)
 	GetThread(context.Context, *v1.GetThreadRequest) (*v1.Thread, error)
 	// Renames the thread.
 	UpdateThread(context.Context, *v1.UpdateThreadRequest) (*v1.Thread, error)
@@ -483,6 +498,10 @@ type ThreadServiceHandler interface {
 	ListProviders(context.Context, *v1.ListProvidersRequest) (*v1.ListProvidersResponse, error)
 	CreateThread(context.Context, *v1.CreateThreadRequest) (*v1.Thread, error)
 	ListThreads(context.Context, *v1.ListThreadsRequest) (*v1.ListThreadsResponse, error)
+	// Finds the threads whose conversation says something: what people wrote and what the
+	// agents answered, newest first. Text of three or more characters goes through the host's
+	// full-text index; shorter text is looked for directly.
+	SearchThreads(context.Context, *v1.SearchThreadsRequest) (*v1.SearchThreadsResponse, error)
 	GetThread(context.Context, *v1.GetThreadRequest) (*v1.Thread, error)
 	// Renames the thread.
 	UpdateThread(context.Context, *v1.UpdateThreadRequest) (*v1.Thread, error)
@@ -549,6 +568,7 @@ func RegisterThreadServiceHandler(server *connect.Server, svc ThreadServiceHandl
 		connect.Method{Spec: threadServiceListProvidersSpec(), Handler: adapter.listProviders},
 		connect.Method{Spec: threadServiceCreateThreadSpec(), Handler: adapter.createThread},
 		connect.Method{Spec: threadServiceListThreadsSpec(), Handler: adapter.listThreads},
+		connect.Method{Spec: threadServiceSearchThreadsSpec(), Handler: adapter.searchThreads},
 		connect.Method{Spec: threadServiceGetThreadSpec(), Handler: adapter.getThread},
 		connect.Method{Spec: threadServiceUpdateThreadSpec(), Handler: adapter.updateThread},
 		connect.Method{Spec: threadServiceDeleteThreadSpec(), Handler: adapter.deleteThread},
@@ -618,6 +638,10 @@ func (UnimplementedThreadServiceHandler) CreateThread(context.Context, *v1.Creat
 
 func (UnimplementedThreadServiceHandler) ListThreads(context.Context, *v1.ListThreadsRequest) (*v1.ListThreadsResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.ThreadService.ListThreads is not implemented")
+}
+
+func (UnimplementedThreadServiceHandler) SearchThreads(context.Context, *v1.SearchThreadsRequest) (*v1.SearchThreadsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.ThreadService.SearchThreads is not implemented")
 }
 
 func (UnimplementedThreadServiceHandler) GetThread(context.Context, *v1.GetThreadRequest) (*v1.Thread, error) {
@@ -731,6 +755,14 @@ func (c *threadServiceClient) CreateThread(ctx context.Context, req *v1.CreateTh
 func (c *threadServiceClient) ListThreads(ctx context.Context, req *v1.ListThreadsRequest) (*v1.ListThreadsResponse, error) {
 	var res v1.ListThreadsResponse
 	if err := c.client.CallUnary(ctx, threadServiceListThreadsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *threadServiceClient) SearchThreads(ctx context.Context, req *v1.SearchThreadsRequest) (*v1.SearchThreadsResponse, error) {
+	var res v1.SearchThreadsResponse
+	if err := c.client.CallUnary(ctx, threadServiceSearchThreadsSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -944,6 +976,18 @@ func (h threadServiceHandler) listThreads(ctx context.Context, _ connect.Spec, s
 		return err
 	}
 	res, err := h.svc.ListThreads(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h threadServiceHandler) searchThreads(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.SearchThreadsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.SearchThreads(ctx, &req)
 	if err != nil {
 		return err
 	}

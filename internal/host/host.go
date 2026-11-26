@@ -67,6 +67,8 @@ type Host struct {
 
 	mu      sync.Mutex
 	threads map[string]*thread
+	// searchMu keeps two searches from indexing the same events twice.
+	searchMu sync.Mutex
 
 	// restart is closed once a restart has been asked for; see Restarts.
 	restart    chan struct{}
@@ -157,6 +159,8 @@ type thread struct {
 	mcp func(*inabav1.Thread) []provider.MCPServer
 	// copying is set while a fork copies events in: history, not news.
 	copying bool
+	// background is how many of each background workflow's agents run, by the tool call that started it.
+	background map[string]uint32
 	// op serializes whatever starts or stops the thread's process.
 	op sync.Mutex
 	// deleted is set, under op, once the thread is deleted; a turn ending after that leaves no trace.
@@ -237,6 +241,10 @@ func (t *thread) emit(e *inabav1.Event) {
 		if p.ToolCall.Title != "" {
 			t.meta.Activity = p.ToolCall.Title
 		}
+		// A fork's copied workflows ran in another thread's session; they are not running here.
+		if len(p.ToolCall.Agents) > 0 && !t.copying {
+			t.meta.BackgroundAgents = t.countBackground(p.ToolCall.Id, p.ToolCall.Agents)
+		}
 	case *inabav1.Event_PermissionRequest:
 		t.meta.Status = inabav1.ThreadStatus_THREAD_STATUS_WAITING
 	case *inabav1.Event_PermissionResolved:
@@ -293,6 +301,26 @@ func titleFrom(text string) string {
 		return string(r[:79]) + "…"
 	}
 	return line
+}
+
+// countBackground notes how many of a workflow's agents still run, and answers how many run
+// across all the thread's workflows. t.mu is held.
+func (t *thread) countBackground(toolCallID string, agents []*inabav1.WorkflowAgent) uint32 {
+	var running uint32
+	for _, a := range agents {
+		if !a.Done && !a.Stopped {
+			running++
+		}
+	}
+	if t.background == nil {
+		t.background = map[string]uint32{}
+	}
+	t.background[toolCallID] = running
+	var all uint32
+	for _, n := range t.background {
+		all += n
+	}
+	return all
 }
 
 // after returns the events past seq and a channel closed when more arrive.

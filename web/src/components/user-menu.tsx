@@ -1,13 +1,28 @@
-import { BookOpenIcon, ChevronsUpDownIcon, LogOutIcon, SettingsIcon, ShieldIcon, ZapIcon } from "lucide-react";
+import { BookOpenIcon, ChevronsUpDownIcon, LanguagesIcon, LogOutIcon, SettingsIcon, ShieldIcon, SunMoonIcon, ZapIcon } from "lucide-react";
+import { useTheme } from "next-themes";
 import { UserAvatar } from "@/components/presence";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
-import { useI18n } from "@/lib/i18n";
+import { type Locale, localeNames, useI18n } from "@/lib/i18n";
 
 /** The signed-in user: the way into settings, administration, the API reference, and signing out. */
 export function UserMenu({ id, avatarUrl, name, onSettings, onAutomations, onAdmin, onSignOut }: { id: string; avatarUrl?: string; name: string; onSettings: () => void; /** Absent when the automations module is off or the account may not manage projects. */ onAutomations?: () => void; /** Absent for an account that is not an administrator. */ onAdmin?: () => void; onSignOut: () => void }) {
   const { isMobile } = useSidebar();
-  const { t } = useI18n();
+  const { t, locale, setLocale } = useI18n();
+  const { theme = "system", setTheme } = useTheme();
+  const themes = { system: t("user.themeSystem"), light: t("user.themeLight"), dark: t("user.themeDark") };
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -39,6 +54,42 @@ export function UserMenu({ id, avatarUrl, name, onSettings, onAutomations, onAdm
                 <BookOpenIcon />
                 {t("user.apiDocs")}
               </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            {/* What people change often, here rather than only in settings. */}
+            <DropdownMenuGroup>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <SunMoonIcon />
+                  {t("user.theme")}
+                  <span className="text-muted-foreground ml-auto pl-2 text-xs">{themes[theme as keyof typeof themes]}</span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
+                    {Object.entries(themes).map(([value, label]) => (
+                      <DropdownMenuRadioItem key={value} value={value}>
+                        {label}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <LanguagesIcon />
+                  {t("user.language")}
+                  <span className="text-muted-foreground ml-auto pl-2 text-xs">{localeNames[locale]}</span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuRadioGroup value={locale} onValueChange={(l: Locale) => setLocale(l)}>
+                    {(Object.keys(localeNames) as Locale[]).map((l) => (
+                      <DropdownMenuRadioItem key={l} value={l}>
+                        {localeNames[l]}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onSignOut}>

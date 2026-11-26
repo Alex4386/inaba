@@ -6253,6 +6253,788 @@ func (*ClearSnoozeResponse) Descriptor() ([]byte, []int) {
 	return file_inaba_v1_server_proto_rawDescGZIP(), []int{115}
 }
 
+type NotificationChannel struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Set by the server.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// "webhook", "ntfy", "discord", "slack" or "telegram": which of config is set. Set by the server.
+	Kind string `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`
+	// What to call it; at most 64 characters.
+	Label string `protobuf:"bytes,3,opt,name=label,proto3" json:"label,omitempty"`
+	// Where it delivers, set on creation. Fields marked write-only hold a credential and
+	// come back empty.
+	//
+	// Types that are valid to be assigned to Config:
+	//
+	//	*NotificationChannel_Webhook
+	//	*NotificationChannel_Ntfy
+	//	*NotificationChannel_Discord
+	//	*NotificationChannel_Slack
+	//	*NotificationChannel_Telegram
+	Config isNotificationChannel_Config `protobuf_oneof:"config"`
+	// Which events to send: turn.ended (a turn finished), turn.failed (it ended in an
+	// error), input.needed (the agent waits for an answer). Empty for all of them.
+	Events []string `protobuf:"bytes,9,rep,name=events,proto3" json:"events,omitempty"`
+	// Only for threads automations started.
+	AutomationsOnly bool `protobuf:"varint,10,opt,name=automations_only,json=automationsOnly,proto3" json:"automations_only,omitempty"`
+	// A channel turned off is sent nothing but tests. CreateChannel ignores it.
+	Enabled   bool                   `protobuf:"varint,11,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// How the latest delivery went; unset until one was tried. Set by the server.
+	LastDelivery  *ChannelDelivery `protobuf:"bytes,13,opt,name=last_delivery,json=lastDelivery,proto3" json:"last_delivery,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NotificationChannel) Reset() {
+	*x = NotificationChannel{}
+	mi := &file_inaba_v1_server_proto_msgTypes[116]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NotificationChannel) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NotificationChannel) ProtoMessage() {}
+
+func (x *NotificationChannel) ProtoReflect() protoreflect.Message {
+	mi := &file_inaba_v1_server_proto_msgTypes[116]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NotificationChannel.ProtoReflect.Descriptor instead.
+func (*NotificationChannel) Descriptor() ([]byte, []int) {
+	return file_inaba_v1_server_proto_rawDescGZIP(), []int{116}
+}
+
+func (x *NotificationChannel) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *NotificationChannel) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *NotificationChannel) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+func (x *NotificationChannel) GetConfig() isNotificationChannel_Config {
+	if x != nil {
+		return x.Config
+	}
+	return nil
+}
+
+func (x *NotificationChannel) GetWebhook() *WebhookChannel {
+	if x != nil {
+		if x, ok := x.Config.(*NotificationChannel_Webhook); ok {
+			return x.Webhook
+		}
+	}
+	return nil
+}
+
+func (x *NotificationChannel) GetNtfy() *NtfyChannel {
+	if x != nil {
+		if x, ok := x.Config.(*NotificationChannel_Ntfy); ok {
+			return x.Ntfy
+		}
+	}
+	return nil
+}
+
+func (x *NotificationChannel) GetDiscord() *DiscordChannel {
+	if x != nil {
+		if x, ok := x.Config.(*NotificationChannel_Discord); ok {
+			return x.Discord
+		}
+	}
+	return nil
+}
+
+func (x *NotificationChannel) GetSlack() *SlackChannel {
+	if x != nil {
+		if x, ok := x.Config.(*NotificationChannel_Slack); ok {
+			return x.Slack
+		}
+	}
+	return nil
+}
+
+func (x *NotificationChannel) GetTelegram() *TelegramChannel {
+	if x != nil {
+		if x, ok := x.Config.(*NotificationChannel_Telegram); ok {
+			return x.Telegram
+		}
+	}
+	return nil
+}
+
+func (x *NotificationChannel) GetEvents() []string {
+	if x != nil {
+		return x.Events
+	}
+	return nil
+}
+
+func (x *NotificationChannel) GetAutomationsOnly() bool {
+	if x != nil {
+		return x.AutomationsOnly
+	}
+	return false
+}
+
+func (x *NotificationChannel) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *NotificationChannel) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *NotificationChannel) GetLastDelivery() *ChannelDelivery {
+	if x != nil {
+		return x.LastDelivery
+	}
+	return nil
+}
+
+type isNotificationChannel_Config interface {
+	isNotificationChannel_Config()
+}
+
+type NotificationChannel_Webhook struct {
+	Webhook *WebhookChannel `protobuf:"bytes,4,opt,name=webhook,proto3,oneof"`
+}
+
+type NotificationChannel_Ntfy struct {
+	Ntfy *NtfyChannel `protobuf:"bytes,5,opt,name=ntfy,proto3,oneof"`
+}
+
+type NotificationChannel_Discord struct {
+	Discord *DiscordChannel `protobuf:"bytes,6,opt,name=discord,proto3,oneof"`
+}
+
+type NotificationChannel_Slack struct {
+	Slack *SlackChannel `protobuf:"bytes,7,opt,name=slack,proto3,oneof"`
+}
+
+type NotificationChannel_Telegram struct {
+	Telegram *TelegramChannel `protobuf:"bytes,8,opt,name=telegram,proto3,oneof"`
+}
+
+func (*NotificationChannel_Webhook) isNotificationChannel_Config() {}
+
+func (*NotificationChannel_Ntfy) isNotificationChannel_Config() {}
+
+func (*NotificationChannel_Discord) isNotificationChannel_Config() {}
+
+func (*NotificationChannel_Slack) isNotificationChannel_Config() {}
+
+func (*NotificationChannel_Telegram) isNotificationChannel_Config() {}
+
+type WebhookChannel struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// An http or https address.
+	Url           string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WebhookChannel) Reset() {
+	*x = WebhookChannel{}
+	mi := &file_inaba_v1_server_proto_msgTypes[117]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WebhookChannel) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WebhookChannel) ProtoMessage() {}
+
+func (x *WebhookChannel) ProtoReflect() protoreflect.Message {
+	mi := &file_inaba_v1_server_proto_msgTypes[117]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WebhookChannel.ProtoReflect.Descriptor instead.
+func (*WebhookChannel) Descriptor() ([]byte, []int) {
+	return file_inaba_v1_server_proto_rawDescGZIP(), []int{117}
+}
+
+func (x *WebhookChannel) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+type NtfyChannel struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The ntfy server, such as https://ntfy.sh.
+	ServerUrl string `protobuf:"bytes,1,opt,name=server_url,json=serverUrl,proto3" json:"server_url,omitempty"`
+	Topic     string `protobuf:"bytes,2,opt,name=topic,proto3" json:"topic,omitempty"`
+	// Optional; write-only.
+	AccessToken   string `protobuf:"bytes,3,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NtfyChannel) Reset() {
+	*x = NtfyChannel{}
+	mi := &file_inaba_v1_server_proto_msgTypes[118]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NtfyChannel) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NtfyChannel) ProtoMessage() {}
+
+func (x *NtfyChannel) ProtoReflect() protoreflect.Message {
+	mi := &file_inaba_v1_server_proto_msgTypes[118]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NtfyChannel.ProtoReflect.Descriptor instead.
+func (*NtfyChannel) Descriptor() ([]byte, []int) {
+	return file_inaba_v1_server_proto_rawDescGZIP(), []int{118}
+}
+
+func (x *NtfyChannel) GetServerUrl() string {
+	if x != nil {
+		return x.ServerUrl
+	}
+	return ""
+}
+
+func (x *NtfyChannel) GetTopic() string {
+	if x != nil {
+		return x.Topic
+	}
+	return ""
+}
+
+func (x *NtfyChannel) GetAccessToken() string {
+	if x != nil {
+		return x.AccessToken
+	}
+	return ""
+}
+
+type DiscordChannel struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// https://discord.com/api/webhooks/...; write-only.
+	WebhookUrl    string `protobuf:"bytes,1,opt,name=webhook_url,json=webhookUrl,proto3" json:"webhook_url,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DiscordChannel) Reset() {
+	*x = DiscordChannel{}
+	mi := &file_inaba_v1_server_proto_msgTypes[119]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DiscordChannel) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DiscordChannel) ProtoMessage() {}
+
+func (x *DiscordChannel) ProtoReflect() protoreflect.Message {
+	mi := &file_inaba_v1_server_proto_msgTypes[119]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DiscordChannel.ProtoReflect.Descriptor instead.
+func (*DiscordChannel) Descriptor() ([]byte, []int) {
+	return file_inaba_v1_server_proto_rawDescGZIP(), []int{119}
+}
+
+func (x *DiscordChannel) GetWebhookUrl() string {
+	if x != nil {
+		return x.WebhookUrl
+	}
+	return ""
+}
+
+type SlackChannel struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// https://hooks.slack.com/...; write-only.
+	WebhookUrl    string `protobuf:"bytes,1,opt,name=webhook_url,json=webhookUrl,proto3" json:"webhook_url,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SlackChannel) Reset() {
+	*x = SlackChannel{}
+	mi := &file_inaba_v1_server_proto_msgTypes[120]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SlackChannel) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SlackChannel) ProtoMessage() {}
+
+func (x *SlackChannel) ProtoReflect() protoreflect.Message {
+	mi := &file_inaba_v1_server_proto_msgTypes[120]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SlackChannel.ProtoReflect.Descriptor instead.
+func (*SlackChannel) Descriptor() ([]byte, []int) {
+	return file_inaba_v1_server_proto_rawDescGZIP(), []int{120}
+}
+
+func (x *SlackChannel) GetWebhookUrl() string {
+	if x != nil {
+		return x.WebhookUrl
+	}
+	return ""
+}
+
+type TelegramChannel struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// From @BotFather; write-only.
+	BotToken      string `protobuf:"bytes,1,opt,name=bot_token,json=botToken,proto3" json:"bot_token,omitempty"`
+	ChatId        string `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TelegramChannel) Reset() {
+	*x = TelegramChannel{}
+	mi := &file_inaba_v1_server_proto_msgTypes[121]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TelegramChannel) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TelegramChannel) ProtoMessage() {}
+
+func (x *TelegramChannel) ProtoReflect() protoreflect.Message {
+	mi := &file_inaba_v1_server_proto_msgTypes[121]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TelegramChannel.ProtoReflect.Descriptor instead.
+func (*TelegramChannel) Descriptor() ([]byte, []int) {
+	return file_inaba_v1_server_proto_rawDescGZIP(), []int{121}
+}
+
+func (x *TelegramChannel) GetBotToken() string {
+	if x != nil {
+		return x.BotToken
+	}
+	return ""
+}
+
+func (x *TelegramChannel) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+type ChannelDelivery struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Time  *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=time,proto3" json:"time,omitempty"`
+	Event string                 `protobuf:"bytes,2,opt,name=event,proto3" json:"event,omitempty"`
+	// The HTTP status of the last try; 0 when none got an answer.
+	Status uint32 `protobuf:"varint,3,opt,name=status,proto3" json:"status,omitempty"`
+	// Why it did not get through; empty when it did.
+	Error         string `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChannelDelivery) Reset() {
+	*x = ChannelDelivery{}
+	mi := &file_inaba_v1_server_proto_msgTypes[122]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChannelDelivery) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChannelDelivery) ProtoMessage() {}
+
+func (x *ChannelDelivery) ProtoReflect() protoreflect.Message {
+	mi := &file_inaba_v1_server_proto_msgTypes[122]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChannelDelivery.ProtoReflect.Descriptor instead.
+func (*ChannelDelivery) Descriptor() ([]byte, []int) {
+	return file_inaba_v1_server_proto_rawDescGZIP(), []int{122}
+}
+
+func (x *ChannelDelivery) GetTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Time
+	}
+	return nil
+}
+
+func (x *ChannelDelivery) GetEvent() string {
+	if x != nil {
+		return x.Event
+	}
+	return ""
+}
+
+func (x *ChannelDelivery) GetStatus() uint32 {
+	if x != nil {
+		return x.Status
+	}
+	return 0
+}
+
+func (x *ChannelDelivery) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type ListChannelsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListChannelsRequest) Reset() {
+	*x = ListChannelsRequest{}
+	mi := &file_inaba_v1_server_proto_msgTypes[123]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListChannelsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListChannelsRequest) ProtoMessage() {}
+
+func (x *ListChannelsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inaba_v1_server_proto_msgTypes[123]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListChannelsRequest.ProtoReflect.Descriptor instead.
+func (*ListChannelsRequest) Descriptor() ([]byte, []int) {
+	return file_inaba_v1_server_proto_rawDescGZIP(), []int{123}
+}
+
+type ListChannelsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Channels      []*NotificationChannel `protobuf:"bytes,1,rep,name=channels,proto3" json:"channels,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListChannelsResponse) Reset() {
+	*x = ListChannelsResponse{}
+	mi := &file_inaba_v1_server_proto_msgTypes[124]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListChannelsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListChannelsResponse) ProtoMessage() {}
+
+func (x *ListChannelsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_inaba_v1_server_proto_msgTypes[124]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListChannelsResponse.ProtoReflect.Descriptor instead.
+func (*ListChannelsResponse) Descriptor() ([]byte, []int) {
+	return file_inaba_v1_server_proto_rawDescGZIP(), []int{124}
+}
+
+func (x *ListChannelsResponse) GetChannels() []*NotificationChannel {
+	if x != nil {
+		return x.Channels
+	}
+	return nil
+}
+
+type CreateChannelResponse struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Channel *NotificationChannel   `protobuf:"bytes,1,opt,name=channel,proto3" json:"channel,omitempty"`
+	// A webhook's signing secret, for checking deliveries. Shown once.
+	Secret        string `protobuf:"bytes,2,opt,name=secret,proto3" json:"secret,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateChannelResponse) Reset() {
+	*x = CreateChannelResponse{}
+	mi := &file_inaba_v1_server_proto_msgTypes[125]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateChannelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateChannelResponse) ProtoMessage() {}
+
+func (x *CreateChannelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_inaba_v1_server_proto_msgTypes[125]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateChannelResponse.ProtoReflect.Descriptor instead.
+func (*CreateChannelResponse) Descriptor() ([]byte, []int) {
+	return file_inaba_v1_server_proto_rawDescGZIP(), []int{125}
+}
+
+func (x *CreateChannelResponse) GetChannel() *NotificationChannel {
+	if x != nil {
+		return x.Channel
+	}
+	return nil
+}
+
+func (x *CreateChannelResponse) GetSecret() string {
+	if x != nil {
+		return x.Secret
+	}
+	return ""
+}
+
+type DeleteChannelRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteChannelRequest) Reset() {
+	*x = DeleteChannelRequest{}
+	mi := &file_inaba_v1_server_proto_msgTypes[126]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteChannelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteChannelRequest) ProtoMessage() {}
+
+func (x *DeleteChannelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inaba_v1_server_proto_msgTypes[126]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteChannelRequest.ProtoReflect.Descriptor instead.
+func (*DeleteChannelRequest) Descriptor() ([]byte, []int) {
+	return file_inaba_v1_server_proto_rawDescGZIP(), []int{126}
+}
+
+func (x *DeleteChannelRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type DeleteChannelResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteChannelResponse) Reset() {
+	*x = DeleteChannelResponse{}
+	mi := &file_inaba_v1_server_proto_msgTypes[127]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteChannelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteChannelResponse) ProtoMessage() {}
+
+func (x *DeleteChannelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_inaba_v1_server_proto_msgTypes[127]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteChannelResponse.ProtoReflect.Descriptor instead.
+func (*DeleteChannelResponse) Descriptor() ([]byte, []int) {
+	return file_inaba_v1_server_proto_rawDescGZIP(), []int{127}
+}
+
+type TestChannelRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TestChannelRequest) Reset() {
+	*x = TestChannelRequest{}
+	mi := &file_inaba_v1_server_proto_msgTypes[128]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TestChannelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TestChannelRequest) ProtoMessage() {}
+
+func (x *TestChannelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inaba_v1_server_proto_msgTypes[128]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TestChannelRequest.ProtoReflect.Descriptor instead.
+func (*TestChannelRequest) Descriptor() ([]byte, []int) {
+	return file_inaba_v1_server_proto_rawDescGZIP(), []int{128}
+}
+
+func (x *TestChannelRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
 type ListUserTokensResponse_Entry struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Token         *Token                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
@@ -6263,7 +7045,7 @@ type ListUserTokensResponse_Entry struct {
 
 func (x *ListUserTokensResponse_Entry) Reset() {
 	*x = ListUserTokensResponse_Entry{}
-	mi := &file_inaba_v1_server_proto_msgTypes[116]
+	mi := &file_inaba_v1_server_proto_msgTypes[129]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6275,7 +7057,7 @@ func (x *ListUserTokensResponse_Entry) String() string {
 func (*ListUserTokensResponse_Entry) ProtoMessage() {}
 
 func (x *ListUserTokensResponse_Entry) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_server_proto_msgTypes[116]
+	mi := &file_inaba_v1_server_proto_msgTypes[129]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6699,7 +7481,56 @@ const file_inaba_v1_server_proto_rawDesc = "" +
 	"\ahost_id\x18\x01 \x01(\tR\x06hostId\x12(\n" +
 	"\x04kind\x18\x02 \x01(\x0e2\x14.inaba.v1.SnoozeKindR\x04kind\x12\x1b\n" +
 	"\ttarget_id\x18\x03 \x01(\tR\btargetId\"\x15\n" +
-	"\x13ClearSnoozeResponse*\xdd\x01\n" +
+	"\x13ClearSnoozeResponse\"\xb3\x04\n" +
+	"\x13NotificationChannel\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x14\n" +
+	"\x05label\x18\x03 \x01(\tR\x05label\x124\n" +
+	"\awebhook\x18\x04 \x01(\v2\x18.inaba.v1.WebhookChannelH\x00R\awebhook\x12+\n" +
+	"\x04ntfy\x18\x05 \x01(\v2\x15.inaba.v1.NtfyChannelH\x00R\x04ntfy\x124\n" +
+	"\adiscord\x18\x06 \x01(\v2\x18.inaba.v1.DiscordChannelH\x00R\adiscord\x12.\n" +
+	"\x05slack\x18\a \x01(\v2\x16.inaba.v1.SlackChannelH\x00R\x05slack\x127\n" +
+	"\btelegram\x18\b \x01(\v2\x19.inaba.v1.TelegramChannelH\x00R\btelegram\x12\x16\n" +
+	"\x06events\x18\t \x03(\tR\x06events\x12)\n" +
+	"\x10automations_only\x18\n" +
+	" \x01(\bR\x0fautomationsOnly\x12\x18\n" +
+	"\aenabled\x18\v \x01(\bR\aenabled\x129\n" +
+	"\n" +
+	"created_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12>\n" +
+	"\rlast_delivery\x18\r \x01(\v2\x19.inaba.v1.ChannelDeliveryR\flastDeliveryB\b\n" +
+	"\x06config\"\"\n" +
+	"\x0eWebhookChannel\x12\x10\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url\"e\n" +
+	"\vNtfyChannel\x12\x1d\n" +
+	"\n" +
+	"server_url\x18\x01 \x01(\tR\tserverUrl\x12\x14\n" +
+	"\x05topic\x18\x02 \x01(\tR\x05topic\x12!\n" +
+	"\faccess_token\x18\x03 \x01(\tR\vaccessToken\"1\n" +
+	"\x0eDiscordChannel\x12\x1f\n" +
+	"\vwebhook_url\x18\x01 \x01(\tR\n" +
+	"webhookUrl\"/\n" +
+	"\fSlackChannel\x12\x1f\n" +
+	"\vwebhook_url\x18\x01 \x01(\tR\n" +
+	"webhookUrl\"G\n" +
+	"\x0fTelegramChannel\x12\x1b\n" +
+	"\tbot_token\x18\x01 \x01(\tR\bbotToken\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\"\x85\x01\n" +
+	"\x0fChannelDelivery\x12.\n" +
+	"\x04time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x12\x14\n" +
+	"\x05event\x18\x02 \x01(\tR\x05event\x12\x16\n" +
+	"\x06status\x18\x03 \x01(\rR\x06status\x12\x14\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error\"\x15\n" +
+	"\x13ListChannelsRequest\"Q\n" +
+	"\x14ListChannelsResponse\x129\n" +
+	"\bchannels\x18\x01 \x03(\v2\x1d.inaba.v1.NotificationChannelR\bchannels\"h\n" +
+	"\x15CreateChannelResponse\x127\n" +
+	"\achannel\x18\x01 \x01(\v2\x1d.inaba.v1.NotificationChannelR\achannel\x12\x16\n" +
+	"\x06secret\x18\x02 \x01(\tR\x06secret\"&\n" +
+	"\x14DeleteChannelRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x17\n" +
+	"\x15DeleteChannelResponse\"$\n" +
+	"\x12TestChannelRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id*\xdd\x01\n" +
 	"\n" +
 	"Permission\x12\x1a\n" +
 	"\x16PERMISSION_UNSPECIFIED\x10\x00\x12\x1b\n" +
@@ -6788,7 +7619,8 @@ const file_inaba_v1_server_proto_rawDesc = "" +
 	"\x0fPresenceService\x12]\n" +
 	"\tHeartbeat\x12\x1a.inaba.v1.HeartbeatRequest\x1a\x1b.inaba.v1.HeartbeatResponse\"\x17\x82\xd3\xe4\x93\x02\x11:\x01*\"\f/v1/presence\x12_\n" +
 	"\x0eMarkThreadSeen\x12\x1f.inaba.v1.MarkThreadSeenRequest\x1a\x14.inaba.v1.ThreadSeen\"\x16\x82\xd3\xe4\x93\x02\x10:\x01*\"\v/v1/me/seen\x12h\n" +
-	"\x0eListThreadSeen\x12\x1f.inaba.v1.ListThreadSeenRequest\x1a .inaba.v1.ListThreadSeenResponse\"\x13\x82\xd3\xe4\x93\x02\r\x12\v/v1/me/seen2\xcc\x06\n" +
+	"\x0eListThreadSeen\x12\x1f.inaba.v1.ListThreadSeenRequest\x1a .inaba.v1.ListThreadSeenResponse\"\x13\x82\xd3\xe4\x93\x02\r\x12\v/v1/me/seen2\xef\n" +
+	"\n" +
 	"\x13NotificationService\x12i\n" +
 	"\rGetPushConfig\x12\x1e.inaba.v1.GetPushConfigRequest\x1a\x1f.inaba.v1.GetPushConfigResponse\"\x17\x82\xd3\xe4\x93\x02\x11\x12\x0f/v1/push/config\x12b\n" +
 	"\x0eRegisterDevice\x12\x1f.inaba.v1.RegisterDeviceRequest\x1a\x14.inaba.v1.PushDevice\"\x19\x82\xd3\xe4\x93\x02\x13:\x01*\"\x0e/v1/me/devices\x12b\n" +
@@ -6798,7 +7630,12 @@ const file_inaba_v1_server_proto_rawDesc = "" +
 	"TestDevice\x12\x1b.inaba.v1.TestDeviceRequest\x1a\x1c.inaba.v1.TestDeviceResponse\"#\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/me/devices/{id}/test\x12b\n" +
 	"\vListSnoozes\x12\x1c.inaba.v1.ListSnoozesRequest\x1a\x1d.inaba.v1.ListSnoozesResponse\"\x16\x82\xd3\xe4\x93\x02\x10\x12\x0e/v1/me/snoozes\x12J\n" +
 	"\tSetSnooze\x12\x10.inaba.v1.Snooze\x1a\x10.inaba.v1.Snooze\"\x19\x82\xd3\xe4\x93\x02\x13:\x01*\"\x0e/v1/me/snoozes\x12x\n" +
-	"\vClearSnooze\x12\x1c.inaba.v1.ClearSnoozeRequest\x1a\x1d.inaba.v1.ClearSnoozeResponse\",\x82\xd3\xe4\x93\x02&*$/v1/me/snoozes/{host_id}/{target_id}B\x8c\x01\n" +
+	"\vClearSnooze\x12\x1c.inaba.v1.ClearSnoozeRequest\x1a\x1d.inaba.v1.ClearSnoozeResponse\",\x82\xd3\xe4\x93\x02&*$/v1/me/snoozes/{host_id}/{target_id}\x12f\n" +
+	"\fListChannels\x12\x1d.inaba.v1.ListChannelsRequest\x1a\x1e.inaba.v1.ListChannelsResponse\"\x17\x82\xd3\xe4\x93\x02\x11\x12\x0f/v1/me/channels\x12k\n" +
+	"\rCreateChannel\x12\x1d.inaba.v1.NotificationChannel\x1a\x1f.inaba.v1.CreateChannelResponse\"\x1a\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/me/channels\x12n\n" +
+	"\rUpdateChannel\x12\x1d.inaba.v1.NotificationChannel\x1a\x1d.inaba.v1.NotificationChannel\"\x1f\x82\xd3\xe4\x93\x02\x19:\x01*\x1a\x14/v1/me/channels/{id}\x12n\n" +
+	"\rDeleteChannel\x12\x1e.inaba.v1.DeleteChannelRequest\x1a\x1f.inaba.v1.DeleteChannelResponse\"\x1c\x82\xd3\xe4\x93\x02\x16*\x14/v1/me/channels/{id}\x12l\n" +
+	"\vTestChannel\x12\x1c.inaba.v1.TestChannelRequest\x1a\x19.inaba.v1.ChannelDelivery\"$\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v1/me/channels/{id}/testB\x8c\x01\n" +
 	"\fcom.inaba.v1B\vServerProtoP\x01Z.github.com/Alex4386/inaba/gen/inaba/v1;inabav1\xa2\x02\x03IXX\xaa\x02\bInaba.V1\xca\x02\bInaba\\V1\xe2\x02\x14Inaba\\V1\\GPBMetadata\xea\x02\tInaba::V1b\x06proto3"
 
 var (
@@ -6814,7 +7651,7 @@ func file_inaba_v1_server_proto_rawDescGZIP() []byte {
 }
 
 var file_inaba_v1_server_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_inaba_v1_server_proto_msgTypes = make([]protoimpl.MessageInfo, 117)
+var file_inaba_v1_server_proto_msgTypes = make([]protoimpl.MessageInfo, 130)
 var file_inaba_v1_server_proto_goTypes = []any{
 	(Permission)(0),                          // 0: inaba.v1.Permission
 	(PushPlatform)(0),                        // 1: inaba.v1.PushPlatform
@@ -6935,190 +7772,223 @@ var file_inaba_v1_server_proto_goTypes = []any{
 	(*ListSnoozesResponse)(nil),              // 116: inaba.v1.ListSnoozesResponse
 	(*ClearSnoozeRequest)(nil),               // 117: inaba.v1.ClearSnoozeRequest
 	(*ClearSnoozeResponse)(nil),              // 118: inaba.v1.ClearSnoozeResponse
-	(*ListUserTokensResponse_Entry)(nil),     // 119: inaba.v1.ListUserTokensResponse.Entry
-	(*timestamppb.Timestamp)(nil),            // 120: google.protobuf.Timestamp
-	(*SystemInfo)(nil),                       // 121: inaba.v1.SystemInfo
+	(*NotificationChannel)(nil),              // 119: inaba.v1.NotificationChannel
+	(*WebhookChannel)(nil),                   // 120: inaba.v1.WebhookChannel
+	(*NtfyChannel)(nil),                      // 121: inaba.v1.NtfyChannel
+	(*DiscordChannel)(nil),                   // 122: inaba.v1.DiscordChannel
+	(*SlackChannel)(nil),                     // 123: inaba.v1.SlackChannel
+	(*TelegramChannel)(nil),                  // 124: inaba.v1.TelegramChannel
+	(*ChannelDelivery)(nil),                  // 125: inaba.v1.ChannelDelivery
+	(*ListChannelsRequest)(nil),              // 126: inaba.v1.ListChannelsRequest
+	(*ListChannelsResponse)(nil),             // 127: inaba.v1.ListChannelsResponse
+	(*CreateChannelResponse)(nil),            // 128: inaba.v1.CreateChannelResponse
+	(*DeleteChannelRequest)(nil),             // 129: inaba.v1.DeleteChannelRequest
+	(*DeleteChannelResponse)(nil),            // 130: inaba.v1.DeleteChannelResponse
+	(*TestChannelRequest)(nil),               // 131: inaba.v1.TestChannelRequest
+	(*ListUserTokensResponse_Entry)(nil),     // 132: inaba.v1.ListUserTokensResponse.Entry
+	(*timestamppb.Timestamp)(nil),            // 133: google.protobuf.Timestamp
+	(*SystemInfo)(nil),                       // 134: inaba.v1.SystemInfo
 }
 var file_inaba_v1_server_proto_depIdxs = []int32{
-	120, // 0: inaba.v1.LoginSession.created_at:type_name -> google.protobuf.Timestamp
-	120, // 1: inaba.v1.LoginSession.expires_at:type_name -> google.protobuf.Timestamp
+	133, // 0: inaba.v1.LoginSession.created_at:type_name -> google.protobuf.Timestamp
+	133, // 1: inaba.v1.LoginSession.expires_at:type_name -> google.protobuf.Timestamp
 	10,  // 2: inaba.v1.ListSessionsResponse.sessions:type_name -> inaba.v1.LoginSession
-	120, // 3: inaba.v1.Passkey.created_at:type_name -> google.protobuf.Timestamp
-	120, // 4: inaba.v1.Passkey.last_used_at:type_name -> google.protobuf.Timestamp
+	133, // 3: inaba.v1.Passkey.created_at:type_name -> google.protobuf.Timestamp
+	133, // 4: inaba.v1.Passkey.last_used_at:type_name -> google.protobuf.Timestamp
 	15,  // 5: inaba.v1.ListPasskeysResponse.passkeys:type_name -> inaba.v1.Passkey
 	0,   // 6: inaba.v1.User.permissions:type_name -> inaba.v1.Permission
-	120, // 7: inaba.v1.Token.created_at:type_name -> google.protobuf.Timestamp
+	133, // 7: inaba.v1.Token.created_at:type_name -> google.protobuf.Timestamp
 	32,  // 8: inaba.v1.CreateTokenResponse.token:type_name -> inaba.v1.Token
 	32,  // 9: inaba.v1.ListTokensResponse.tokens:type_name -> inaba.v1.Token
-	120, // 10: inaba.v1.StartHostLoginResponse.expires_at:type_name -> google.protobuf.Timestamp
+	133, // 10: inaba.v1.StartHostLoginResponse.expires_at:type_name -> google.protobuf.Timestamp
 	50,  // 11: inaba.v1.PollHostLoginResponse.host:type_name -> inaba.v1.Host
-	120, // 12: inaba.v1.HostLogin.expires_at:type_name -> google.protobuf.Timestamp
-	120, // 13: inaba.v1.RefreshHostTokenResponse.expires_at:type_name -> google.protobuf.Timestamp
-	120, // 14: inaba.v1.Host.created_at:type_name -> google.protobuf.Timestamp
-	120, // 15: inaba.v1.Host.last_seen:type_name -> google.protobuf.Timestamp
-	121, // 16: inaba.v1.Host.system:type_name -> inaba.v1.SystemInfo
-	120, // 17: inaba.v1.CreateHostInviteResponse.expires_at:type_name -> google.protobuf.Timestamp
-	120, // 18: inaba.v1.PendingHostInvite.created_at:type_name -> google.protobuf.Timestamp
-	120, // 19: inaba.v1.PendingHostInvite.expires_at:type_name -> google.protobuf.Timestamp
+	133, // 12: inaba.v1.HostLogin.expires_at:type_name -> google.protobuf.Timestamp
+	133, // 13: inaba.v1.RefreshHostTokenResponse.expires_at:type_name -> google.protobuf.Timestamp
+	133, // 14: inaba.v1.Host.created_at:type_name -> google.protobuf.Timestamp
+	133, // 15: inaba.v1.Host.last_seen:type_name -> google.protobuf.Timestamp
+	134, // 16: inaba.v1.Host.system:type_name -> inaba.v1.SystemInfo
+	133, // 17: inaba.v1.CreateHostInviteResponse.expires_at:type_name -> google.protobuf.Timestamp
+	133, // 18: inaba.v1.PendingHostInvite.created_at:type_name -> google.protobuf.Timestamp
+	133, // 19: inaba.v1.PendingHostInvite.expires_at:type_name -> google.protobuf.Timestamp
 	56,  // 20: inaba.v1.ListHostInvitesResponse.invites:type_name -> inaba.v1.PendingHostInvite
-	120, // 21: inaba.v1.HostMember.joined_at:type_name -> google.protobuf.Timestamp
+	133, // 21: inaba.v1.HostMember.joined_at:type_name -> google.protobuf.Timestamp
 	64,  // 22: inaba.v1.ListHostMembersResponse.members:type_name -> inaba.v1.HostMember
 	50,  // 23: inaba.v1.CreateHostResponse.host:type_name -> inaba.v1.Host
 	50,  // 24: inaba.v1.ListHostsResponse.hosts:type_name -> inaba.v1.Host
 	27,  // 25: inaba.v1.ListUsersResponse.users:type_name -> inaba.v1.User
 	0,   // 26: inaba.v1.CreateUserRequest.permissions:type_name -> inaba.v1.Permission
 	27,  // 27: inaba.v1.UserDetail.user:type_name -> inaba.v1.User
-	120, // 28: inaba.v1.UserDetail.created_at:type_name -> google.protobuf.Timestamp
+	133, // 28: inaba.v1.UserDetail.created_at:type_name -> google.protobuf.Timestamp
 	87,  // 29: inaba.v1.UserDetail.hosts:type_name -> inaba.v1.HostAccess
 	50,  // 30: inaba.v1.HostAccess.host:type_name -> inaba.v1.Host
 	0,   // 31: inaba.v1.SetAccessRequest.permissions:type_name -> inaba.v1.Permission
-	119, // 32: inaba.v1.ListUserTokensResponse.tokens:type_name -> inaba.v1.ListUserTokensResponse.Entry
+	132, // 32: inaba.v1.ListUserTokensResponse.tokens:type_name -> inaba.v1.ListUserTokensResponse.Entry
 	98,  // 33: inaba.v1.ListThreadSeenResponse.threads:type_name -> inaba.v1.ThreadSeen
 	103, // 34: inaba.v1.HeartbeatResponse.present:type_name -> inaba.v1.Presence
-	120, // 35: inaba.v1.Presence.seen_at:type_name -> google.protobuf.Timestamp
+	133, // 35: inaba.v1.Presence.seen_at:type_name -> google.protobuf.Timestamp
 	1,   // 36: inaba.v1.RegisterDeviceRequest.platform:type_name -> inaba.v1.PushPlatform
 	1,   // 37: inaba.v1.PushDevice.platform:type_name -> inaba.v1.PushPlatform
-	120, // 38: inaba.v1.PushDevice.created_at:type_name -> google.protobuf.Timestamp
-	120, // 39: inaba.v1.PushDevice.last_used_at:type_name -> google.protobuf.Timestamp
+	133, // 38: inaba.v1.PushDevice.created_at:type_name -> google.protobuf.Timestamp
+	133, // 39: inaba.v1.PushDevice.last_used_at:type_name -> google.protobuf.Timestamp
 	107, // 40: inaba.v1.ListDevicesResponse.devices:type_name -> inaba.v1.PushDevice
 	2,   // 41: inaba.v1.Snooze.kind:type_name -> inaba.v1.SnoozeKind
-	120, // 42: inaba.v1.Snooze.until:type_name -> google.protobuf.Timestamp
+	133, // 42: inaba.v1.Snooze.until:type_name -> google.protobuf.Timestamp
 	114, // 43: inaba.v1.ListSnoozesResponse.snoozes:type_name -> inaba.v1.Snooze
 	2,   // 44: inaba.v1.ClearSnoozeRequest.kind:type_name -> inaba.v1.SnoozeKind
-	32,  // 45: inaba.v1.ListUserTokensResponse.Entry.token:type_name -> inaba.v1.Token
-	24,  // 46: inaba.v1.AuthService.GetConfig:input_type -> inaba.v1.GetConfigRequest
-	26,  // 47: inaba.v1.AuthService.Onboard:input_type -> inaba.v1.OnboardRequest
-	28,  // 48: inaba.v1.AuthService.Login:input_type -> inaba.v1.LoginRequest
-	29,  // 49: inaba.v1.AuthService.Logout:input_type -> inaba.v1.LogoutRequest
-	31,  // 50: inaba.v1.AuthService.WhoAmI:input_type -> inaba.v1.WhoAmIRequest
-	33,  // 51: inaba.v1.AuthService.CreateToken:input_type -> inaba.v1.CreateTokenRequest
-	35,  // 52: inaba.v1.AuthService.ListTokens:input_type -> inaba.v1.ListTokensRequest
-	37,  // 53: inaba.v1.AuthService.RevokeToken:input_type -> inaba.v1.RevokeTokenRequest
-	3,   // 54: inaba.v1.AuthService.UpdateProfile:input_type -> inaba.v1.UpdateProfileRequest
-	4,   // 55: inaba.v1.AuthService.ChangePassword:input_type -> inaba.v1.ChangePasswordRequest
-	6,   // 56: inaba.v1.AuthService.BeginTotp:input_type -> inaba.v1.BeginTotpRequest
-	8,   // 57: inaba.v1.AuthService.EnableTotp:input_type -> inaba.v1.EnableTotpRequest
-	9,   // 58: inaba.v1.AuthService.DisableTotp:input_type -> inaba.v1.DisableTotpRequest
-	11,  // 59: inaba.v1.AuthService.ListSessions:input_type -> inaba.v1.ListSessionsRequest
-	13,  // 60: inaba.v1.AuthService.RevokeSession:input_type -> inaba.v1.RevokeSessionRequest
-	16,  // 61: inaba.v1.AuthService.ListPasskeys:input_type -> inaba.v1.ListPasskeysRequest
-	18,  // 62: inaba.v1.AuthService.BeginPasskeyRegistration:input_type -> inaba.v1.BeginPasskeyRequest
-	20,  // 63: inaba.v1.AuthService.FinishPasskeyRegistration:input_type -> inaba.v1.FinishPasskeyRegistrationRequest
-	22,  // 64: inaba.v1.AuthService.DeletePasskey:input_type -> inaba.v1.DeletePasskeyRequest
-	18,  // 65: inaba.v1.AuthService.BeginPasskeyLogin:input_type -> inaba.v1.BeginPasskeyRequest
-	21,  // 66: inaba.v1.AuthService.FinishPasskeyLogin:input_type -> inaba.v1.FinishPasskeyLoginRequest
-	71,  // 67: inaba.v1.HostService.CreateHost:input_type -> inaba.v1.CreateHostRequest
-	73,  // 68: inaba.v1.HostService.ListHosts:input_type -> inaba.v1.ListHostsRequest
-	51,  // 69: inaba.v1.HostService.CreateHostInvite:input_type -> inaba.v1.CreateHostInviteRequest
-	53,  // 70: inaba.v1.HostService.RevokeHostInvites:input_type -> inaba.v1.RevokeHostInvitesRequest
-	55,  // 71: inaba.v1.HostService.ListHostInvites:input_type -> inaba.v1.ListHostInvitesRequest
-	58,  // 72: inaba.v1.HostService.RevokeHostInvite:input_type -> inaba.v1.RevokeHostInviteRequest
-	60,  // 73: inaba.v1.HostService.GetHostInvite:input_type -> inaba.v1.GetHostInviteRequest
-	62,  // 74: inaba.v1.HostService.AcceptHostInvite:input_type -> inaba.v1.AcceptHostInviteRequest
-	63,  // 75: inaba.v1.HostService.ListHostMembers:input_type -> inaba.v1.ListHostMembersRequest
-	67,  // 76: inaba.v1.HostService.RemoveHostMember:input_type -> inaba.v1.RemoveHostMemberRequest
-	65,  // 77: inaba.v1.HostService.SetHostMember:input_type -> inaba.v1.SetHostMemberRequest
-	75,  // 78: inaba.v1.HostService.DeleteHost:input_type -> inaba.v1.DeleteHostRequest
-	70,  // 79: inaba.v1.HostService.UpdateHost:input_type -> inaba.v1.UpdateHostRequest
-	39,  // 80: inaba.v1.HostService.StartHostLogin:input_type -> inaba.v1.StartHostLoginRequest
-	41,  // 81: inaba.v1.HostService.PollHostLogin:input_type -> inaba.v1.PollHostLoginRequest
-	43,  // 82: inaba.v1.HostService.GetHostLogin:input_type -> inaba.v1.GetHostLoginRequest
-	45,  // 83: inaba.v1.HostService.ApproveHostLogin:input_type -> inaba.v1.ApproveHostLoginRequest
-	46,  // 84: inaba.v1.HostService.DenyHostLogin:input_type -> inaba.v1.DenyHostLoginRequest
-	48,  // 85: inaba.v1.HostService.RefreshHostToken:input_type -> inaba.v1.RefreshHostTokenRequest
-	80,  // 86: inaba.v1.AdminService.ListUsers:input_type -> inaba.v1.ListUsersRequest
-	82,  // 87: inaba.v1.AdminService.CreateUser:input_type -> inaba.v1.CreateUserRequest
-	83,  // 88: inaba.v1.AdminService.SetPassword:input_type -> inaba.v1.SetPasswordRequest
-	91,  // 89: inaba.v1.AdminService.SetAccess:input_type -> inaba.v1.SetAccessRequest
-	92,  // 90: inaba.v1.AdminService.DeleteUser:input_type -> inaba.v1.DeleteUserRequest
-	94,  // 91: inaba.v1.AdminService.ListUserTokens:input_type -> inaba.v1.ListUserTokensRequest
-	96,  // 92: inaba.v1.AdminService.CreateUserToken:input_type -> inaba.v1.CreateUserTokenRequest
-	37,  // 93: inaba.v1.AdminService.RevokeUserToken:input_type -> inaba.v1.RevokeTokenRequest
-	85,  // 94: inaba.v1.AdminService.GetUserDetail:input_type -> inaba.v1.GetUserDetailRequest
-	88,  // 95: inaba.v1.AdminService.EndUserSessions:input_type -> inaba.v1.EndUserSessionsRequest
-	90,  // 96: inaba.v1.AdminService.DisableUserTotp:input_type -> inaba.v1.DisableUserTotpRequest
-	77,  // 97: inaba.v1.AdminService.GetServerHousekeeping:input_type -> inaba.v1.GetServerHousekeepingRequest
-	79,  // 98: inaba.v1.AdminService.CleanUpServer:input_type -> inaba.v1.CleanUpServerRequest
-	101, // 99: inaba.v1.PresenceService.Heartbeat:input_type -> inaba.v1.HeartbeatRequest
-	97,  // 100: inaba.v1.PresenceService.MarkThreadSeen:input_type -> inaba.v1.MarkThreadSeenRequest
-	99,  // 101: inaba.v1.PresenceService.ListThreadSeen:input_type -> inaba.v1.ListThreadSeenRequest
-	104, // 102: inaba.v1.NotificationService.GetPushConfig:input_type -> inaba.v1.GetPushConfigRequest
-	106, // 103: inaba.v1.NotificationService.RegisterDevice:input_type -> inaba.v1.RegisterDeviceRequest
-	108, // 104: inaba.v1.NotificationService.ListDevices:input_type -> inaba.v1.ListDevicesRequest
-	110, // 105: inaba.v1.NotificationService.DeleteDevice:input_type -> inaba.v1.DeleteDeviceRequest
-	112, // 106: inaba.v1.NotificationService.TestDevice:input_type -> inaba.v1.TestDeviceRequest
-	115, // 107: inaba.v1.NotificationService.ListSnoozes:input_type -> inaba.v1.ListSnoozesRequest
-	114, // 108: inaba.v1.NotificationService.SetSnooze:input_type -> inaba.v1.Snooze
-	117, // 109: inaba.v1.NotificationService.ClearSnooze:input_type -> inaba.v1.ClearSnoozeRequest
-	25,  // 110: inaba.v1.AuthService.GetConfig:output_type -> inaba.v1.GetConfigResponse
-	27,  // 111: inaba.v1.AuthService.Onboard:output_type -> inaba.v1.User
-	27,  // 112: inaba.v1.AuthService.Login:output_type -> inaba.v1.User
-	30,  // 113: inaba.v1.AuthService.Logout:output_type -> inaba.v1.LogoutResponse
-	27,  // 114: inaba.v1.AuthService.WhoAmI:output_type -> inaba.v1.User
-	34,  // 115: inaba.v1.AuthService.CreateToken:output_type -> inaba.v1.CreateTokenResponse
-	36,  // 116: inaba.v1.AuthService.ListTokens:output_type -> inaba.v1.ListTokensResponse
-	38,  // 117: inaba.v1.AuthService.RevokeToken:output_type -> inaba.v1.RevokeTokenResponse
-	27,  // 118: inaba.v1.AuthService.UpdateProfile:output_type -> inaba.v1.User
-	5,   // 119: inaba.v1.AuthService.ChangePassword:output_type -> inaba.v1.ChangePasswordResponse
-	7,   // 120: inaba.v1.AuthService.BeginTotp:output_type -> inaba.v1.BeginTotpResponse
-	27,  // 121: inaba.v1.AuthService.EnableTotp:output_type -> inaba.v1.User
-	27,  // 122: inaba.v1.AuthService.DisableTotp:output_type -> inaba.v1.User
-	12,  // 123: inaba.v1.AuthService.ListSessions:output_type -> inaba.v1.ListSessionsResponse
-	14,  // 124: inaba.v1.AuthService.RevokeSession:output_type -> inaba.v1.RevokeSessionResponse
-	17,  // 125: inaba.v1.AuthService.ListPasskeys:output_type -> inaba.v1.ListPasskeysResponse
-	19,  // 126: inaba.v1.AuthService.BeginPasskeyRegistration:output_type -> inaba.v1.BeginPasskeyResponse
-	15,  // 127: inaba.v1.AuthService.FinishPasskeyRegistration:output_type -> inaba.v1.Passkey
-	23,  // 128: inaba.v1.AuthService.DeletePasskey:output_type -> inaba.v1.DeletePasskeyResponse
-	19,  // 129: inaba.v1.AuthService.BeginPasskeyLogin:output_type -> inaba.v1.BeginPasskeyResponse
-	27,  // 130: inaba.v1.AuthService.FinishPasskeyLogin:output_type -> inaba.v1.User
-	72,  // 131: inaba.v1.HostService.CreateHost:output_type -> inaba.v1.CreateHostResponse
-	74,  // 132: inaba.v1.HostService.ListHosts:output_type -> inaba.v1.ListHostsResponse
-	52,  // 133: inaba.v1.HostService.CreateHostInvite:output_type -> inaba.v1.CreateHostInviteResponse
-	54,  // 134: inaba.v1.HostService.RevokeHostInvites:output_type -> inaba.v1.RevokeHostInvitesResponse
-	57,  // 135: inaba.v1.HostService.ListHostInvites:output_type -> inaba.v1.ListHostInvitesResponse
-	59,  // 136: inaba.v1.HostService.RevokeHostInvite:output_type -> inaba.v1.RevokeHostInviteResponse
-	61,  // 137: inaba.v1.HostService.GetHostInvite:output_type -> inaba.v1.HostInvite
-	50,  // 138: inaba.v1.HostService.AcceptHostInvite:output_type -> inaba.v1.Host
-	66,  // 139: inaba.v1.HostService.ListHostMembers:output_type -> inaba.v1.ListHostMembersResponse
-	68,  // 140: inaba.v1.HostService.RemoveHostMember:output_type -> inaba.v1.RemoveHostMemberResponse
-	69,  // 141: inaba.v1.HostService.SetHostMember:output_type -> inaba.v1.SetHostMemberResponse
-	76,  // 142: inaba.v1.HostService.DeleteHost:output_type -> inaba.v1.DeleteHostResponse
-	50,  // 143: inaba.v1.HostService.UpdateHost:output_type -> inaba.v1.Host
-	40,  // 144: inaba.v1.HostService.StartHostLogin:output_type -> inaba.v1.StartHostLoginResponse
-	42,  // 145: inaba.v1.HostService.PollHostLogin:output_type -> inaba.v1.PollHostLoginResponse
-	44,  // 146: inaba.v1.HostService.GetHostLogin:output_type -> inaba.v1.HostLogin
-	50,  // 147: inaba.v1.HostService.ApproveHostLogin:output_type -> inaba.v1.Host
-	47,  // 148: inaba.v1.HostService.DenyHostLogin:output_type -> inaba.v1.DenyHostLoginResponse
-	49,  // 149: inaba.v1.HostService.RefreshHostToken:output_type -> inaba.v1.RefreshHostTokenResponse
-	81,  // 150: inaba.v1.AdminService.ListUsers:output_type -> inaba.v1.ListUsersResponse
-	27,  // 151: inaba.v1.AdminService.CreateUser:output_type -> inaba.v1.User
-	84,  // 152: inaba.v1.AdminService.SetPassword:output_type -> inaba.v1.SetPasswordResponse
-	27,  // 153: inaba.v1.AdminService.SetAccess:output_type -> inaba.v1.User
-	93,  // 154: inaba.v1.AdminService.DeleteUser:output_type -> inaba.v1.DeleteUserResponse
-	95,  // 155: inaba.v1.AdminService.ListUserTokens:output_type -> inaba.v1.ListUserTokensResponse
-	34,  // 156: inaba.v1.AdminService.CreateUserToken:output_type -> inaba.v1.CreateTokenResponse
-	38,  // 157: inaba.v1.AdminService.RevokeUserToken:output_type -> inaba.v1.RevokeTokenResponse
-	86,  // 158: inaba.v1.AdminService.GetUserDetail:output_type -> inaba.v1.UserDetail
-	89,  // 159: inaba.v1.AdminService.EndUserSessions:output_type -> inaba.v1.EndUserSessionsResponse
-	27,  // 160: inaba.v1.AdminService.DisableUserTotp:output_type -> inaba.v1.User
-	78,  // 161: inaba.v1.AdminService.GetServerHousekeeping:output_type -> inaba.v1.ServerHousekeeping
-	78,  // 162: inaba.v1.AdminService.CleanUpServer:output_type -> inaba.v1.ServerHousekeeping
-	102, // 163: inaba.v1.PresenceService.Heartbeat:output_type -> inaba.v1.HeartbeatResponse
-	98,  // 164: inaba.v1.PresenceService.MarkThreadSeen:output_type -> inaba.v1.ThreadSeen
-	100, // 165: inaba.v1.PresenceService.ListThreadSeen:output_type -> inaba.v1.ListThreadSeenResponse
-	105, // 166: inaba.v1.NotificationService.GetPushConfig:output_type -> inaba.v1.GetPushConfigResponse
-	107, // 167: inaba.v1.NotificationService.RegisterDevice:output_type -> inaba.v1.PushDevice
-	109, // 168: inaba.v1.NotificationService.ListDevices:output_type -> inaba.v1.ListDevicesResponse
-	111, // 169: inaba.v1.NotificationService.DeleteDevice:output_type -> inaba.v1.DeleteDeviceResponse
-	113, // 170: inaba.v1.NotificationService.TestDevice:output_type -> inaba.v1.TestDeviceResponse
-	116, // 171: inaba.v1.NotificationService.ListSnoozes:output_type -> inaba.v1.ListSnoozesResponse
-	114, // 172: inaba.v1.NotificationService.SetSnooze:output_type -> inaba.v1.Snooze
-	118, // 173: inaba.v1.NotificationService.ClearSnooze:output_type -> inaba.v1.ClearSnoozeResponse
-	110, // [110:174] is the sub-list for method output_type
-	46,  // [46:110] is the sub-list for method input_type
-	46,  // [46:46] is the sub-list for extension type_name
-	46,  // [46:46] is the sub-list for extension extendee
-	0,   // [0:46] is the sub-list for field type_name
+	120, // 45: inaba.v1.NotificationChannel.webhook:type_name -> inaba.v1.WebhookChannel
+	121, // 46: inaba.v1.NotificationChannel.ntfy:type_name -> inaba.v1.NtfyChannel
+	122, // 47: inaba.v1.NotificationChannel.discord:type_name -> inaba.v1.DiscordChannel
+	123, // 48: inaba.v1.NotificationChannel.slack:type_name -> inaba.v1.SlackChannel
+	124, // 49: inaba.v1.NotificationChannel.telegram:type_name -> inaba.v1.TelegramChannel
+	133, // 50: inaba.v1.NotificationChannel.created_at:type_name -> google.protobuf.Timestamp
+	125, // 51: inaba.v1.NotificationChannel.last_delivery:type_name -> inaba.v1.ChannelDelivery
+	133, // 52: inaba.v1.ChannelDelivery.time:type_name -> google.protobuf.Timestamp
+	119, // 53: inaba.v1.ListChannelsResponse.channels:type_name -> inaba.v1.NotificationChannel
+	119, // 54: inaba.v1.CreateChannelResponse.channel:type_name -> inaba.v1.NotificationChannel
+	32,  // 55: inaba.v1.ListUserTokensResponse.Entry.token:type_name -> inaba.v1.Token
+	24,  // 56: inaba.v1.AuthService.GetConfig:input_type -> inaba.v1.GetConfigRequest
+	26,  // 57: inaba.v1.AuthService.Onboard:input_type -> inaba.v1.OnboardRequest
+	28,  // 58: inaba.v1.AuthService.Login:input_type -> inaba.v1.LoginRequest
+	29,  // 59: inaba.v1.AuthService.Logout:input_type -> inaba.v1.LogoutRequest
+	31,  // 60: inaba.v1.AuthService.WhoAmI:input_type -> inaba.v1.WhoAmIRequest
+	33,  // 61: inaba.v1.AuthService.CreateToken:input_type -> inaba.v1.CreateTokenRequest
+	35,  // 62: inaba.v1.AuthService.ListTokens:input_type -> inaba.v1.ListTokensRequest
+	37,  // 63: inaba.v1.AuthService.RevokeToken:input_type -> inaba.v1.RevokeTokenRequest
+	3,   // 64: inaba.v1.AuthService.UpdateProfile:input_type -> inaba.v1.UpdateProfileRequest
+	4,   // 65: inaba.v1.AuthService.ChangePassword:input_type -> inaba.v1.ChangePasswordRequest
+	6,   // 66: inaba.v1.AuthService.BeginTotp:input_type -> inaba.v1.BeginTotpRequest
+	8,   // 67: inaba.v1.AuthService.EnableTotp:input_type -> inaba.v1.EnableTotpRequest
+	9,   // 68: inaba.v1.AuthService.DisableTotp:input_type -> inaba.v1.DisableTotpRequest
+	11,  // 69: inaba.v1.AuthService.ListSessions:input_type -> inaba.v1.ListSessionsRequest
+	13,  // 70: inaba.v1.AuthService.RevokeSession:input_type -> inaba.v1.RevokeSessionRequest
+	16,  // 71: inaba.v1.AuthService.ListPasskeys:input_type -> inaba.v1.ListPasskeysRequest
+	18,  // 72: inaba.v1.AuthService.BeginPasskeyRegistration:input_type -> inaba.v1.BeginPasskeyRequest
+	20,  // 73: inaba.v1.AuthService.FinishPasskeyRegistration:input_type -> inaba.v1.FinishPasskeyRegistrationRequest
+	22,  // 74: inaba.v1.AuthService.DeletePasskey:input_type -> inaba.v1.DeletePasskeyRequest
+	18,  // 75: inaba.v1.AuthService.BeginPasskeyLogin:input_type -> inaba.v1.BeginPasskeyRequest
+	21,  // 76: inaba.v1.AuthService.FinishPasskeyLogin:input_type -> inaba.v1.FinishPasskeyLoginRequest
+	71,  // 77: inaba.v1.HostService.CreateHost:input_type -> inaba.v1.CreateHostRequest
+	73,  // 78: inaba.v1.HostService.ListHosts:input_type -> inaba.v1.ListHostsRequest
+	51,  // 79: inaba.v1.HostService.CreateHostInvite:input_type -> inaba.v1.CreateHostInviteRequest
+	53,  // 80: inaba.v1.HostService.RevokeHostInvites:input_type -> inaba.v1.RevokeHostInvitesRequest
+	55,  // 81: inaba.v1.HostService.ListHostInvites:input_type -> inaba.v1.ListHostInvitesRequest
+	58,  // 82: inaba.v1.HostService.RevokeHostInvite:input_type -> inaba.v1.RevokeHostInviteRequest
+	60,  // 83: inaba.v1.HostService.GetHostInvite:input_type -> inaba.v1.GetHostInviteRequest
+	62,  // 84: inaba.v1.HostService.AcceptHostInvite:input_type -> inaba.v1.AcceptHostInviteRequest
+	63,  // 85: inaba.v1.HostService.ListHostMembers:input_type -> inaba.v1.ListHostMembersRequest
+	67,  // 86: inaba.v1.HostService.RemoveHostMember:input_type -> inaba.v1.RemoveHostMemberRequest
+	65,  // 87: inaba.v1.HostService.SetHostMember:input_type -> inaba.v1.SetHostMemberRequest
+	75,  // 88: inaba.v1.HostService.DeleteHost:input_type -> inaba.v1.DeleteHostRequest
+	70,  // 89: inaba.v1.HostService.UpdateHost:input_type -> inaba.v1.UpdateHostRequest
+	39,  // 90: inaba.v1.HostService.StartHostLogin:input_type -> inaba.v1.StartHostLoginRequest
+	41,  // 91: inaba.v1.HostService.PollHostLogin:input_type -> inaba.v1.PollHostLoginRequest
+	43,  // 92: inaba.v1.HostService.GetHostLogin:input_type -> inaba.v1.GetHostLoginRequest
+	45,  // 93: inaba.v1.HostService.ApproveHostLogin:input_type -> inaba.v1.ApproveHostLoginRequest
+	46,  // 94: inaba.v1.HostService.DenyHostLogin:input_type -> inaba.v1.DenyHostLoginRequest
+	48,  // 95: inaba.v1.HostService.RefreshHostToken:input_type -> inaba.v1.RefreshHostTokenRequest
+	80,  // 96: inaba.v1.AdminService.ListUsers:input_type -> inaba.v1.ListUsersRequest
+	82,  // 97: inaba.v1.AdminService.CreateUser:input_type -> inaba.v1.CreateUserRequest
+	83,  // 98: inaba.v1.AdminService.SetPassword:input_type -> inaba.v1.SetPasswordRequest
+	91,  // 99: inaba.v1.AdminService.SetAccess:input_type -> inaba.v1.SetAccessRequest
+	92,  // 100: inaba.v1.AdminService.DeleteUser:input_type -> inaba.v1.DeleteUserRequest
+	94,  // 101: inaba.v1.AdminService.ListUserTokens:input_type -> inaba.v1.ListUserTokensRequest
+	96,  // 102: inaba.v1.AdminService.CreateUserToken:input_type -> inaba.v1.CreateUserTokenRequest
+	37,  // 103: inaba.v1.AdminService.RevokeUserToken:input_type -> inaba.v1.RevokeTokenRequest
+	85,  // 104: inaba.v1.AdminService.GetUserDetail:input_type -> inaba.v1.GetUserDetailRequest
+	88,  // 105: inaba.v1.AdminService.EndUserSessions:input_type -> inaba.v1.EndUserSessionsRequest
+	90,  // 106: inaba.v1.AdminService.DisableUserTotp:input_type -> inaba.v1.DisableUserTotpRequest
+	77,  // 107: inaba.v1.AdminService.GetServerHousekeeping:input_type -> inaba.v1.GetServerHousekeepingRequest
+	79,  // 108: inaba.v1.AdminService.CleanUpServer:input_type -> inaba.v1.CleanUpServerRequest
+	101, // 109: inaba.v1.PresenceService.Heartbeat:input_type -> inaba.v1.HeartbeatRequest
+	97,  // 110: inaba.v1.PresenceService.MarkThreadSeen:input_type -> inaba.v1.MarkThreadSeenRequest
+	99,  // 111: inaba.v1.PresenceService.ListThreadSeen:input_type -> inaba.v1.ListThreadSeenRequest
+	104, // 112: inaba.v1.NotificationService.GetPushConfig:input_type -> inaba.v1.GetPushConfigRequest
+	106, // 113: inaba.v1.NotificationService.RegisterDevice:input_type -> inaba.v1.RegisterDeviceRequest
+	108, // 114: inaba.v1.NotificationService.ListDevices:input_type -> inaba.v1.ListDevicesRequest
+	110, // 115: inaba.v1.NotificationService.DeleteDevice:input_type -> inaba.v1.DeleteDeviceRequest
+	112, // 116: inaba.v1.NotificationService.TestDevice:input_type -> inaba.v1.TestDeviceRequest
+	115, // 117: inaba.v1.NotificationService.ListSnoozes:input_type -> inaba.v1.ListSnoozesRequest
+	114, // 118: inaba.v1.NotificationService.SetSnooze:input_type -> inaba.v1.Snooze
+	117, // 119: inaba.v1.NotificationService.ClearSnooze:input_type -> inaba.v1.ClearSnoozeRequest
+	126, // 120: inaba.v1.NotificationService.ListChannels:input_type -> inaba.v1.ListChannelsRequest
+	119, // 121: inaba.v1.NotificationService.CreateChannel:input_type -> inaba.v1.NotificationChannel
+	119, // 122: inaba.v1.NotificationService.UpdateChannel:input_type -> inaba.v1.NotificationChannel
+	129, // 123: inaba.v1.NotificationService.DeleteChannel:input_type -> inaba.v1.DeleteChannelRequest
+	131, // 124: inaba.v1.NotificationService.TestChannel:input_type -> inaba.v1.TestChannelRequest
+	25,  // 125: inaba.v1.AuthService.GetConfig:output_type -> inaba.v1.GetConfigResponse
+	27,  // 126: inaba.v1.AuthService.Onboard:output_type -> inaba.v1.User
+	27,  // 127: inaba.v1.AuthService.Login:output_type -> inaba.v1.User
+	30,  // 128: inaba.v1.AuthService.Logout:output_type -> inaba.v1.LogoutResponse
+	27,  // 129: inaba.v1.AuthService.WhoAmI:output_type -> inaba.v1.User
+	34,  // 130: inaba.v1.AuthService.CreateToken:output_type -> inaba.v1.CreateTokenResponse
+	36,  // 131: inaba.v1.AuthService.ListTokens:output_type -> inaba.v1.ListTokensResponse
+	38,  // 132: inaba.v1.AuthService.RevokeToken:output_type -> inaba.v1.RevokeTokenResponse
+	27,  // 133: inaba.v1.AuthService.UpdateProfile:output_type -> inaba.v1.User
+	5,   // 134: inaba.v1.AuthService.ChangePassword:output_type -> inaba.v1.ChangePasswordResponse
+	7,   // 135: inaba.v1.AuthService.BeginTotp:output_type -> inaba.v1.BeginTotpResponse
+	27,  // 136: inaba.v1.AuthService.EnableTotp:output_type -> inaba.v1.User
+	27,  // 137: inaba.v1.AuthService.DisableTotp:output_type -> inaba.v1.User
+	12,  // 138: inaba.v1.AuthService.ListSessions:output_type -> inaba.v1.ListSessionsResponse
+	14,  // 139: inaba.v1.AuthService.RevokeSession:output_type -> inaba.v1.RevokeSessionResponse
+	17,  // 140: inaba.v1.AuthService.ListPasskeys:output_type -> inaba.v1.ListPasskeysResponse
+	19,  // 141: inaba.v1.AuthService.BeginPasskeyRegistration:output_type -> inaba.v1.BeginPasskeyResponse
+	15,  // 142: inaba.v1.AuthService.FinishPasskeyRegistration:output_type -> inaba.v1.Passkey
+	23,  // 143: inaba.v1.AuthService.DeletePasskey:output_type -> inaba.v1.DeletePasskeyResponse
+	19,  // 144: inaba.v1.AuthService.BeginPasskeyLogin:output_type -> inaba.v1.BeginPasskeyResponse
+	27,  // 145: inaba.v1.AuthService.FinishPasskeyLogin:output_type -> inaba.v1.User
+	72,  // 146: inaba.v1.HostService.CreateHost:output_type -> inaba.v1.CreateHostResponse
+	74,  // 147: inaba.v1.HostService.ListHosts:output_type -> inaba.v1.ListHostsResponse
+	52,  // 148: inaba.v1.HostService.CreateHostInvite:output_type -> inaba.v1.CreateHostInviteResponse
+	54,  // 149: inaba.v1.HostService.RevokeHostInvites:output_type -> inaba.v1.RevokeHostInvitesResponse
+	57,  // 150: inaba.v1.HostService.ListHostInvites:output_type -> inaba.v1.ListHostInvitesResponse
+	59,  // 151: inaba.v1.HostService.RevokeHostInvite:output_type -> inaba.v1.RevokeHostInviteResponse
+	61,  // 152: inaba.v1.HostService.GetHostInvite:output_type -> inaba.v1.HostInvite
+	50,  // 153: inaba.v1.HostService.AcceptHostInvite:output_type -> inaba.v1.Host
+	66,  // 154: inaba.v1.HostService.ListHostMembers:output_type -> inaba.v1.ListHostMembersResponse
+	68,  // 155: inaba.v1.HostService.RemoveHostMember:output_type -> inaba.v1.RemoveHostMemberResponse
+	69,  // 156: inaba.v1.HostService.SetHostMember:output_type -> inaba.v1.SetHostMemberResponse
+	76,  // 157: inaba.v1.HostService.DeleteHost:output_type -> inaba.v1.DeleteHostResponse
+	50,  // 158: inaba.v1.HostService.UpdateHost:output_type -> inaba.v1.Host
+	40,  // 159: inaba.v1.HostService.StartHostLogin:output_type -> inaba.v1.StartHostLoginResponse
+	42,  // 160: inaba.v1.HostService.PollHostLogin:output_type -> inaba.v1.PollHostLoginResponse
+	44,  // 161: inaba.v1.HostService.GetHostLogin:output_type -> inaba.v1.HostLogin
+	50,  // 162: inaba.v1.HostService.ApproveHostLogin:output_type -> inaba.v1.Host
+	47,  // 163: inaba.v1.HostService.DenyHostLogin:output_type -> inaba.v1.DenyHostLoginResponse
+	49,  // 164: inaba.v1.HostService.RefreshHostToken:output_type -> inaba.v1.RefreshHostTokenResponse
+	81,  // 165: inaba.v1.AdminService.ListUsers:output_type -> inaba.v1.ListUsersResponse
+	27,  // 166: inaba.v1.AdminService.CreateUser:output_type -> inaba.v1.User
+	84,  // 167: inaba.v1.AdminService.SetPassword:output_type -> inaba.v1.SetPasswordResponse
+	27,  // 168: inaba.v1.AdminService.SetAccess:output_type -> inaba.v1.User
+	93,  // 169: inaba.v1.AdminService.DeleteUser:output_type -> inaba.v1.DeleteUserResponse
+	95,  // 170: inaba.v1.AdminService.ListUserTokens:output_type -> inaba.v1.ListUserTokensResponse
+	34,  // 171: inaba.v1.AdminService.CreateUserToken:output_type -> inaba.v1.CreateTokenResponse
+	38,  // 172: inaba.v1.AdminService.RevokeUserToken:output_type -> inaba.v1.RevokeTokenResponse
+	86,  // 173: inaba.v1.AdminService.GetUserDetail:output_type -> inaba.v1.UserDetail
+	89,  // 174: inaba.v1.AdminService.EndUserSessions:output_type -> inaba.v1.EndUserSessionsResponse
+	27,  // 175: inaba.v1.AdminService.DisableUserTotp:output_type -> inaba.v1.User
+	78,  // 176: inaba.v1.AdminService.GetServerHousekeeping:output_type -> inaba.v1.ServerHousekeeping
+	78,  // 177: inaba.v1.AdminService.CleanUpServer:output_type -> inaba.v1.ServerHousekeeping
+	102, // 178: inaba.v1.PresenceService.Heartbeat:output_type -> inaba.v1.HeartbeatResponse
+	98,  // 179: inaba.v1.PresenceService.MarkThreadSeen:output_type -> inaba.v1.ThreadSeen
+	100, // 180: inaba.v1.PresenceService.ListThreadSeen:output_type -> inaba.v1.ListThreadSeenResponse
+	105, // 181: inaba.v1.NotificationService.GetPushConfig:output_type -> inaba.v1.GetPushConfigResponse
+	107, // 182: inaba.v1.NotificationService.RegisterDevice:output_type -> inaba.v1.PushDevice
+	109, // 183: inaba.v1.NotificationService.ListDevices:output_type -> inaba.v1.ListDevicesResponse
+	111, // 184: inaba.v1.NotificationService.DeleteDevice:output_type -> inaba.v1.DeleteDeviceResponse
+	113, // 185: inaba.v1.NotificationService.TestDevice:output_type -> inaba.v1.TestDeviceResponse
+	116, // 186: inaba.v1.NotificationService.ListSnoozes:output_type -> inaba.v1.ListSnoozesResponse
+	114, // 187: inaba.v1.NotificationService.SetSnooze:output_type -> inaba.v1.Snooze
+	118, // 188: inaba.v1.NotificationService.ClearSnooze:output_type -> inaba.v1.ClearSnoozeResponse
+	127, // 189: inaba.v1.NotificationService.ListChannels:output_type -> inaba.v1.ListChannelsResponse
+	128, // 190: inaba.v1.NotificationService.CreateChannel:output_type -> inaba.v1.CreateChannelResponse
+	119, // 191: inaba.v1.NotificationService.UpdateChannel:output_type -> inaba.v1.NotificationChannel
+	130, // 192: inaba.v1.NotificationService.DeleteChannel:output_type -> inaba.v1.DeleteChannelResponse
+	125, // 193: inaba.v1.NotificationService.TestChannel:output_type -> inaba.v1.ChannelDelivery
+	125, // [125:194] is the sub-list for method output_type
+	56,  // [56:125] is the sub-list for method input_type
+	56,  // [56:56] is the sub-list for extension type_name
+	56,  // [56:56] is the sub-list for extension extendee
+	0,   // [0:56] is the sub-list for field type_name
 }
 
 func init() { file_inaba_v1_server_proto_init() }
@@ -7129,13 +7999,20 @@ func file_inaba_v1_server_proto_init() {
 	file_inaba_v1_host_proto_init()
 	file_inaba_v1_server_proto_msgTypes[0].OneofWrappers = []any{}
 	file_inaba_v1_server_proto_msgTypes[67].OneofWrappers = []any{}
+	file_inaba_v1_server_proto_msgTypes[116].OneofWrappers = []any{
+		(*NotificationChannel_Webhook)(nil),
+		(*NotificationChannel_Ntfy)(nil),
+		(*NotificationChannel_Discord)(nil),
+		(*NotificationChannel_Slack)(nil),
+		(*NotificationChannel_Telegram)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_inaba_v1_server_proto_rawDesc), len(file_inaba_v1_server_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   117,
+			NumMessages:   130,
 			NumExtensions: 0,
 			NumServices:   5,
 		},

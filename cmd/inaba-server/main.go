@@ -62,6 +62,7 @@ type settings struct {
 	// TrustedProxies are CIDRs or single addresses, parsed into trustedProxies.
 	TrustedProxies []string `koanf:"trusted_proxies"`
 	FrameAncestors []string `koanf:"frame_ancestors"`
+	NotifyPrivate  bool     `koanf:"notify_private"`
 	OIDC           struct {
 		Issuer         string            `koanf:"issuer"`
 		ClientID       string            `koanf:"client_id"`
@@ -89,7 +90,7 @@ var lists = map[string]bool{
 // flagKeys maps each flag to the setting it overrides.
 var flagKeys = map[string]string{
 	"data": "data", "socket": "socket", "listen": "listen", "public-url": "public_url", "ice-url": "ice_urls", "stun-enable": "stun_enable", "stun-listen": "stun_listen",
-	"trusted-proxy": "trusted_proxies", "frame-ancestor": "frame_ancestors",
+	"trusted-proxy": "trusted_proxies", "frame-ancestor": "frame_ancestors", "notify-private": "notify_private",
 	"oidc-issuer": "oidc.issuer", "oidc-client-id": "oidc.client_id", "oidc-client-secret": "oidc.client_secret", "oidc-name": "oidc.name",
 	"oidc-scope": "oidc.scopes", "oidc-extra-param": "oidc.extra_params", "oidc-allowed-domain": "oidc.allowed_domains",
 	"oidc-allowed-user": "oidc.allowed_users", "oidc-allowed-group": "oidc.allowed_groups", "oidc-groups-claim": "oidc.groups_claim",
@@ -230,7 +231,7 @@ func serveCommand() *cobra.Command {
 			slog.Info("settings", "files", settingsRead)
 			o := cfg.OIDC
 			srvCfg := server.Config{DataPath: dataPath, PublicURL: cfg.PublicURL, ICEURLs: cfg.ICEURLs,
-				TrustedProxies: trustedProxies, FrameAncestors: cfg.FrameAncestors,
+				TrustedProxies: trustedProxies, FrameAncestors: cfg.FrameAncestors, NotifyPrivate: cfg.NotifyPrivate,
 				OIDC: server.OIDCConfig{Issuer: o.Issuer, ClientID: o.ClientID, ClientSecret: o.ClientSecret, Name: o.Name,
 					Scopes: o.Scopes, ExtraParams: o.ExtraParams, AllowedDomains: o.AllowedDomains, AllowedUsers: o.AllowedUsers,
 					AllowedGroups: o.AllowedGroups, GroupsClaim: o.GroupsClaim, AllowUnverifiedEmail: !o.EmailVerifiedRequired, AdminGroups: o.AdminGroups}}
@@ -322,5 +323,6 @@ func serveCommand() *cobra.Command {
 	f.StringSlice("oidc-admin-group", nil, "group whose members are administrators; when set, the provider decides who is one; repeatable")
 	f.StringSlice("trusted-proxy", nil, "reverse proxy, as a CIDR or address, whose X-Forwarded-For says who the client is; repeatable")
 	f.StringSlice("frame-ancestor", nil, "page allowed to show the UI in a frame, as a CSP frame-ancestors source (default: 'self'); repeatable")
+	f.Bool("notify-private", false, "let notification channels post to addresses inside this network (loopback, private, link-local)")
 	return cmd
 }

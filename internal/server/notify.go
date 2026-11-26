@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -26,10 +27,12 @@ import (
 
 const (
 	// pushSlots is how many pushes may be on their way at once, across every host.
-	pushSlots   = 8
-	pushTimeout = 10 * time.Second
-	maxLabel    = 64
-	maxTargetID = 64
+	pushSlots = 8
+	// channelSlots is how many channel deliveries, retries and all, may be on their way at once.
+	channelSlots = 16
+	pushTimeout  = 10 * time.Second
+	maxLabel     = 64
+	maxTargetID  = 64
 	// A host may push this many alerts at once, then one every alertEvery: hosts are run by
 	// ordinary users, and one sending in a loop must not flood every member or hog the slots.
 	alertBurst = 30
@@ -60,7 +63,9 @@ func (s *Server) setUpPush() error {
 	}
 	s.vapidPublic = public
 	s.senders = map[string]push.Sender{"web": push.NewWeb(public, private, subscriber)}
+	s.channels = push.NewChannels(s.cfg.NotifyPrivate)
 	s.pushSlots = make(chan struct{}, pushSlots)
+	s.channelSlots = make(chan struct{}, channelSlots)
 	return nil
 }
 
@@ -126,10 +131,11 @@ func (s *Server) admitAlert(hostID string, al *inabav1.Alert) bool {
 	return allowed || al.Event == "input.needed" || al.Event == "turn.failed"
 }
 
-// fanOut pushes an alert to the devices of everyone who can see the host, but for those who
+// fanOut pushes an alert to the devices and channels of everyone who can see the host, but for those who
 // snoozed the thread or its project and those looking at the thread right now. A snooze mutes
 // finished turns; a question or a failure still gets through, since a blocked agent that
-// stays silent stalls the work. It returns once every push has gone or timed out.
+// stays silent stalls the work. It returns once every device push has gone or timed out;
+// channel deliveries go on after it.
 // shortcut: it runs in the host's receive loop and waits on slots shared by every host, so a slow push service holds back other hosts' alerts too; give each send its own queue if that shows up.
 func (s *Server) fanOut(hostID string, al *inabav1.Alert) {
 	if al.Event == "thread.deleted" {
@@ -160,6 +166,23 @@ func (s *Server) fanOut(hostID string, al *inabav1.Alert) {
 			wg.Go(func() {
 				defer func() { <-s.pushSlots }()
 				_ = s.send(d, msg)
+			})
+		}
+		channels, err := s.store.Channels(u)
+		if err != nil {
+			slog.Warn("could not read the account's channels", "user", u, "error", err)
+			continue
+		}
+		for _, c := range channels {
+			if !c.Enabled || (len(c.Events) > 0 && !slices.Contains(c.Events, al.Event)) || (c.AutomationsOnly && !al.Automation) {
+				continue
+			}
+			// Not waited for and on slots of their own: a channel's retries take up to 45 seconds,
+			// and must not hold back devices or the host's next alert.
+			s.deliveries.Go(func() {
+				s.channelSlots <- struct{}{}
+				defer func() { <-s.channelSlots }()
+				_ = s.deliver(&c, hostID, al, msg)
 			})
 		}
 	}

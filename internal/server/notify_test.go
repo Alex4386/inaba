@@ -242,3 +242,135 @@ func TestAlertTags(t *testing.T) {
 		t.Fatal("a newer question on the thread should replace the older one")
 	}
 }
+
+func TestChannels(t *testing.T) {
+	var mu sync.Mutex
+	var heard []string
+	status := http.StatusOK
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		heard = append(heard, r.URL.Path+":"+r.Header.Get("X-Inaba-Event"))
+		w.WriteHeader(status)
+	}))
+	defer srv.Close()
+	// The receiver is on loopback, which only an operator's setting lets channels reach.
+	s, err := New(context.Background(), Config{DataPath: filepath.Join(testdir.New(t), "s.db"), NotifyPrivate: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.senders = map[string]push.Sender{"web": &fakeSender{}}
+	n := notifications{s: s}
+	take := func() []string {
+		s.deliveries.Wait()
+		mu.Lock()
+		defer mu.Unlock()
+		out := heard
+		heard = nil
+		slices.Sort(out)
+		return out
+	}
+	ann, _ := s.store.AddLocalUser("ann", "pw", false, nil)
+	bob, _ := s.store.AddLocalUser("bob", "pw", false, nil)
+	h, _, _ := s.store.AddHost("box", "")
+	webhook := func(path string) *inabav1.NotificationChannel {
+		return &inabav1.NotificationChannel{Label: path, Config: &inabav1.NotificationChannel_Webhook{Webhook: &inabav1.WebhookChannel{Url: srv.URL + path}}}
+	}
+
+	all, err := n.CreateChannel(as(ann), webhook("/all"))
+	if err != nil || all.Secret == "" || all.Channel.Kind != "webhook" || !all.Channel.Enabled {
+		t.Fatalf("create: %+v %v", all, err)
+	}
+	autos := webhook("/autos")
+	autos.AutomationsOnly, autos.Events = true, []string{"turn.ended"}
+	if _, err := n.CreateChannel(as(ann), autos); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []*inabav1.NotificationChannel{{Label: "none"}, {Events: []string{"nope"}, Config: webhook("/x").Config}, {Config: &inabav1.NotificationChannel_Discord{Discord: &inabav1.DiscordChannel{WebhookUrl: srv.URL}}}} {
+		if _, err := n.CreateChannel(as(ann), bad); connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Fatalf("bad channel %v: %v", bad, err)
+		}
+	}
+
+	// Bob sees none of Ann's channels and cannot touch them.
+	if res, _ := n.ListChannels(as(bob), &inabav1.ListChannelsRequest{}); len(res.Channels) != 0 {
+		t.Fatalf("bob sees %v", res.Channels)
+	}
+	id := all.Channel.Id
+	if _, err := n.DeleteChannel(as(bob), &inabav1.DeleteChannelRequest{Id: id}); connect.CodeOf(err) != connect.CodeNotFound {
+		t.Fatalf("bob deletes: %v", err)
+	}
+	if _, err := n.UpdateChannel(as(bob), &inabav1.NotificationChannel{Id: id}); connect.CodeOf(err) != connect.CodeNotFound {
+		t.Fatalf("bob updates: %v", err)
+	}
+	if _, err := n.TestChannel(as(bob), &inabav1.TestChannelRequest{Id: id}); connect.CodeOf(err) != connect.CodeNotFound {
+		t.Fatalf("bob tests: %v", err)
+	}
+
+	// A finished turn goes to the channel for every thread; the other wants automations' only.
+	s.fanOut(h.ID, &inabav1.Alert{Event: "turn.ended", ThreadId: "t1", ProjectId: "p1"})
+	if got := take(); !slices.Equal(got, []string{"/all:turn.ended"}) {
+		t.Fatalf("plain thread: %v", got)
+	}
+	s.fanOut(h.ID, &inabav1.Alert{Event: "turn.ended", ThreadId: "t1", ProjectId: "p1", Automation: true})
+	if got := take(); !slices.Equal(got, []string{"/all:turn.ended", "/autos:turn.ended"}) {
+		t.Fatalf("automation's thread: %v", got)
+	}
+	s.fanOut(h.ID, &inabav1.Alert{Event: "input.needed", ThreadId: "t1", ProjectId: "p1", Automation: true})
+	if got := take(); !slices.Equal(got, []string{"/all:input.needed"}) {
+		t.Fatalf("events filter: %v", got)
+	}
+
+	// A snooze mutes finished turns on channels too, but not questions.
+	_ = s.store.SetSnooze(&store.Snooze{UserID: ann.ID, HostID: h.ID, Kind: "project", TargetID: "p1", CreatedAt: time.Now()})
+	s.fanOut(h.ID, &inabav1.Alert{Event: "turn.ended", ThreadId: "t1", ProjectId: "p1"})
+	if got := take(); len(got) != 0 {
+		t.Fatalf("snoozed: %v", got)
+	}
+	s.fanOut(h.ID, &inabav1.Alert{Event: "input.needed", ThreadId: "t1", ProjectId: "p1"})
+	if got := take(); !slices.Equal(got, []string{"/all:input.needed"}) {
+		t.Fatalf("question through snooze: %v", got)
+	}
+	// Looking at the thread, Ann hears nothing anywhere.
+	s.mu.Lock()
+	s.present = map[string]*presence{ann.ID + "/c": {userID: ann.ID, hostID: h.ID, threadID: "t1", clientID: "c", seen: time.Now(), visible: true}}
+	s.mu.Unlock()
+	s.fanOut(h.ID, &inabav1.Alert{Event: "input.needed", ThreadId: "t1", ProjectId: "p1"})
+	if got := take(); len(got) != 0 {
+		t.Fatalf("viewing: %v", got)
+	}
+
+	// Turned off, it hears nothing but tests; a test's outcome is kept.
+	if c, err := n.UpdateChannel(as(ann), &inabav1.NotificationChannel{Id: id, Label: "off"}); err != nil || c.Enabled || c.Label != "off" || c.GetWebhook().GetUrl() != srv.URL+"/all" {
+		t.Fatalf("update: %+v %v", c, err)
+	}
+	s.fanOut(h.ID, &inabav1.Alert{Event: "turn.failed", ThreadId: "t2"})
+	if got := take(); len(got) != 0 {
+		t.Fatalf("turned off: %v", got)
+	}
+	status = http.StatusForbidden
+	d, err := n.TestChannel(as(ann), &inabav1.TestChannelRequest{Id: id})
+	if err != nil || d.Status != 403 || d.Error == "" || d.Event != "test" {
+		t.Fatalf("test: %+v %v", d, err)
+	}
+	if got := take(); !slices.Equal(got, []string{"/all:test"}) {
+		t.Fatalf("test heard: %v", got)
+	}
+	res, _ := n.ListChannels(as(ann), &inabav1.ListChannelsRequest{})
+	if len(res.Channels) != 2 || res.Channels[0].LastDelivery.GetStatus() != 403 || res.Channels[0].LastDelivery.GetEvent() != "test" {
+		t.Fatalf("recorded: %+v", res.Channels)
+	}
+
+	// At most 20 an account.
+	for range store.MaxChannels - 2 {
+		if _, err := n.CreateChannel(as(ann), webhook("/more")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := n.CreateChannel(as(ann), webhook("/more")); connect.CodeOf(err) != connect.CodeResourceExhausted {
+		t.Fatalf("21st: %v", err)
+	}
+	if _, err := n.DeleteChannel(as(ann), &inabav1.DeleteChannelRequest{Id: id}); err != nil {
+		t.Fatal(err)
+	}
+}

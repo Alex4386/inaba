@@ -445,70 +445,7 @@ func automationCommand() *cobra.Command {
 		_, err := c.autos.DeleteAutomation(ctx, &inabav1.DeleteAutomationRequest{Id: id})
 		return err
 	})
-	cmd.AddCommand(list, add, runNow, rm, notifierCommand(live))
-	return cmd
-}
-
-func notifierCommand(live func(*hostClient) error) *cobra.Command {
-	cmd := &cobra.Command{Use: "notifier", Short: "Tell another service when a thread finishes a turn or needs an answer"}
-	byLive := func(do func(ctx context.Context, c *hostClient, args []string) error) func(*cobra.Command, []string) error {
-		return run(func(ctx context.Context, c *hostClient, args []string) error {
-			if err := live(c); err != nil {
-				return err
-			}
-			return do(ctx, c, args)
-		})
-	}
-	list := &cobra.Command{Use: "list", Short: "List the notifiers", Args: cobra.NoArgs, RunE: byLive(func(ctx context.Context, c *hostClient, _ []string) error {
-		res, err := c.autos.ListNotifiers(ctx, &inabav1.ListNotifiersRequest{})
-		if err != nil {
-			return err
-		}
-		return table("ID\tURL\tEVENTS\tLAST DELIVERY", func(add func(...string)) {
-			for _, n := range res.Notifiers {
-				events, last := strings.Join(n.Events, ","), "-"
-				if events == "" {
-					events = "all"
-				}
-				if n.AutomationsOnly {
-					events += " (automations)"
-				}
-				if len(n.Deliveries) > 0 {
-					d := n.Deliveries[0]
-					last = fmt.Sprintf("%s %s %d %s", d.Time.AsTime().Local().Format("2006-01-02 15:04"), d.Event, d.Status, d.Error)
-				}
-				add(n.Id, n.Url, events, last)
-			}
-		})
-	})}
-	var n inabav1.Notifier
-	add := &cobra.Command{Use: "add URL", Short: "Add a notifier", Args: cobra.ExactArgs(1), RunE: byLive(func(ctx context.Context, c *hostClient, args []string) error {
-		n.Url = args[0]
-		res, err := c.autos.CreateNotifier(ctx, &n)
-		if err != nil {
-			return err
-		}
-		fmt.Printf("Added notifier %s\nSigning secret, not shown again: %s\n", res.Notifier.Id, res.Secret)
-		return nil
-	})}
-	add.Flags().StringSliceVar(&n.Events, "events", nil, "turn.ended, turn.failed, input.needed; all when left out")
-	add.Flags().BoolVar(&n.AutomationsOnly, "automations-only", false, "only for threads automations started")
-	test := &cobra.Command{Use: "test ID", Short: "Send a test event", Args: cobra.ExactArgs(1), RunE: byLive(func(ctx context.Context, c *hostClient, args []string) error {
-		d, err := c.autos.TestNotifier(ctx, &inabav1.TestNotifierRequest{Id: args[0]})
-		if err != nil {
-			return err
-		}
-		if d.Error != "" {
-			return errors.New(d.Error)
-		}
-		fmt.Printf("Delivered: %d\n", d.Status)
-		return nil
-	})}
-	rm := &cobra.Command{Use: "rm ID", Short: "Delete a notifier", Args: cobra.ExactArgs(1), RunE: byLive(func(ctx context.Context, c *hostClient, args []string) error {
-		_, err := c.autos.DeleteNotifier(ctx, &inabav1.DeleteNotifierRequest{Id: args[0]})
-		return err
-	})}
-	cmd.AddCommand(list, add, test, rm)
+	cmd.AddCommand(list, add, runNow, rm)
 	return cmd
 }
 

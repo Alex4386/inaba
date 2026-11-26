@@ -61,6 +61,9 @@ type Config struct {
 	// frame-ancestors sources: 'self', 'none', or http(s) origins and host patterns such
 	// as https://*.example.com. Empty means 'self'; ["*"] sends no frame header at all.
 	FrameAncestors []string
+	// NotifyPrivate lets notification channels post to addresses inside the server's
+	// network: loopback, private, link-local and the like.
+	NotifyPrivate bool
 }
 
 type Server struct {
@@ -88,8 +91,15 @@ type Server struct {
 	// senders push to devices, by platform; vapidPublic is what browsers subscribe with.
 	senders     map[string]push.Sender
 	vapidPublic string
+	// channels delivers to people's notification channels.
+	channels *push.Channels
 	// pushSlots bounds the pushes on their way at once.
 	pushSlots chan struct{}
+	// channelSlots bounds the channel deliveries on their way at once; deliveries tracks
+	// them, so tests can wait for them.
+	// shortcut: a delivery waiting for a slot is a goroutine, unbounded while questions bypass the alert limit; queue them if that is ever abused.
+	channelSlots chan struct{}
+	deliveries   sync.WaitGroup
 	// alertLimits pace each host's alerts, by host id, under mu; kept here so a host that
 	// reconnects does not start with a full budget again.
 	alertLimits map[string]*rate.Limiter

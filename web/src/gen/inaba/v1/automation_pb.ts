@@ -2,7 +2,7 @@
 // @generated from file inaba/v1/automation.proto (package inaba.v1, syntax proto3)
 /* eslint-disable */
 
-// Automations and notifiers: the automations module of a host. inaba-server proxies
+// Automations: the automations module of a host. inaba-server proxies
 // it under /hosts/{host_id}/, like the rest of the host API.
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
@@ -16,200 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file inaba/v1/automation.proto.
  */
 export const file_inaba_v1_automation: GenFile = /*@__PURE__*/
-  fileDesc("ChlpbmFiYS92MS9hdXRvbWF0aW9uLnByb3RvEghpbmFiYS52MSKtAQoITm90aWZpZXISCgoCaWQYASABKAkSCwoDdXJsGAIgASgJEg4KBmV2ZW50cxgDIAMoCRIYChBhdXRvbWF0aW9uc19vbmx5GAQgASgIEi4KCmRlbGl2ZXJpZXMYBSADKAsyGi5pbmFiYS52MS5Ob3RpZmllckRlbGl2ZXJ5Ei4KCmNyZWF0ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIn0KEE5vdGlmaWVyRGVsaXZlcnkSKAoEdGltZRgBIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDQoFZXZlbnQYAiABKAkSEQoJdGhyZWFkX2lkGAMgASgJEg4KBnN0YXR1cxgEIAEoDRINCgVlcnJvchgFIAEoCSIWChRMaXN0Tm90aWZpZXJzUmVxdWVzdCI+ChVMaXN0Tm90aWZpZXJzUmVzcG9uc2USJQoJbm90aWZpZXJzGAEgAygLMhIuaW5hYmEudjEuTm90aWZpZXIiTgoWQ3JlYXRlTm90aWZpZXJSZXNwb25zZRIkCghub3RpZmllchgBIAEoCzISLmluYWJhLnYxLk5vdGlmaWVyEg4KBnNlY3JldBgCIAEoCSIjChVEZWxldGVOb3RpZmllclJlcXVlc3QSCgoCaWQYASABKAkiGAoWRGVsZXRlTm90aWZpZXJSZXNwb25zZSIhChNUZXN0Tm90aWZpZXJSZXF1ZXN0EgoKAmlkGAEgASgJIr8CCgpBdXRvbWF0aW9uEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDwoHZW5hYmxlZBgDIAEoCBIkCghzY2hlZHVsZRgEIAEoCzISLmluYWJhLnYxLlNjaGVkdWxlEg8KB3dlYmhvb2sYBSABKAgSDgoGcHJvbXB0GAYgASgJEhEKCXRocmVhZF9pZBgHIAEoCRInCgpuZXdfdGhyZWFkGAggASgLMhMuaW5hYmEudjEuTmV3VGhyZWFkEiwKCG5leHRfcnVuGAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIlCgRydW5zGAogAygLMhcuaW5hYmEudjEuQXV0b21hdGlvblJ1bhIuCgpjcmVhdGVkX2F0GAsgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJ8CghTY2hlZHVsZRIXCg1ldmVyeV9taW51dGVzGAEgASgNSAASIAoFZGFpbHkYAiABKAsyDy5pbmFiYS52MS5EYWlseUgAEi0KB29uY2VfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wSABCBgoEd2hlbiIlCgVEYWlseRIKCgJhdBgBIAEoCRIQCgh3ZWVrZGF5cxgCIAMoDSKzAQoJTmV3VGhyZWFkEhAKCHByb3ZpZGVyGAEgASgJEhIKCnByb2plY3RfaWQYAiABKAkSCwoDY3dkGAMgASgJEhAKCHdvcmt0cmVlGAQgASgIEjEKB29wdGlvbnMYBSADKAsyIC5pbmFiYS52MS5OZXdUaHJlYWQuT3B0aW9uc0VudHJ5Gi4KDE9wdGlvbnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBImwKDUF1dG9tYXRpb25SdW4SKAoEdGltZRgBIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDwoHdHJpZ2dlchgCIAEoCRIRCgl0aHJlYWRfaWQYAyABKAkSDQoFZXJyb3IYBCABKAkiGAoWTGlzdEF1dG9tYXRpb25zUmVxdWVzdCJEChdMaXN0QXV0b21hdGlvbnNSZXNwb25zZRIpCgthdXRvbWF0aW9ucxgBIAMoCzIULmluYWJhLnYxLkF1dG9tYXRpb24iXAoYQ3JlYXRlQXV0b21hdGlvblJlc3BvbnNlEigKCmF1dG9tYXRpb24YASABKAsyFC5pbmFiYS52MS5BdXRvbWF0aW9uEhYKDndlYmhvb2tfc2VjcmV0GAIgASgJIiUKF0RlbGV0ZUF1dG9tYXRpb25SZXF1ZXN0EgoKAmlkGAEgASgJIhoKGERlbGV0ZUF1dG9tYXRpb25SZXNwb25zZSIiChRSdW5BdXRvbWF0aW9uUmVxdWVzdBIKCgJpZBgBIAEoCSIoChpSb3RhdGVXZWJob29rU2VjcmV0UmVxdWVzdBIKCgJpZBgBIAEoCSI1ChtSb3RhdGVXZWJob29rU2VjcmV0UmVzcG9uc2USFgoOd2ViaG9va19zZWNyZXQYASABKAky8QgKEUF1dG9tYXRpb25TZXJ2aWNlEm8KD0xpc3RBdXRvbWF0aW9ucxIgLmluYWJhLnYxLkxpc3RBdXRvbWF0aW9uc1JlcXVlc3QaIS5pbmFiYS52MS5MaXN0QXV0b21hdGlvbnNSZXNwb25zZSIXgtPkkwIREg8vdjEvYXV0b21hdGlvbnMSaAoQQ3JlYXRlQXV0b21hdGlvbhIULmluYWJhLnYxLkF1dG9tYXRpb24aIi5pbmFiYS52MS5DcmVhdGVBdXRvbWF0aW9uUmVzcG9uc2UiGoLT5JMCFDoBKiIPL3YxL2F1dG9tYXRpb25zEl8KEFVwZGF0ZUF1dG9tYXRpb24SFC5pbmFiYS52MS5BdXRvbWF0aW9uGhQuaW5hYmEudjEuQXV0b21hdGlvbiIfgtPkkwIZOgEqGhQvdjEvYXV0b21hdGlvbnMve2lkfRJ3ChBEZWxldGVBdXRvbWF0aW9uEiEuaW5hYmEudjEuRGVsZXRlQXV0b21hdGlvblJlcXVlc3QaIi5pbmFiYS52MS5EZWxldGVBdXRvbWF0aW9uUmVzcG9uc2UiHILT5JMCFioUL3YxL2F1dG9tYXRpb25zL3tpZH0SbQoNUnVuQXV0b21hdGlvbhIeLmluYWJhLnYxLlJ1bkF1dG9tYXRpb25SZXF1ZXN0GhcuaW5hYmEudjEuQXV0b21hdGlvblJ1biIjgtPkkwIdOgEqIhgvdjEvYXV0b21hdGlvbnMve2lkfS9ydW4SjwEKE1JvdGF0ZVdlYmhvb2tTZWNyZXQSJC5pbmFiYS52MS5Sb3RhdGVXZWJob29rU2VjcmV0UmVxdWVzdBolLmluYWJhLnYxLlJvdGF0ZVdlYmhvb2tTZWNyZXRSZXNwb25zZSIrgtPkkwIlIiMvdjEvYXV0b21hdGlvbnMve2lkfS93ZWJob29rLXNlY3JldBJnCg1MaXN0Tm90aWZpZXJzEh4uaW5hYmEudjEuTGlzdE5vdGlmaWVyc1JlcXVlc3QaHy5pbmFiYS52MS5MaXN0Tm90aWZpZXJzUmVzcG9uc2UiFYLT5JMCDxINL3YxL25vdGlmaWVycxJgCg5DcmVhdGVOb3RpZmllchISLmluYWJhLnYxLk5vdGlmaWVyGiAuaW5hYmEudjEuQ3JlYXRlTm90aWZpZXJSZXNwb25zZSIYgtPkkwISOgEqIg0vdjEvbm90aWZpZXJzEm8KDkRlbGV0ZU5vdGlmaWVyEh8uaW5hYmEudjEuRGVsZXRlTm90aWZpZXJSZXF1ZXN0GiAuaW5hYmEudjEuRGVsZXRlTm90aWZpZXJSZXNwb25zZSIagtPkkwIUKhIvdjEvbm90aWZpZXJzL3tpZH0SagoMVGVzdE5vdGlmaWVyEh0uaW5hYmEudjEuVGVzdE5vdGlmaWVyUmVxdWVzdBoaLmluYWJhLnYxLk5vdGlmaWVyRGVsaXZlcnkiH4LT5JMCGSIXL3YxL25vdGlmaWVycy97aWR9L3Rlc3RCkAEKDGNvbS5pbmFiYS52MUIPQXV0b21hdGlvblByb3RvUAFaLmdpdGh1Yi5jb20vQWxleDQzODYvaW5hYmEvZ2VuL2luYWJhL3YxO2luYWJhdjGiAgNJWFiqAghJbmFiYS5WMcoCCEluYWJhXFYx4gIUSW5hYmFcVjFcR1BCTWV0YWRhdGHqAglJbmFiYTo6VjFiBnByb3RvMw", [file_google_api_annotations, file_google_protobuf_timestamp]);
-
-/**
- * @generated from message inaba.v1.Notifier
- */
-export type Notifier = Message<"inaba.v1.Notifier"> & {
-  /**
-   * Set by the host.
-   *
-   * @generated from field: string id = 1;
-   */
-  id: string;
-
-  /**
-   * An http or https address.
-   *
-   * @generated from field: string url = 2;
-   */
-  url: string;
-
-  /**
-   * Which events to send: turn.ended (a turn finished), turn.failed (it ended in an
-   * error), input.needed (the agent waits for an answer). Empty for all of them.
-   *
-   * @generated from field: repeated string events = 3;
-   */
-  events: string[];
-
-  /**
-   * Only for threads automations started: those with an "automation" label.
-   *
-   * @generated from field: bool automations_only = 4;
-   */
-  automationsOnly: boolean;
-
-  /**
-   * The latest deliveries, newest first. Set by the host.
-   *
-   * @generated from field: repeated inaba.v1.NotifierDelivery deliveries = 5;
-   */
-  deliveries: NotifierDelivery[];
-
-  /**
-   * @generated from field: google.protobuf.Timestamp created_at = 6;
-   */
-  createdAt?: Timestamp;
-};
-
-/**
- * Describes the message inaba.v1.Notifier.
- * Use `create(NotifierSchema)` to create a new message.
- */
-export const NotifierSchema: GenMessage<Notifier> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_automation, 0);
-
-/**
- * @generated from message inaba.v1.NotifierDelivery
- */
-export type NotifierDelivery = Message<"inaba.v1.NotifierDelivery"> & {
-  /**
-   * @generated from field: google.protobuf.Timestamp time = 1;
-   */
-  time?: Timestamp;
-
-  /**
-   * @generated from field: string event = 2;
-   */
-  event: string;
-
-  /**
-   * @generated from field: string thread_id = 3;
-   */
-  threadId: string;
-
-  /**
-   * The HTTP status of the last try; 0 when none got an answer.
-   *
-   * @generated from field: uint32 status = 4;
-   */
-  status: number;
-
-  /**
-   * @generated from field: string error = 5;
-   */
-  error: string;
-};
-
-/**
- * Describes the message inaba.v1.NotifierDelivery.
- * Use `create(NotifierDeliverySchema)` to create a new message.
- */
-export const NotifierDeliverySchema: GenMessage<NotifierDelivery> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_automation, 1);
-
-/**
- * @generated from message inaba.v1.ListNotifiersRequest
- */
-export type ListNotifiersRequest = Message<"inaba.v1.ListNotifiersRequest"> & {
-};
-
-/**
- * Describes the message inaba.v1.ListNotifiersRequest.
- * Use `create(ListNotifiersRequestSchema)` to create a new message.
- */
-export const ListNotifiersRequestSchema: GenMessage<ListNotifiersRequest> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_automation, 2);
-
-/**
- * @generated from message inaba.v1.ListNotifiersResponse
- */
-export type ListNotifiersResponse = Message<"inaba.v1.ListNotifiersResponse"> & {
-  /**
-   * @generated from field: repeated inaba.v1.Notifier notifiers = 1;
-   */
-  notifiers: Notifier[];
-};
-
-/**
- * Describes the message inaba.v1.ListNotifiersResponse.
- * Use `create(ListNotifiersResponseSchema)` to create a new message.
- */
-export const ListNotifiersResponseSchema: GenMessage<ListNotifiersResponse> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_automation, 3);
-
-/**
- * @generated from message inaba.v1.CreateNotifierResponse
- */
-export type CreateNotifierResponse = Message<"inaba.v1.CreateNotifierResponse"> & {
-  /**
-   * @generated from field: inaba.v1.Notifier notifier = 1;
-   */
-  notifier?: Notifier;
-
-  /**
-   * For checking deliveries' signatures. Shown once.
-   *
-   * @generated from field: string secret = 2;
-   */
-  secret: string;
-};
-
-/**
- * Describes the message inaba.v1.CreateNotifierResponse.
- * Use `create(CreateNotifierResponseSchema)` to create a new message.
- */
-export const CreateNotifierResponseSchema: GenMessage<CreateNotifierResponse> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_automation, 4);
-
-/**
- * @generated from message inaba.v1.DeleteNotifierRequest
- */
-export type DeleteNotifierRequest = Message<"inaba.v1.DeleteNotifierRequest"> & {
-  /**
-   * @generated from field: string id = 1;
-   */
-  id: string;
-};
-
-/**
- * Describes the message inaba.v1.DeleteNotifierRequest.
- * Use `create(DeleteNotifierRequestSchema)` to create a new message.
- */
-export const DeleteNotifierRequestSchema: GenMessage<DeleteNotifierRequest> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_automation, 5);
-
-/**
- * @generated from message inaba.v1.DeleteNotifierResponse
- */
-export type DeleteNotifierResponse = Message<"inaba.v1.DeleteNotifierResponse"> & {
-};
-
-/**
- * Describes the message inaba.v1.DeleteNotifierResponse.
- * Use `create(DeleteNotifierResponseSchema)` to create a new message.
- */
-export const DeleteNotifierResponseSchema: GenMessage<DeleteNotifierResponse> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_automation, 6);
-
-/**
- * @generated from message inaba.v1.TestNotifierRequest
- */
-export type TestNotifierRequest = Message<"inaba.v1.TestNotifierRequest"> & {
-  /**
-   * @generated from field: string id = 1;
-   */
-  id: string;
-};
-
-/**
- * Describes the message inaba.v1.TestNotifierRequest.
- * Use `create(TestNotifierRequestSchema)` to create a new message.
- */
-export const TestNotifierRequestSchema: GenMessage<TestNotifierRequest> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_automation, 7);
+  fileDesc("ChlpbmFiYS92MS9hdXRvbWF0aW9uLnByb3RvEghpbmFiYS52MSK/AgoKQXV0b21hdGlvbhIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB2VuYWJsZWQYAyABKAgSJAoIc2NoZWR1bGUYBCABKAsyEi5pbmFiYS52MS5TY2hlZHVsZRIPCgd3ZWJob29rGAUgASgIEg4KBnByb21wdBgGIAEoCRIRCgl0aHJlYWRfaWQYByABKAkSJwoKbmV3X3RocmVhZBgIIAEoCzITLmluYWJhLnYxLk5ld1RocmVhZBIsCghuZXh0X3J1bhgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASJQoEcnVucxgKIAMoCzIXLmluYWJhLnYxLkF1dG9tYXRpb25SdW4SLgoKY3JlYXRlZF9hdBgLIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAifAoIU2NoZWR1bGUSFwoNZXZlcnlfbWludXRlcxgBIAEoDUgAEiAKBWRhaWx5GAIgASgLMg8uaW5hYmEudjEuRGFpbHlIABItCgdvbmNlX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcEgAQgYKBHdoZW4iJQoFRGFpbHkSCgoCYXQYASABKAkSEAoId2Vla2RheXMYAiADKA0iswEKCU5ld1RocmVhZBIQCghwcm92aWRlchgBIAEoCRISCgpwcm9qZWN0X2lkGAIgASgJEgsKA2N3ZBgDIAEoCRIQCgh3b3JrdHJlZRgEIAEoCBIxCgdvcHRpb25zGAUgAygLMiAuaW5hYmEudjEuTmV3VGhyZWFkLk9wdGlvbnNFbnRyeRouCgxPcHRpb25zRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJsCg1BdXRvbWF0aW9uUnVuEigKBHRpbWUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg8KB3RyaWdnZXIYAiABKAkSEQoJdGhyZWFkX2lkGAMgASgJEg0KBWVycm9yGAQgASgJIhgKFkxpc3RBdXRvbWF0aW9uc1JlcXVlc3QiRAoXTGlzdEF1dG9tYXRpb25zUmVzcG9uc2USKQoLYXV0b21hdGlvbnMYASADKAsyFC5pbmFiYS52MS5BdXRvbWF0aW9uIlwKGENyZWF0ZUF1dG9tYXRpb25SZXNwb25zZRIoCgphdXRvbWF0aW9uGAEgASgLMhQuaW5hYmEudjEuQXV0b21hdGlvbhIWCg53ZWJob29rX3NlY3JldBgCIAEoCSIlChdEZWxldGVBdXRvbWF0aW9uUmVxdWVzdBIKCgJpZBgBIAEoCSIaChhEZWxldGVBdXRvbWF0aW9uUmVzcG9uc2UiIgoUUnVuQXV0b21hdGlvblJlcXVlc3QSCgoCaWQYASABKAkiKAoaUm90YXRlV2ViaG9va1NlY3JldFJlcXVlc3QSCgoCaWQYASABKAkiNQobUm90YXRlV2ViaG9va1NlY3JldFJlc3BvbnNlEhYKDndlYmhvb2tfc2VjcmV0GAEgASgJMskFChFBdXRvbWF0aW9uU2VydmljZRJvCg9MaXN0QXV0b21hdGlvbnMSIC5pbmFiYS52MS5MaXN0QXV0b21hdGlvbnNSZXF1ZXN0GiEuaW5hYmEudjEuTGlzdEF1dG9tYXRpb25zUmVzcG9uc2UiF4LT5JMCERIPL3YxL2F1dG9tYXRpb25zEmgKEENyZWF0ZUF1dG9tYXRpb24SFC5pbmFiYS52MS5BdXRvbWF0aW9uGiIuaW5hYmEudjEuQ3JlYXRlQXV0b21hdGlvblJlc3BvbnNlIhqC0+STAhQ6ASoiDy92MS9hdXRvbWF0aW9ucxJfChBVcGRhdGVBdXRvbWF0aW9uEhQuaW5hYmEudjEuQXV0b21hdGlvbhoULmluYWJhLnYxLkF1dG9tYXRpb24iH4LT5JMCGToBKhoUL3YxL2F1dG9tYXRpb25zL3tpZH0SdwoQRGVsZXRlQXV0b21hdGlvbhIhLmluYWJhLnYxLkRlbGV0ZUF1dG9tYXRpb25SZXF1ZXN0GiIuaW5hYmEudjEuRGVsZXRlQXV0b21hdGlvblJlc3BvbnNlIhyC0+STAhYqFC92MS9hdXRvbWF0aW9ucy97aWR9Em0KDVJ1bkF1dG9tYXRpb24SHi5pbmFiYS52MS5SdW5BdXRvbWF0aW9uUmVxdWVzdBoXLmluYWJhLnYxLkF1dG9tYXRpb25SdW4iI4LT5JMCHToBKiIYL3YxL2F1dG9tYXRpb25zL3tpZH0vcnVuEo8BChNSb3RhdGVXZWJob29rU2VjcmV0EiQuaW5hYmEudjEuUm90YXRlV2ViaG9va1NlY3JldFJlcXVlc3QaJS5pbmFiYS52MS5Sb3RhdGVXZWJob29rU2VjcmV0UmVzcG9uc2UiK4LT5JMCJSIjL3YxL2F1dG9tYXRpb25zL3tpZH0vd2ViaG9vay1zZWNyZXRCkAEKDGNvbS5pbmFiYS52MUIPQXV0b21hdGlvblByb3RvUAFaLmdpdGh1Yi5jb20vQWxleDQzODYvaW5hYmEvZ2VuL2luYWJhL3YxO2luYWJhdjGiAgNJWFiqAghJbmFiYS5WMcoCCEluYWJhXFYx4gIUSW5hYmFcVjFcR1BCTWV0YWRhdGHqAglJbmFiYTo6VjFiBnByb3RvMw", [file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * @generated from message inaba.v1.Automation
@@ -296,7 +103,7 @@ export type Automation = Message<"inaba.v1.Automation"> & {
  * Use `create(AutomationSchema)` to create a new message.
  */
 export const AutomationSchema: GenMessage<Automation> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_automation, 8);
+  messageDesc(file_inaba_v1_automation, 0);
 
 /**
  * @generated from message inaba.v1.Schedule
@@ -331,7 +138,7 @@ export type Schedule = Message<"inaba.v1.Schedule"> & {
  * Use `create(ScheduleSchema)` to create a new message.
  */
 export const ScheduleSchema: GenMessage<Schedule> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_automation, 9);
+  messageDesc(file_inaba_v1_automation, 1);
 
 /**
  * @generated from message inaba.v1.Daily
@@ -357,7 +164,7 @@ export type Daily = Message<"inaba.v1.Daily"> & {
  * Use `create(DailySchema)` to create a new message.
  */
 export const DailySchema: GenMessage<Daily> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_automation, 10);
+  messageDesc(file_inaba_v1_automation, 2);
 
 /**
  * @generated from message inaba.v1.NewThread
@@ -398,7 +205,7 @@ export type NewThread = Message<"inaba.v1.NewThread"> & {
  * Use `create(NewThreadSchema)` to create a new message.
  */
 export const NewThreadSchema: GenMessage<NewThread> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_automation, 11);
+  messageDesc(file_inaba_v1_automation, 3);
 
 /**
  * @generated from message inaba.v1.AutomationRun
@@ -436,7 +243,7 @@ export type AutomationRun = Message<"inaba.v1.AutomationRun"> & {
  * Use `create(AutomationRunSchema)` to create a new message.
  */
 export const AutomationRunSchema: GenMessage<AutomationRun> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_automation, 12);
+  messageDesc(file_inaba_v1_automation, 4);
 
 /**
  * @generated from message inaba.v1.ListAutomationsRequest
@@ -449,7 +256,7 @@ export type ListAutomationsRequest = Message<"inaba.v1.ListAutomationsRequest"> 
  * Use `create(ListAutomationsRequestSchema)` to create a new message.
  */
 export const ListAutomationsRequestSchema: GenMessage<ListAutomationsRequest> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_automation, 13);
+  messageDesc(file_inaba_v1_automation, 5);
 
 /**
  * @generated from message inaba.v1.ListAutomationsResponse
@@ -466,7 +273,7 @@ export type ListAutomationsResponse = Message<"inaba.v1.ListAutomationsResponse"
  * Use `create(ListAutomationsResponseSchema)` to create a new message.
  */
 export const ListAutomationsResponseSchema: GenMessage<ListAutomationsResponse> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_automation, 14);
+  messageDesc(file_inaba_v1_automation, 6);
 
 /**
  * @generated from message inaba.v1.CreateAutomationResponse
@@ -490,7 +297,7 @@ export type CreateAutomationResponse = Message<"inaba.v1.CreateAutomationRespons
  * Use `create(CreateAutomationResponseSchema)` to create a new message.
  */
 export const CreateAutomationResponseSchema: GenMessage<CreateAutomationResponse> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_automation, 15);
+  messageDesc(file_inaba_v1_automation, 7);
 
 /**
  * @generated from message inaba.v1.DeleteAutomationRequest
@@ -507,7 +314,7 @@ export type DeleteAutomationRequest = Message<"inaba.v1.DeleteAutomationRequest"
  * Use `create(DeleteAutomationRequestSchema)` to create a new message.
  */
 export const DeleteAutomationRequestSchema: GenMessage<DeleteAutomationRequest> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_automation, 16);
+  messageDesc(file_inaba_v1_automation, 8);
 
 /**
  * @generated from message inaba.v1.DeleteAutomationResponse
@@ -520,7 +327,7 @@ export type DeleteAutomationResponse = Message<"inaba.v1.DeleteAutomationRespons
  * Use `create(DeleteAutomationResponseSchema)` to create a new message.
  */
 export const DeleteAutomationResponseSchema: GenMessage<DeleteAutomationResponse> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_automation, 17);
+  messageDesc(file_inaba_v1_automation, 9);
 
 /**
  * @generated from message inaba.v1.RunAutomationRequest
@@ -537,7 +344,7 @@ export type RunAutomationRequest = Message<"inaba.v1.RunAutomationRequest"> & {
  * Use `create(RunAutomationRequestSchema)` to create a new message.
  */
 export const RunAutomationRequestSchema: GenMessage<RunAutomationRequest> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_automation, 18);
+  messageDesc(file_inaba_v1_automation, 10);
 
 /**
  * @generated from message inaba.v1.RotateWebhookSecretRequest
@@ -554,7 +361,7 @@ export type RotateWebhookSecretRequest = Message<"inaba.v1.RotateWebhookSecretRe
  * Use `create(RotateWebhookSecretRequestSchema)` to create a new message.
  */
 export const RotateWebhookSecretRequestSchema: GenMessage<RotateWebhookSecretRequest> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_automation, 19);
+  messageDesc(file_inaba_v1_automation, 11);
 
 /**
  * @generated from message inaba.v1.RotateWebhookSecretResponse
@@ -571,7 +378,7 @@ export type RotateWebhookSecretResponse = Message<"inaba.v1.RotateWebhookSecretR
  * Use `create(RotateWebhookSecretResponseSchema)` to create a new message.
  */
 export const RotateWebhookSecretResponseSchema: GenMessage<RotateWebhookSecretResponse> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_automation, 20);
+  messageDesc(file_inaba_v1_automation, 12);
 
 /**
  * Work that starts by itself: on a schedule, or when its webhook is called. Each run
@@ -640,46 +447,6 @@ export const AutomationService: GenService<{
     methodKind: "unary";
     input: typeof RotateWebhookSecretRequestSchema;
     output: typeof RotateWebhookSecretResponseSchema;
-  },
-  /**
-   * Notifiers tell another service when a thread needs attention, by POSTing JSON
-   * to its URL: {"event", "time", "thread": {..., "labels"}, "stopReason", "error", "question"}.
-   * Each delivery is signed in X-Inaba-Signature-256 as sha256=<hex HMAC-SHA256 of
-   * the body, keyed with the notifier's secret>, names its event in X-Inaba-Event
-   * and itself in X-Inaba-Delivery, and is tried up to three times.
-   *
-   * @generated from rpc inaba.v1.AutomationService.ListNotifiers
-   */
-  listNotifiers: {
-    methodKind: "unary";
-    input: typeof ListNotifiersRequestSchema;
-    output: typeof ListNotifiersResponseSchema;
-  },
-  /**
-   * @generated from rpc inaba.v1.AutomationService.CreateNotifier
-   */
-  createNotifier: {
-    methodKind: "unary";
-    input: typeof NotifierSchema;
-    output: typeof CreateNotifierResponseSchema;
-  },
-  /**
-   * @generated from rpc inaba.v1.AutomationService.DeleteNotifier
-   */
-  deleteNotifier: {
-    methodKind: "unary";
-    input: typeof DeleteNotifierRequestSchema;
-    output: typeof DeleteNotifierResponseSchema;
-  },
-  /**
-   * Sends a "test" event and answers how the delivery went.
-   *
-   * @generated from rpc inaba.v1.AutomationService.TestNotifier
-   */
-  testNotifier: {
-    methodKind: "unary";
-    input: typeof TestNotifierRequestSchema;
-    output: typeof NotifierDeliverySchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_inaba_v1_automation, 0);

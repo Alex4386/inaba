@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-// Automations and notifiers: the automations module of a host. inaba-server proxies
+// Automations: the automations module of a host. inaba-server proxies
 // it under /hosts/{host_id}/, like the rest of the host API.
 package inaba.v1;
 
@@ -48,68 +48,6 @@ service AutomationService {
     option (google.api.http) = {post: "/v1/automations/{id}/webhook-secret"};
   }
 
-  // Notifiers tell another service when a thread needs attention, by POSTing JSON
-  // to its URL: {"event", "time", "thread": {..., "labels"}, "stopReason", "error", "question"}.
-  // Each delivery is signed in X-Inaba-Signature-256 as sha256=<hex HMAC-SHA256 of
-  // the body, keyed with the notifier's secret>, names its event in X-Inaba-Event
-  // and itself in X-Inaba-Delivery, and is tried up to three times.
-  rpc ListNotifiers(ListNotifiersRequest) returns (ListNotifiersResponse) {
-    option (google.api.http) = {get: "/v1/notifiers"};
-  }
-  rpc CreateNotifier(Notifier) returns (CreateNotifierResponse) {
-    option (google.api.http) = {
-      post: "/v1/notifiers"
-      body: "*"
-    };
-  }
-  rpc DeleteNotifier(DeleteNotifierRequest) returns (DeleteNotifierResponse) {
-    option (google.api.http) = {delete: "/v1/notifiers/{id}"};
-  }
-  // Sends a "test" event and answers how the delivery went.
-  rpc TestNotifier(TestNotifierRequest) returns (NotifierDelivery) {
-    option (google.api.http) = {post: "/v1/notifiers/{id}/test"};
-  }
-}
-
-message Notifier {
-  // Set by the host.
-  string id = 1;
-  // An http or https address.
-  string url = 2;
-  // Which events to send: turn.ended (a turn finished), turn.failed (it ended in an
-  // error), input.needed (the agent waits for an answer). Empty for all of them.
-  repeated string events = 3;
-  // Only for threads automations started: those with an "automation" label.
-  bool automations_only = 4;
-  // The latest deliveries, newest first. Set by the host.
-  repeated NotifierDelivery deliveries = 5;
-  google.protobuf.Timestamp created_at = 6;
-}
-
-message NotifierDelivery {
-  google.protobuf.Timestamp time = 1;
-  string event = 2;
-  string thread_id = 3;
-  // The HTTP status of the last try; 0 when none got an answer.
-  uint32 status = 4;
-  string error = 5;
-}
-
-message ListNotifiersRequest {}
-message ListNotifiersResponse {
-  repeated Notifier notifiers = 1;
-}
-message CreateNotifierResponse {
-  Notifier notifier = 1;
-  // For checking deliveries' signatures. Shown once.
-  string secret = 2;
-}
-message DeleteNotifierRequest {
-  string id = 1;
-}
-message DeleteNotifierResponse {}
-message TestNotifierRequest {
-  string id = 1;
 }
 
 message Automation {

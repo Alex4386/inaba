@@ -51,6 +51,7 @@ agents and terminals the host starts never see them.
 | `oidc.admin_groups` | `--oidc-admin-group` | `INABA_OIDC__ADMIN_GROUPS` |
 | `trusted_proxies` | `--trusted-proxy` | `INABA_TRUSTED_PROXIES` |
 | `frame_ancestors` (`'self'`) | `--frame-ancestor` | `INABA_FRAME_ANCESTORS` |
+| `notify_private` (`false`) lets notification channels (webhooks, ntfy) post to loopback, private, link-local and CGNAT addresses, such as a self-hosted ntfy on the same network | `--notify-private` | `INABA_NOTIFY_PRIVATE` |
 
 List flags repeat (`--oidc-allowed-domain a.example --oidc-allowed-domain b.example`) or take
 commas. Every `oidc` row also works as `INABA_OIDC_<NAME>`, such as `INABA_OIDC_ISSUER`.

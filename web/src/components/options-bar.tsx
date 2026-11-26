@@ -111,7 +111,11 @@ function ModelPicker({
         {busy ? <Spinner /> : !model && shownProvider && (shownProvider.terminal ? <SquareTerminalIcon /> : <BotIcon />)}
         <span className="truncate">{current?.name ?? model?.value ?? shownProvider?.name}</span>
         {currentEffort && effort?.value !== "default" && <span className="text-muted-foreground">{currentEffort.name}</span>}
-        {field ? <ChevronDownIcon className="text-muted-foreground size-4" /> : <ChevronUpIcon data-icon="inline-end" />}
+        {field ? (
+          <ChevronDownIcon className={cn("text-muted-foreground size-4 transition-transform", open && "rotate-180")} />
+        ) : (
+          <ChevronUpIcon data-icon="inline-end" className={cn("transition-transform", open && "rotate-180")} />
+        )}
       </PopoverTrigger>
       <PopoverContent className="w-[min(36rem,calc(100vw-2rem))] gap-0 overflow-hidden p-0" align="end" side={field ? "bottom" : "top"}>
         <div className="flex min-h-64">

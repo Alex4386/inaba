@@ -25,8 +25,7 @@ type alerts struct {
 }
 
 // WatchAlerts streams finished and failed turns and questions as they happen, and deleted
-// threads so the server can forget their snoozes. Forked copies of events are left out,
-// as the automation notifiers leave them out.
+// threads so the server can forget their snoozes. Forked copies of events are left out.
 func (a alerts) WatchAlerts(ctx context.Context, _ *inabav1.WatchAlertsRequest, stream inabav1connect.AlertServiceWatchAlertsServerStream) error {
 	h := a.h
 	ch := make(chan *inabav1.Alert, alertBacklog)

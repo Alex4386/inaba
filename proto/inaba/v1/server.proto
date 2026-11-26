@@ -913,6 +913,43 @@ service NotificationService {
   rpc ClearSnooze(ClearSnoozeRequest) returns (ClearSnoozeResponse) {
     option (google.api.http) = {delete: "/v1/me/snoozes/{host_id}/{target_id}"};
   }
+
+  // Channels are the other ways the caller is told, beside their devices: a webhook,
+  // ntfy, Discord, Slack or Telegram. They hear the same events by the same rules: not
+  // while the caller has the thread on screen, nor finished turns of what they snoozed.
+  //
+  // A webhook POSTs JSON: {"event", "time", "host": {"id"}, "thread": {"id", "title",
+  // "projectId", "projectName", "automation", "url"}, "error"}. Each delivery is signed in
+  // X-Inaba-Signature-256 as sha256=<hex HMAC-SHA256 of the body, keyed with the channel's
+  // secret>, names its event in X-Inaba-Event and itself in X-Inaba-Delivery. Every kind
+  // is tried up to three times.
+  rpc ListChannels(ListChannelsRequest) returns (ListChannelsResponse) {
+    option (google.api.http) = {get: "/v1/me/channels"};
+  }
+  // Adds a channel, turned on. An account has at most 20.
+  rpc CreateChannel(NotificationChannel) returns (CreateChannelResponse) {
+    option (google.api.http) = {
+      post: "/v1/me/channels"
+      body: "*"
+    };
+  }
+  // Changes the label, events, automations_only and enabled; where it delivers stays.
+  rpc UpdateChannel(NotificationChannel) returns (NotificationChannel) {
+    option (google.api.http) = {
+      put: "/v1/me/channels/{id}"
+      body: "*"
+    };
+  }
+  rpc DeleteChannel(DeleteChannelRequest) returns (DeleteChannelResponse) {
+    option (google.api.http) = {delete: "/v1/me/channels/{id}"};
+  }
+  // Sends a "test" event, even to a channel turned off, and answers how the delivery went.
+  rpc TestChannel(TestChannelRequest) returns (ChannelDelivery) {
+    option (google.api.http) = {
+      post: "/v1/me/channels/{id}/test"
+      body: "*"
+    };
+  }
 }
 
 enum PushPlatform {
@@ -991,3 +1028,86 @@ message ClearSnoozeRequest {
   string target_id = 3;
 }
 message ClearSnoozeResponse {}
+
+message NotificationChannel {
+  // Set by the server.
+  string id = 1;
+  // "webhook", "ntfy", "discord", "slack" or "telegram": which of config is set. Set by the server.
+  string kind = 2;
+  // What to call it; at most 64 characters.
+  string label = 3;
+  // Where it delivers, set on creation. Fields marked write-only hold a credential and
+  // come back empty.
+  oneof config {
+    WebhookChannel webhook = 4;
+    NtfyChannel ntfy = 5;
+    DiscordChannel discord = 6;
+    SlackChannel slack = 7;
+    TelegramChannel telegram = 8;
+  }
+  // Which events to send: turn.ended (a turn finished), turn.failed (it ended in an
+  // error), input.needed (the agent waits for an answer). Empty for all of them.
+  repeated string events = 9;
+  // Only for threads automations started.
+  bool automations_only = 10;
+  // A channel turned off is sent nothing but tests. CreateChannel ignores it.
+  bool enabled = 11;
+  google.protobuf.Timestamp created_at = 12;
+  // How the latest delivery went; unset until one was tried. Set by the server.
+  ChannelDelivery last_delivery = 13;
+}
+
+message WebhookChannel {
+  // An http or https address.
+  string url = 1;
+}
+
+message NtfyChannel {
+  // The ntfy server, such as https://ntfy.sh.
+  string server_url = 1;
+  string topic = 2;
+  // Optional; write-only.
+  string access_token = 3;
+}
+
+message DiscordChannel {
+  // https://discord.com/api/webhooks/...; write-only.
+  string webhook_url = 1;
+}
+
+message SlackChannel {
+  // https://hooks.slack.com/...; write-only.
+  string webhook_url = 1;
+}
+
+message TelegramChannel {
+  // From @BotFather; write-only.
+  string bot_token = 1;
+  string chat_id = 2;
+}
+
+message ChannelDelivery {
+  google.protobuf.Timestamp time = 1;
+  string event = 2;
+  // The HTTP status of the last try; 0 when none got an answer.
+  uint32 status = 3;
+  // Why it did not get through; empty when it did.
+  string error = 4;
+}
+
+message ListChannelsRequest {}
+message ListChannelsResponse {
+  repeated NotificationChannel channels = 1;
+}
+message CreateChannelResponse {
+  NotificationChannel channel = 1;
+  // A webhook's signing secret, for checking deliveries. Shown once.
+  string secret = 2;
+}
+message DeleteChannelRequest {
+  string id = 1;
+}
+message DeleteChannelResponse {}
+message TestChannelRequest {
+  string id = 1;
+}

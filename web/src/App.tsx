@@ -564,8 +564,17 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
         onOpenThread={openThread}
         onNewThread={openProject}
         onSettings={() => setSettings("profile")}
+        terminals={!!link && canOn(host, Permission.THREADS_ANYWHERE) && modulesOn.has("terminal")}
+        onOpenTerminal={(id) => navigate(`/hosts/${shownHost}/terminals/${id}`)}
       />
-      <SettingsDialog section={settings} onSection={setSettings} onClose={() => setSettings(undefined)} user={user} onUser={onUser} />
+      <SettingsDialog
+        section={settings}
+        onSection={setSettings}
+        onClose={() => setSettings(undefined)}
+        user={user}
+        onUser={onUser}
+        host={host && link ? { link, hostName: host.name } : undefined}
+      />
       <HostSettingsDialog
         // The listing's copy, so a change made in the dialog shows at once.
         host={hostList?.find((h) => h.id === hostSettings?.host.id) ?? hostSettings?.host}

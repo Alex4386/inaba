@@ -30,7 +30,7 @@ Fine. I'll make my own and I'll use my own.
 - **Friends**: see who is in the thread, pass the keyboard around, invite people to your machine with a role. Choose your friends wisely, they get a shell
 - **Proper authentication**: OIDC, or local accounts with passwords, passkeys and 2FA. You know, logging in. Unlike *someone's* invented-out "pairing" mechanism
 - **No telemetry**: unlike *someone* collecting it to their own server, unfortunately in inaba your data only stays in yours[^stun]. Aw man~
-- **Push notifications**, so you can go touch grass while the agent works. Snooze them when the grass is nice
+- **Push notifications**, so you can go touch grass while the agent works: to your browser, or ntfy, Discord, Slack, Telegram or a signed webhook. Snooze them when the grass is nice
 - **Everything is an API** (REST / Connect). The docs are at `/docs` of your server. Extend whatever you want
   - Live things stream over plain HTTP too, as JSON lines, or as server-sent events with `Accept: text/event-stream`: a thread's events (`/v1/hosts/{host}/threads/{thread}/events/watch`), its terminal (`…/terminal/output`) and shells (`…/shells/{shell}/output`), its browser (`…/browser/frames`), and an ultracode agent's conversation (`…/tools/{call}/agents/{agent}/watch`)
 

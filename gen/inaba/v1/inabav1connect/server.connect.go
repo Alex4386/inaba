@@ -190,6 +190,21 @@ const (
 	// NotificationServiceClearSnoozeProcedure is the procedure name of the NotificationService's
 	// ClearSnooze RPC.
 	NotificationServiceClearSnoozeProcedure = "/inaba.v1.NotificationService/ClearSnooze"
+	// NotificationServiceListChannelsProcedure is the procedure name of the NotificationService's
+	// ListChannels RPC.
+	NotificationServiceListChannelsProcedure = "/inaba.v1.NotificationService/ListChannels"
+	// NotificationServiceCreateChannelProcedure is the procedure name of the NotificationService's
+	// CreateChannel RPC.
+	NotificationServiceCreateChannelProcedure = "/inaba.v1.NotificationService/CreateChannel"
+	// NotificationServiceUpdateChannelProcedure is the procedure name of the NotificationService's
+	// UpdateChannel RPC.
+	NotificationServiceUpdateChannelProcedure = "/inaba.v1.NotificationService/UpdateChannel"
+	// NotificationServiceDeleteChannelProcedure is the procedure name of the NotificationService's
+	// DeleteChannel RPC.
+	NotificationServiceDeleteChannelProcedure = "/inaba.v1.NotificationService/DeleteChannel"
+	// NotificationServiceTestChannelProcedure is the procedure name of the NotificationService's
+	// TestChannel RPC.
+	NotificationServiceTestChannelProcedure = "/inaba.v1.NotificationService/TestChannel"
 )
 
 var (
@@ -2388,6 +2403,41 @@ var (
 			Procedure:  NotificationServiceClearSnoozeProcedure,
 		}
 	})
+	notificationServiceListChannelsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_inaba_v1_server_proto.Services().ByName("NotificationService").Methods().ByName("ListChannels"),
+			Procedure:  NotificationServiceListChannelsProcedure,
+		}
+	})
+	notificationServiceCreateChannelSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_inaba_v1_server_proto.Services().ByName("NotificationService").Methods().ByName("CreateChannel"),
+			Procedure:  NotificationServiceCreateChannelProcedure,
+		}
+	})
+	notificationServiceUpdateChannelSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_inaba_v1_server_proto.Services().ByName("NotificationService").Methods().ByName("UpdateChannel"),
+			Procedure:  NotificationServiceUpdateChannelProcedure,
+		}
+	})
+	notificationServiceDeleteChannelSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_inaba_v1_server_proto.Services().ByName("NotificationService").Methods().ByName("DeleteChannel"),
+			Procedure:  NotificationServiceDeleteChannelProcedure,
+		}
+	})
+	notificationServiceTestChannelSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_inaba_v1_server_proto.Services().ByName("NotificationService").Methods().ByName("TestChannel"),
+			Procedure:  NotificationServiceTestChannelProcedure,
+		}
+	})
 )
 
 // NotificationServiceClient is a client for the inaba.v1.NotificationService service.
@@ -2407,6 +2457,23 @@ type NotificationServiceClient interface {
 	// Finished turns stay quiet; questions, approvals and failures still notify.
 	SetSnooze(context.Context, *v1.Snooze) (*v1.Snooze, error)
 	ClearSnooze(context.Context, *v1.ClearSnoozeRequest) (*v1.ClearSnoozeResponse, error)
+	// Channels are the other ways the caller is told, beside their devices: a webhook,
+	// ntfy, Discord, Slack or Telegram. They hear the same events by the same rules: not
+	// while the caller has the thread on screen, nor finished turns of what they snoozed.
+	//
+	// A webhook POSTs JSON: {"event", "time", "host": {"id"}, "thread": {"id", "title",
+	// "projectId", "projectName", "automation", "url"}, "error"}. Each delivery is signed in
+	// X-Inaba-Signature-256 as sha256=<hex HMAC-SHA256 of the body, keyed with the channel's
+	// secret>, names its event in X-Inaba-Event and itself in X-Inaba-Delivery. Every kind
+	// is tried up to three times.
+	ListChannels(context.Context, *v1.ListChannelsRequest) (*v1.ListChannelsResponse, error)
+	// Adds a channel, turned on. An account has at most 20.
+	CreateChannel(context.Context, *v1.NotificationChannel) (*v1.CreateChannelResponse, error)
+	// Changes the label, events, automations_only and enabled; where it delivers stays.
+	UpdateChannel(context.Context, *v1.NotificationChannel) (*v1.NotificationChannel, error)
+	DeleteChannel(context.Context, *v1.DeleteChannelRequest) (*v1.DeleteChannelResponse, error)
+	// Sends a "test" event, even to a channel turned off, and answers how the delivery went.
+	TestChannel(context.Context, *v1.TestChannelRequest) (*v1.ChannelDelivery, error)
 }
 
 // NewNotificationServiceClient constructs a client for the inaba.v1.NotificationService service.
@@ -2432,6 +2499,23 @@ type NotificationServiceHandler interface {
 	// Finished turns stay quiet; questions, approvals and failures still notify.
 	SetSnooze(context.Context, *v1.Snooze) (*v1.Snooze, error)
 	ClearSnooze(context.Context, *v1.ClearSnoozeRequest) (*v1.ClearSnoozeResponse, error)
+	// Channels are the other ways the caller is told, beside their devices: a webhook,
+	// ntfy, Discord, Slack or Telegram. They hear the same events by the same rules: not
+	// while the caller has the thread on screen, nor finished turns of what they snoozed.
+	//
+	// A webhook POSTs JSON: {"event", "time", "host": {"id"}, "thread": {"id", "title",
+	// "projectId", "projectName", "automation", "url"}, "error"}. Each delivery is signed in
+	// X-Inaba-Signature-256 as sha256=<hex HMAC-SHA256 of the body, keyed with the channel's
+	// secret>, names its event in X-Inaba-Event and itself in X-Inaba-Delivery. Every kind
+	// is tried up to three times.
+	ListChannels(context.Context, *v1.ListChannelsRequest) (*v1.ListChannelsResponse, error)
+	// Adds a channel, turned on. An account has at most 20.
+	CreateChannel(context.Context, *v1.NotificationChannel) (*v1.CreateChannelResponse, error)
+	// Changes the label, events, automations_only and enabled; where it delivers stays.
+	UpdateChannel(context.Context, *v1.NotificationChannel) (*v1.NotificationChannel, error)
+	DeleteChannel(context.Context, *v1.DeleteChannelRequest) (*v1.DeleteChannelResponse, error)
+	// Sends a "test" event, even to a channel turned off, and answers how the delivery went.
+	TestChannel(context.Context, *v1.TestChannelRequest) (*v1.ChannelDelivery, error)
 }
 
 // RegisterNotificationServiceHandler registers svc as the inaba.v1.NotificationService
@@ -2447,6 +2531,11 @@ func RegisterNotificationServiceHandler(server *connect.Server, svc Notification
 		connect.Method{Spec: notificationServiceListSnoozesSpec(), Handler: adapter.listSnoozes},
 		connect.Method{Spec: notificationServiceSetSnoozeSpec(), Handler: adapter.setSnooze},
 		connect.Method{Spec: notificationServiceClearSnoozeSpec(), Handler: adapter.clearSnooze},
+		connect.Method{Spec: notificationServiceListChannelsSpec(), Handler: adapter.listChannels},
+		connect.Method{Spec: notificationServiceCreateChannelSpec(), Handler: adapter.createChannel},
+		connect.Method{Spec: notificationServiceUpdateChannelSpec(), Handler: adapter.updateChannel},
+		connect.Method{Spec: notificationServiceDeleteChannelSpec(), Handler: adapter.deleteChannel},
+		connect.Method{Spec: notificationServiceTestChannelSpec(), Handler: adapter.testChannel},
 	)
 }
 
@@ -2483,6 +2572,26 @@ func (UnimplementedNotificationServiceHandler) SetSnooze(context.Context, *v1.Sn
 
 func (UnimplementedNotificationServiceHandler) ClearSnooze(context.Context, *v1.ClearSnoozeRequest) (*v1.ClearSnoozeResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.NotificationService.ClearSnooze is not implemented")
+}
+
+func (UnimplementedNotificationServiceHandler) ListChannels(context.Context, *v1.ListChannelsRequest) (*v1.ListChannelsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.NotificationService.ListChannels is not implemented")
+}
+
+func (UnimplementedNotificationServiceHandler) CreateChannel(context.Context, *v1.NotificationChannel) (*v1.CreateChannelResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.NotificationService.CreateChannel is not implemented")
+}
+
+func (UnimplementedNotificationServiceHandler) UpdateChannel(context.Context, *v1.NotificationChannel) (*v1.NotificationChannel, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.NotificationService.UpdateChannel is not implemented")
+}
+
+func (UnimplementedNotificationServiceHandler) DeleteChannel(context.Context, *v1.DeleteChannelRequest) (*v1.DeleteChannelResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.NotificationService.DeleteChannel is not implemented")
+}
+
+func (UnimplementedNotificationServiceHandler) TestChannel(context.Context, *v1.TestChannelRequest) (*v1.ChannelDelivery, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.NotificationService.TestChannel is not implemented")
 }
 
 type notificationServiceClient struct {
@@ -2548,6 +2657,46 @@ func (c *notificationServiceClient) SetSnooze(ctx context.Context, req *v1.Snooz
 func (c *notificationServiceClient) ClearSnooze(ctx context.Context, req *v1.ClearSnoozeRequest) (*v1.ClearSnoozeResponse, error) {
 	var res v1.ClearSnoozeResponse
 	if err := c.client.CallUnary(ctx, notificationServiceClearSnoozeSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *notificationServiceClient) ListChannels(ctx context.Context, req *v1.ListChannelsRequest) (*v1.ListChannelsResponse, error) {
+	var res v1.ListChannelsResponse
+	if err := c.client.CallUnary(ctx, notificationServiceListChannelsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *notificationServiceClient) CreateChannel(ctx context.Context, req *v1.NotificationChannel) (*v1.CreateChannelResponse, error) {
+	var res v1.CreateChannelResponse
+	if err := c.client.CallUnary(ctx, notificationServiceCreateChannelSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *notificationServiceClient) UpdateChannel(ctx context.Context, req *v1.NotificationChannel) (*v1.NotificationChannel, error) {
+	var res v1.NotificationChannel
+	if err := c.client.CallUnary(ctx, notificationServiceUpdateChannelSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *notificationServiceClient) DeleteChannel(ctx context.Context, req *v1.DeleteChannelRequest) (*v1.DeleteChannelResponse, error) {
+	var res v1.DeleteChannelResponse
+	if err := c.client.CallUnary(ctx, notificationServiceDeleteChannelSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *notificationServiceClient) TestChannel(ctx context.Context, req *v1.TestChannelRequest) (*v1.ChannelDelivery, error) {
+	var res v1.ChannelDelivery
+	if err := c.client.CallUnary(ctx, notificationServiceTestChannelSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -2645,6 +2794,66 @@ func (h notificationServiceHandler) clearSnooze(ctx context.Context, _ connect.S
 		return err
 	}
 	res, err := h.svc.ClearSnooze(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h notificationServiceHandler) listChannels(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ListChannelsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ListChannels(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h notificationServiceHandler) createChannel(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.NotificationChannel
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.CreateChannel(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h notificationServiceHandler) updateChannel(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.NotificationChannel
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.UpdateChannel(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h notificationServiceHandler) deleteChannel(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.DeleteChannelRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.DeleteChannel(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h notificationServiceHandler) testChannel(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.TestChannelRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.TestChannel(ctx, &req)
 	if err != nil {
 		return err
 	}

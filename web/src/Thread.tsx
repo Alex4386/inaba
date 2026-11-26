@@ -76,7 +76,7 @@ import { QueueList } from "@/components/queue-list";
 import { ConfirmDialog, RenameDialog } from "@/components/dialogs";
 import { Markdown } from "@/components/markdown";
 import { Badge } from "@/components/reui/badge";
-import { ProjectIcon, threadFailed, threadName, threadState } from "@/components/project-tree";
+import { ProjectIcon, threadFailed, threadName, threadState, threadWorking } from "@/components/project-tree";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -493,7 +493,7 @@ export function ThreadView({
               <span className="text-muted-foreground">/</span>
             </>
           )}
-          {thread.status === ThreadStatus.RUNNING || switching ? (
+          {threadWorking(thread) || switching ? (
             <Spinner className="text-muted-foreground shrink-0" />
           ) : threadFailed(thread) ? (
             <CircleAlertIcon className="text-destructive size-4 shrink-0" />
@@ -505,7 +505,7 @@ export function ThreadView({
           <h1 className="truncate text-sm font-medium">{threadName(thread)}</h1>
           {/* Which agent and how this browser reaches the host are in the info card, not tags here. */}
           {/* Takes only the room the name leaves (no basis of its own), so it is cut before the name is. */}
-          {(busy || threadFailed(thread)) && <span className={cn("hidden min-w-0 flex-1 basis-0 truncate text-xs @2xl:inline", busy ? "text-muted-foreground" : "text-destructive")}>{threadState(thread, t)}</span>}
+          {(busy || threadWorking(thread) || threadFailed(thread)) && <span className={cn("hidden min-w-0 flex-1 basis-0 truncate text-xs @2xl:inline", threadFailed(thread) ? "text-destructive" : "text-muted-foreground")}>{threadState(thread, t)}</span>}
           <div className="ml-auto flex shrink-0 items-center gap-2">
             {/* Who else has this thread open. */}
             <PeopleStack people={here} label={driving ? t("drive.watchers") : undefined} />

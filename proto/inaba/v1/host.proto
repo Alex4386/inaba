@@ -98,6 +98,9 @@ message Thread {
   // a tab does not make it unread or recent. 0 until the conversation starts. Resume
   // streams with last_seq; compare seen marks with this.
   uint64 activity_seq = 26;
+  // How many agents of background workflows its agent started are still running. The
+  // thread is still at work while this is above 0, even with its turn over.
+  uint32 background_agents = 27;
 }
 
 // A slash command the agent offers, run by sending "/name" and its input as a message.
@@ -427,6 +430,13 @@ service ThreadService {
   rpc ListThreads(ListThreadsRequest) returns (ListThreadsResponse) {
     option (google.api.http) = {get: "/v1/threads"};
   }
+  // Finds the threads whose conversation says something: what people wrote and what the
+  // agents answered, newest first. Text of three or more characters goes through the host's
+  // full-text index; shorter text is looked for directly.
+  rpc SearchThreads(SearchThreadsRequest) returns (SearchThreadsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (google.api.http) = {get: "/v1/threads:search"};
+  }
   rpc GetThread(GetThreadRequest) returns (Thread) {
     option (google.api.http) = {get: "/v1/threads/{thread_id}"};
   }
@@ -599,6 +609,29 @@ message ListThreadsResponse {
 
 message GetThreadRequest {
   string thread_id = 1;
+}
+
+message SearchThreadsRequest {
+  string query = 1;
+  // At most this many hits; 0 means 50.
+  uint32 limit = 2;
+}
+message SearchThreadsResponse {
+  repeated SearchHit hits = 1;
+}
+// A message that says what was searched for.
+message SearchHit {
+  string thread_id = 1;
+  // The message's event: a user message's, or the first text of an agent's answer.
+  uint64 seq = 2;
+  // "user" or "assistant".
+  string kind = 3;
+  // The text around the match, on one line, and where the match is in it, in UTF-16
+  // code units as a browser counts them.
+  string snippet = 4;
+  uint32 match_start = 5;
+  uint32 match_end = 6;
+  google.protobuf.Timestamp time = 7;
 }
 
 // Changes what is set; a field left out stays as it is.

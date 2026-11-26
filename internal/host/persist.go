@@ -85,6 +85,9 @@ func (s *saver) delete(threadID string) {
 		if err := tx.Where("thread_id = ?", threadID).Delete(&eventRow{}).Error; err != nil {
 			return err
 		}
+		if err := dropSearch(tx, threadID); err != nil {
+			return err
+		}
 		return tx.Where("id = ?", threadID).Delete(&threadRow{}).Error
 	})
 	if err != nil {
@@ -108,6 +111,9 @@ func (h *Host) OpenData(path string) error {
 	h.dataDir, h.dbPath = filepath.Dir(abs), abs
 	db := h.projects.db
 	if err := db.AutoMigrate(&threadRow{}, &eventRow{}, &offeredRow{}, &settingRow{}); err != nil {
+		return err
+	}
+	if err := migrateSearch(db); err != nil {
 		return err
 	}
 	h.save = &saver{db: db}
@@ -177,6 +183,8 @@ func (h *Host) OpenData(path string) error {
 		}
 		// Nothing queued runs by itself after a restart; the user decides.
 		meta.QueuePaused = len(meta.Queue) > 0
+		// Background workflows ran inside the agent's session, which the restart ended.
+		meta.BackgroundAgents = 0
 		if meta.Status != inabav1.ThreadStatus_THREAD_STATUS_IDLE {
 			// A turn was running when the host stopped. Close it in the log, so readers
 			// do not wait for an end that will not come.

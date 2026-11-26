@@ -1,10 +1,10 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { BellIcon, CircleAlertIcon, CopyIcon, SendIcon, KeyRoundIcon, MoreHorizontalIcon, PencilIcon, PlayIcon, PlusIcon, Trash2Icon, WebhookIcon, ZapIcon } from "lucide-react";
+import { CircleAlertIcon, CopyIcon, KeyRoundIcon, MoreHorizontalIcon, PencilIcon, PlayIcon, PlusIcon, Trash2Icon, WebhookIcon, ZapIcon } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { HostLink } from "@/api";
-import { type Automation, AutomationSchema, type Notifier } from "@/gen/inaba/v1/automation_pb";
+import { type Automation, AutomationSchema } from "@/gen/inaba/v1/automation_pb";
 import { type Project, type Provider, type Thread, ThreadMode } from "@/gen/inaba/v1/host_pb";
 import { ConfirmDialog, Secret } from "@/components/dialogs";
 import { OptionsBar } from "@/components/options-bar";
@@ -12,7 +12,6 @@ import { Picker } from "@/components/picker";
 import { threadName } from "@/components/project-tree";
 import { Badge } from "@/components/reui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -41,12 +40,8 @@ export function AutomationsView({ link, onOpenThread }: { link: HostLink; onOpen
   const [removing, setRemoving] = useState<Automation>();
   // A secret just made, shown once, with what it goes with.
   const [secret, setSecret] = useState<{ help: string; fields: [string, string][] }>();
-  const [notifiers, setNotifiers] = useState<Notifier[]>([]);
-  const [addingNotifier, setAddingNotifier] = useState(false);
-  const [removingNotifier, setRemovingNotifier] = useState<Notifier>();
-  // The automation being run, or the notifier being tried, by id.
+  // The automation being run, by id.
   const [running, setRunning] = useState<string>();
-  const [testing, setTesting] = useState<string>();
   const showHook = (id: string, value: string) =>
     setSecret({
       help: t("auto.secretHelp"),
@@ -59,7 +54,6 @@ export function AutomationsView({ link, onOpenThread }: { link: HostLink; onOpen
   const refresh = useCallback(() => {
     link.automations.listAutomations({}).then((r) => setList(r.automations), (e) => (showError(e), setList((l) => l ?? [])));
     link.threads.listThreads({}).then((r) => setThreads(r.threads), showError);
-    link.automations.listNotifiers({}).then((r) => setNotifiers(r.notifiers), showError);
   }, [link]);
   useEffect(() => {
     refresh();
@@ -103,17 +97,6 @@ export function AutomationsView({ link, onOpenThread }: { link: HostLink; onOpen
       showError(e);
       refresh();
     });
-  };
-  const test = (n: Notifier) => {
-    setTesting(n.id);
-    link.automations
-      .testNotifier({ id: n.id })
-      .then((d) => {
-        if (d.error) toast.error(d.error);
-        else toast.success(t("notify.delivered", { status: String(d.status) }));
-        refresh();
-      }, showError)
-      .finally(() => setTesting(undefined));
   };
 
   return (
@@ -235,70 +218,7 @@ export function AutomationsView({ link, onOpenThread }: { link: HostLink; onOpen
             })}
           </ul>
         )}
-        <section className="mx-auto grid max-w-3xl gap-3 px-4 pb-6">
-          <div className="flex items-center gap-2">
-            <BellIcon className="text-muted-foreground size-4" />
-            <h2 className="text-sm font-medium">{t("notify.title")}</h2>
-            <Button className="ml-auto" size="sm" variant="outline" onClick={() => setAddingNotifier(true)}>
-              <PlusIcon data-icon="inline-start" />
-              {t("notify.add")}
-            </Button>
-          </div>
-          <p className="text-muted-foreground text-sm">{t("notify.help")}</p>
-          {notifiers.length > 0 && (
-            <ul className="bg-card divide-y rounded-xl border">
-              {notifiers.map((n) => {
-                const last = n.deliveries[0];
-                return (
-                  <li key={n.id} className="grid gap-1 px-4 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <code className="min-w-0 truncate text-xs" title={n.url}>
-                        {n.url}
-                      </code>
-                      <Button className="ml-auto" size="xs" variant="ghost" disabled={testing !== undefined} onClick={() => test(n)}>
-                        {testing === n.id ? <Spinner data-icon="inline-start" /> : <SendIcon data-icon="inline-start" />}
-                        {t("notify.test")}
-                      </Button>
-                      <Button size="icon-xs" variant="ghost" aria-label={t("notify.delete")} title={t("notify.delete")} onClick={() => setRemovingNotifier(n)}>
-                        <Trash2Icon />
-                      </Button>
-                    </div>
-                    <div className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-xs">
-                      <span>{n.events.length ? n.events.map((e) => t(`notify.event.${e}` as MessageKey)).join(", ") : t("notify.allEvents")}</span>
-                      {n.automationsOnly && <span>{t("notify.automationsOnly")}</span>}
-                      {last && (
-                        <span className={last.error ? "text-destructive" : undefined} title={last.error || undefined}>
-                          {t("notify.last", { at: timestampDate(last.time!).toLocaleString(locale), status: last.status ? String(last.status) : "—" })}
-                        </span>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
       </div>
-      <NotifierDialog
-        open={addingNotifier}
-        onClose={() => setAddingNotifier(false)}
-        onCreate={(n) =>
-          link.automations.createNotifier(n).then((res) => {
-            setSecret({ help: t("notify.secretHelp"), fields: [[t("auto.secret"), res.secret]] });
-            refresh();
-          })
-        }
-      />
-      <ConfirmDialog
-        open={removingNotifier !== undefined}
-        onClose={() => setRemovingNotifier(undefined)}
-        title={t("notify.deleteTitle")}
-        description={removingNotifier?.url ?? ""}
-        cancel={t("project.keep")}
-        confirm={t("notify.delete")}
-        destructive
-        onConfirm={() => removingNotifier && link.automations.deleteNotifier({ id: removingNotifier.id }).then(refresh, showError)}
-      />
       <AutomationDialog link={link} automation={editing} threads={threads} onClose={() => setEditing(undefined)} onSave={save} />
       <ConfirmDialog
         open={removing !== undefined}
@@ -579,67 +499,3 @@ function AutomationDialog({
   );
 }
 
-const notifierEvents = ["turn.ended", "turn.failed", "input.needed"] as const;
-
-/** Adding a notifier: where to send, and which events. */
-function NotifierDialog({ open, onClose, onCreate }: { open: boolean; onClose: () => void; onCreate: (n: { url: string; events: string[]; automationsOnly: boolean }) => Promise<unknown> }) {
-  const { t } = useI18n();
-  const [url, setUrl] = useState("");
-  const [events, setEvents] = useState<string[]>([...notifierEvents]);
-  const [automationsOnly, setAutomationsOnly] = useState(false);
-  const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    if (!open) return;
-    setUrl("");
-    setEvents([...notifierEvents]);
-    setAutomationsOnly(false);
-  }, [open]);
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    if (busy) return;
-    setBusy(true);
-    try {
-      // All three is the same as none named, which also takes events added later.
-      await onCreate({ url, events: events.length === notifierEvents.length ? [] : events, automationsOnly });
-      onClose();
-    } catch (e) {
-      showError(e);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t("notify.add")}</DialogTitle>
-          <DialogDescription>{t("notify.dialogHelp")}</DialogDescription>
-        </DialogHeader>
-        <form onSubmit={submit} className="grid gap-4">
-          <Field>
-            <FieldLabel htmlFor="notify-url">{t("notify.url")}</FieldLabel>
-            <Input id="notify-url" type="url" placeholder="https://" value={url} onChange={(e) => setUrl(e.target.value)} autoFocus required />
-          </Field>
-          <div className="grid gap-2">
-            {notifierEvents.map((e) => (
-              <Label key={e} className="font-normal">
-                <Checkbox checked={events.includes(e)} onCheckedChange={(on) => setEvents((now) => (on ? [...now, e] : now.filter((x) => x !== e)))} />
-                {t(`notify.event.${e}` as MessageKey)}
-              </Label>
-            ))}
-          </div>
-          <Label className="font-normal">
-            <Switch checked={automationsOnly} onCheckedChange={setAutomationsOnly} />
-            {t("notify.automationsOnly")}
-          </Label>
-          <DialogFooter>
-            <Button type="submit" disabled={events.length === 0 || busy}>
-              {busy && <Spinner data-icon="inline-start" />}
-              {t("common.create")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}

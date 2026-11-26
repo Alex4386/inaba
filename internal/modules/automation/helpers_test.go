@@ -40,7 +40,7 @@ func setup(t *testing.T, dbPath string) (*host.Host, *service) {
 			t.Fatal(err)
 		}
 	}
-	s, err := newService(h, h, module.Store{DB: h.DB()})
+	s, err := newService(h, module.Store{DB: h.DB()})
 	if err != nil {
 		t.Fatal(err)
 	}

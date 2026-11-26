@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -1063,5 +1064,40 @@ func TestFailedMarkFollowsTheLogAfterARestart(t *testing.T) {
 	}
 	if got, _ := h.GetThread(ctx, &inabav1.GetThreadRequest{ThreadId: failed.Id}); !got.LastTurnFailed {
 		t.Fatal("a failed thread lost its mark after a restart")
+	}
+}
+
+// A thread whose agent left a background workflow running is still at work after its turn.
+func TestBackgroundAgentsKeepAThreadWorking(t *testing.T) {
+	ctx := rpc.Trusted(context.Background())
+	h := New(fakeProvider{})
+	t.Cleanup(h.Close)
+	th, err := h.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "fake", Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr, _ := h.thread(th.Id)
+	agents := func(states ...string) *inabav1.Event {
+		var as []*inabav1.WorkflowAgent
+		for i, s := range states {
+			as = append(as, &inabav1.WorkflowAgent{Id: strconv.Itoa(i), Done: s == "done", Stopped: s == "stopped"})
+		}
+		return &inabav1.Event{Payload: &inabav1.Event_ToolCall{ToolCall: &inabav1.ToolCall{Id: "wf", Agents: as}}}
+	}
+	count := func() uint32 {
+		got, _ := h.GetThread(ctx, &inabav1.GetThreadRequest{ThreadId: th.Id})
+		return got.BackgroundAgents
+	}
+	tr.emit(agents("running", "running", "done"))
+	if n := count(); n != 2 {
+		t.Fatalf("running agents = %d, want 2", n)
+	}
+	tr.emit(&inabav1.Event{Payload: &inabav1.Event_ToolCall{ToolCall: &inabav1.ToolCall{Id: "other", Title: "ls"}}})
+	if n := count(); n != 2 {
+		t.Fatalf("a plain tool call changed the count to %d", n)
+	}
+	tr.emit(agents("done", "stopped", "done"))
+	if n := count(); n != 0 {
+		t.Fatalf("after the workflow ended, running agents = %d", n)
 	}
 }

@@ -2,7 +2,7 @@
 //
 // Source: inaba/v1/automation.proto
 
-// Automations and notifiers: the automations module of a host. inaba-server proxies
+// Automations: the automations module of a host. inaba-server proxies
 // it under /hosts/{host_id}/, like the rest of the host API.
 package inabav1connect
 
@@ -44,18 +44,6 @@ const (
 	// AutomationServiceRotateWebhookSecretProcedure is the procedure name of the AutomationService's
 	// RotateWebhookSecret RPC.
 	AutomationServiceRotateWebhookSecretProcedure = "/inaba.v1.AutomationService/RotateWebhookSecret"
-	// AutomationServiceListNotifiersProcedure is the procedure name of the AutomationService's
-	// ListNotifiers RPC.
-	AutomationServiceListNotifiersProcedure = "/inaba.v1.AutomationService/ListNotifiers"
-	// AutomationServiceCreateNotifierProcedure is the procedure name of the AutomationService's
-	// CreateNotifier RPC.
-	AutomationServiceCreateNotifierProcedure = "/inaba.v1.AutomationService/CreateNotifier"
-	// AutomationServiceDeleteNotifierProcedure is the procedure name of the AutomationService's
-	// DeleteNotifier RPC.
-	AutomationServiceDeleteNotifierProcedure = "/inaba.v1.AutomationService/DeleteNotifier"
-	// AutomationServiceTestNotifierProcedure is the procedure name of the AutomationService's
-	// TestNotifier RPC.
-	AutomationServiceTestNotifierProcedure = "/inaba.v1.AutomationService/TestNotifier"
 )
 
 var (
@@ -101,34 +89,6 @@ var (
 			Procedure:  AutomationServiceRotateWebhookSecretProcedure,
 		}
 	})
-	automationServiceListNotifiersSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_inaba_v1_automation_proto.Services().ByName("AutomationService").Methods().ByName("ListNotifiers"),
-			Procedure:  AutomationServiceListNotifiersProcedure,
-		}
-	})
-	automationServiceCreateNotifierSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_inaba_v1_automation_proto.Services().ByName("AutomationService").Methods().ByName("CreateNotifier"),
-			Procedure:  AutomationServiceCreateNotifierProcedure,
-		}
-	})
-	automationServiceDeleteNotifierSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_inaba_v1_automation_proto.Services().ByName("AutomationService").Methods().ByName("DeleteNotifier"),
-			Procedure:  AutomationServiceDeleteNotifierProcedure,
-		}
-	})
-	automationServiceTestNotifierSpec = sync.OnceValue(func() connect.Spec {
-		return connect.Spec{
-			StreamType: connect.StreamTypeUnary,
-			Schema:     v1.File_inaba_v1_automation_proto.Services().ByName("AutomationService").Methods().ByName("TestNotifier"),
-			Procedure:  AutomationServiceTestNotifierProcedure,
-		}
-	})
 )
 
 // AutomationServiceClient is a client for the inaba.v1.AutomationService service.
@@ -142,16 +102,6 @@ type AutomationServiceClient interface {
 	RunAutomation(context.Context, *v1.RunAutomationRequest) (*v1.AutomationRun, error)
 	// Replaces the webhook's secret; the old one stops working.
 	RotateWebhookSecret(context.Context, *v1.RotateWebhookSecretRequest) (*v1.RotateWebhookSecretResponse, error)
-	// Notifiers tell another service when a thread needs attention, by POSTing JSON
-	// to its URL: {"event", "time", "thread": {..., "labels"}, "stopReason", "error", "question"}.
-	// Each delivery is signed in X-Inaba-Signature-256 as sha256=<hex HMAC-SHA256 of
-	// the body, keyed with the notifier's secret>, names its event in X-Inaba-Event
-	// and itself in X-Inaba-Delivery, and is tried up to three times.
-	ListNotifiers(context.Context, *v1.ListNotifiersRequest) (*v1.ListNotifiersResponse, error)
-	CreateNotifier(context.Context, *v1.Notifier) (*v1.CreateNotifierResponse, error)
-	DeleteNotifier(context.Context, *v1.DeleteNotifierRequest) (*v1.DeleteNotifierResponse, error)
-	// Sends a "test" event and answers how the delivery went.
-	TestNotifier(context.Context, *v1.TestNotifierRequest) (*v1.NotifierDelivery, error)
 }
 
 // NewAutomationServiceClient constructs a client for the inaba.v1.AutomationService service.
@@ -171,16 +121,6 @@ type AutomationServiceHandler interface {
 	RunAutomation(context.Context, *v1.RunAutomationRequest) (*v1.AutomationRun, error)
 	// Replaces the webhook's secret; the old one stops working.
 	RotateWebhookSecret(context.Context, *v1.RotateWebhookSecretRequest) (*v1.RotateWebhookSecretResponse, error)
-	// Notifiers tell another service when a thread needs attention, by POSTing JSON
-	// to its URL: {"event", "time", "thread": {..., "labels"}, "stopReason", "error", "question"}.
-	// Each delivery is signed in X-Inaba-Signature-256 as sha256=<hex HMAC-SHA256 of
-	// the body, keyed with the notifier's secret>, names its event in X-Inaba-Event
-	// and itself in X-Inaba-Delivery, and is tried up to three times.
-	ListNotifiers(context.Context, *v1.ListNotifiersRequest) (*v1.ListNotifiersResponse, error)
-	CreateNotifier(context.Context, *v1.Notifier) (*v1.CreateNotifierResponse, error)
-	DeleteNotifier(context.Context, *v1.DeleteNotifierRequest) (*v1.DeleteNotifierResponse, error)
-	// Sends a "test" event and answers how the delivery went.
-	TestNotifier(context.Context, *v1.TestNotifierRequest) (*v1.NotifierDelivery, error)
 }
 
 // RegisterAutomationServiceHandler registers svc as the inaba.v1.AutomationService implementation
@@ -194,10 +134,6 @@ func RegisterAutomationServiceHandler(server *connect.Server, svc AutomationServ
 		connect.Method{Spec: automationServiceDeleteAutomationSpec(), Handler: adapter.deleteAutomation},
 		connect.Method{Spec: automationServiceRunAutomationSpec(), Handler: adapter.runAutomation},
 		connect.Method{Spec: automationServiceRotateWebhookSecretSpec(), Handler: adapter.rotateWebhookSecret},
-		connect.Method{Spec: automationServiceListNotifiersSpec(), Handler: adapter.listNotifiers},
-		connect.Method{Spec: automationServiceCreateNotifierSpec(), Handler: adapter.createNotifier},
-		connect.Method{Spec: automationServiceDeleteNotifierSpec(), Handler: adapter.deleteNotifier},
-		connect.Method{Spec: automationServiceTestNotifierSpec(), Handler: adapter.testNotifier},
 	)
 }
 
@@ -226,22 +162,6 @@ func (UnimplementedAutomationServiceHandler) RunAutomation(context.Context, *v1.
 
 func (UnimplementedAutomationServiceHandler) RotateWebhookSecret(context.Context, *v1.RotateWebhookSecretRequest) (*v1.RotateWebhookSecretResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.AutomationService.RotateWebhookSecret is not implemented")
-}
-
-func (UnimplementedAutomationServiceHandler) ListNotifiers(context.Context, *v1.ListNotifiersRequest) (*v1.ListNotifiersResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.AutomationService.ListNotifiers is not implemented")
-}
-
-func (UnimplementedAutomationServiceHandler) CreateNotifier(context.Context, *v1.Notifier) (*v1.CreateNotifierResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.AutomationService.CreateNotifier is not implemented")
-}
-
-func (UnimplementedAutomationServiceHandler) DeleteNotifier(context.Context, *v1.DeleteNotifierRequest) (*v1.DeleteNotifierResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.AutomationService.DeleteNotifier is not implemented")
-}
-
-func (UnimplementedAutomationServiceHandler) TestNotifier(context.Context, *v1.TestNotifierRequest) (*v1.NotifierDelivery, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.AutomationService.TestNotifier is not implemented")
 }
 
 type automationServiceClient struct {
@@ -291,38 +211,6 @@ func (c *automationServiceClient) RunAutomation(ctx context.Context, req *v1.Run
 func (c *automationServiceClient) RotateWebhookSecret(ctx context.Context, req *v1.RotateWebhookSecretRequest) (*v1.RotateWebhookSecretResponse, error) {
 	var res v1.RotateWebhookSecretResponse
 	if err := c.client.CallUnary(ctx, automationServiceRotateWebhookSecretSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-func (c *automationServiceClient) ListNotifiers(ctx context.Context, req *v1.ListNotifiersRequest) (*v1.ListNotifiersResponse, error) {
-	var res v1.ListNotifiersResponse
-	if err := c.client.CallUnary(ctx, automationServiceListNotifiersSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-func (c *automationServiceClient) CreateNotifier(ctx context.Context, req *v1.Notifier) (*v1.CreateNotifierResponse, error) {
-	var res v1.CreateNotifierResponse
-	if err := c.client.CallUnary(ctx, automationServiceCreateNotifierSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-func (c *automationServiceClient) DeleteNotifier(ctx context.Context, req *v1.DeleteNotifierRequest) (*v1.DeleteNotifierResponse, error) {
-	var res v1.DeleteNotifierResponse
-	if err := c.client.CallUnary(ctx, automationServiceDeleteNotifierSpec(), req, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-func (c *automationServiceClient) TestNotifier(ctx context.Context, req *v1.TestNotifierRequest) (*v1.NotifierDelivery, error) {
-	var res v1.NotifierDelivery
-	if err := c.client.CallUnary(ctx, automationServiceTestNotifierSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -396,54 +284,6 @@ func (h automationServiceHandler) rotateWebhookSecret(ctx context.Context, _ con
 		return err
 	}
 	res, err := h.svc.RotateWebhookSecret(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h automationServiceHandler) listNotifiers(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.ListNotifiersRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.ListNotifiers(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h automationServiceHandler) createNotifier(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.Notifier
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.CreateNotifier(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h automationServiceHandler) deleteNotifier(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.DeleteNotifierRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.DeleteNotifier(ctx, &req)
-	if err != nil {
-		return err
-	}
-	return stream.Send(res)
-}
-
-func (h automationServiceHandler) testNotifier(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
-	var req v1.TestNotifierRequest
-	if err := stream.Receive(&req); err != nil {
-		return err
-	}
-	res, err := h.svc.TestNotifier(ctx, &req)
 	if err != nil {
 		return err
 	}

@@ -1,4 +1,5 @@
-import { ArrowLeftIcon, BotIcon, CornerLeftUpIcon, FolderGit2Icon, FolderIcon, FolderPlusIcon, FolderSearchIcon, PlusIcon, SearchIcon, SettingsIcon, SquareTerminalIcon } from "lucide-react";
+import { Code, ConnectError } from "@connectrpc/connect";
+import { ArrowLeftIcon, BotIcon, CornerLeftUpIcon, FolderGit2Icon, FolderIcon, FolderPlusIcon, FolderSearchIcon, PlusIcon, SearchIcon, SettingsIcon, SquareTerminalIcon, UserIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { HostLink } from "@/api";
@@ -8,7 +9,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { HostAvatar, hostSubtitle } from "@/components/host-icon";
 import { defaultFilter } from "cmdk";
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { type ListDirectoryResponse, type Project, type Thread, ThreadMode } from "@/gen/inaba/v1/host_pb";
+import { type ListDirectoryResponse, type Project, type SearchHit, type Thread, ThreadMode } from "@/gen/inaba/v1/host_pb";
+import type { HostTerminal } from "@/gen/inaba/v1/terminal_pb";
 import type { Host } from "@/gen/inaba/v1/server_pb";
 import { showError } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
@@ -18,6 +20,8 @@ export type PalettePage = "root" | "folder";
 
 // The value of the row a typed or browsed path offers, kept fixed whatever the path.
 const PATH_ROW = "\u0000path";
+// The value of a message found on the host: it already matches, so it is not filtered again.
+const HIT_ROW = "\u0000hit";
 // What reads as a folder path rather than a search: /…, ~ or ~/…, C:\….
 const PATH = /^(\/|~([\/\\]|$)|[A-Za-z]:[\/\\])/;
 
@@ -42,6 +46,8 @@ export function CommandPalette({
   onOpenThread,
   onNewThread,
   onSettings,
+  terminals: terminalsOn,
+  onOpenTerminal,
 }: {
   /** The page shown; the palette is open while it is set. */
   page?: PalettePage;
@@ -56,11 +62,15 @@ export function CommandPalette({
   onOpenThread: (id: string) => void;
   onNewThread: (project: Project) => void;
   onSettings: () => void;
+  /** The host's terminals are offered: the account may open them and the module is on. */
+  terminals: boolean;
+  onOpenTerminal: (id: string) => void;
 }) {
   const { t } = useI18n();
   const [search, setSearch] = useState("");
   const [threads, setThreads] = useState<Thread[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [terminals, setTerminals] = useState<HostTerminal[]>([]);
   const [listing, setListing] = useState<ListDirectoryResponse>();
   // A folder being read, and a project being added.
   const [reading, setReading] = useState(false);
@@ -75,7 +85,38 @@ export function CommandPalette({
       setThreads(th.threads);
       setProjects(pr.projects);
     }, showError);
-  }, [open, link]);
+    setTerminals([]);
+    if (terminalsOn) link.hostTerminals.listHostTerminals({}).then((r) => setTerminals(r.terminals), () => {});
+  }, [open, link, terminalsOn]);
+
+  // Messages that say what is searched for, looked up on the host; shown only for the search they answer.
+  const [hits, setHits] = useState<{ query: string; hits: SearchHit[] }>();
+  const [searching, setSearching] = useState(false);
+  useEffect(() => {
+    if (page !== "root" || !link || PATH.test(search) || search.trim().length < 2) return;
+    const abort = new AbortController();
+    const timer = setTimeout(() => {
+      setSearching(true);
+      link.threads
+        .searchThreads({ query: search }, { signal: abort.signal })
+        .then(
+          (r) => setHits({ query: search, hits: r.hits }),
+          // A host from before search answers Unimplemented, and shows no messages.
+          (e) => ![Code.Unimplemented, Code.Canceled].includes(ConnectError.from(e).code) && showError(e),
+        )
+        .finally(() => abort.signal.aborted || setSearching(false));
+    }, 200);
+    return () => (clearTimeout(timer), abort.abort(), setSearching(false));
+  }, [page, link, search]);
+  const [opening, setOpening] = useState(false);
+  const newTerminal = () => {
+    if (!link || opening) return;
+    setOpening(true);
+    link.hostTerminals
+      .openHostTerminal({})
+      .then((term) => run(() => onOpenTerminal(term.id)), showError)
+      .finally(() => setOpening(false));
+  };
 
   const browse = useCallback(
     (path: string) => {
@@ -185,7 +226,8 @@ export function CommandPalette({
     <CommandDialog open={open} onOpenChange={(next) => !next && onClose()} title={t("search.open")} description={t("search.open")} className="top-1/2 -translate-y-1/2 sm:max-w-xl">
       <Command
         // The typed-path row always shows: its value stays fixed, as cmdk breaks when a mounted item's value changes.
-        filter={(value, query, keywords) => (value.startsWith(PATH_ROW) ? 1 : defaultFilter!(value, query, keywords))}
+        // Hits rank last, so ones arriving late do not take the selection from a thread whose name matches.
+        filter={(value, query, keywords) => (value.startsWith(PATH_ROW) ? 1 : value.startsWith(HIT_ROW) ? 0.001 : defaultFilter!(value, query, keywords))}
         onKeyDown={(e) => {
           // On an empty search, Backspace steps back: up a folder, then out of the folder page.
           if (e.key !== "Backspace" || search !== "" || page !== "folder") return;
@@ -289,6 +331,52 @@ export function CommandPalette({
                       </span>
                     </CommandItem>
                   ))}
+                </CommandGroup>
+              )}
+              {(searching || hits?.query === search) && (
+                <CommandGroup
+                  // Its heading shows while the first search is in flight, before any message is found.
+                  forceMount={searching}
+                  heading={
+                    <span className="flex items-center gap-1.5">
+                      {t("palette.messages")}
+                      {searching && <Spinner className="size-3" />}
+                    </span>
+                  }
+                >
+                  {hits?.query === search &&
+                    hits.hits.map((hit) => {
+                      const thread = threads.find((th) => th.id === hit.threadId);
+                      return (
+                        thread && (
+                          <CommandItem key={`${hit.threadId} ${hit.seq}`} value={`${HIT_ROW}${hit.threadId} ${hit.seq}`} onSelect={() => run(() => onOpenThread(hit.threadId))}>
+                            {hit.kind === "user" ? <UserIcon /> : <BotIcon />}
+                            <span className="grid min-w-0 leading-tight">
+                              <span className="truncate">{threadName(thread)}</span>
+                              <span className="text-muted-foreground truncate text-xs">
+                                {hit.snippet.slice(0, hit.matchStart)}
+                                <mark className="bg-primary/20 text-foreground rounded-sm">{hit.snippet.slice(hit.matchStart, hit.matchEnd)}</mark>
+                                {hit.snippet.slice(hit.matchEnd)}
+                              </span>
+                            </span>
+                          </CommandItem>
+                        )
+                      );
+                    })}
+                </CommandGroup>
+              )}
+              {link && terminalsOn && (
+                <CommandGroup heading={t("terminals.title")}>
+                  {terminals.map((term) => (
+                    <CommandItem key={term.id} value={`${term.title} ${term.cwd} ${term.id}`} onSelect={() => run(() => onOpenTerminal(term.id))}>
+                      <SquareTerminalIcon />
+                      <span className="truncate">{term.title || term.cwd}</span>
+                    </CommandItem>
+                  ))}
+                  <CommandItem value={t("terminals.new")} disabled={opening} onSelect={newTerminal}>
+                    {opening ? <Spinner /> : <PlusIcon />}
+                    {t("terminals.new")}
+                  </CommandItem>
                 </CommandGroup>
               )}
               {link && (

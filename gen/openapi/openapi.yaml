@@ -1245,6 +1245,144 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/me/channels:
+        get:
+            tags:
+                - NotificationService
+            description: |-
+                Channels are the other ways the caller is told, beside their devices: a webhook,
+                 ntfy, Discord, Slack or Telegram. They hear the same events by the same rules: not
+                 while the caller has the thread on screen, nor finished turns of what they snoozed.
+
+                 A webhook POSTs JSON: {"event", "time", "host": {"id"}, "thread": {"id", "title",
+                 "projectId", "projectName", "automation", "url"}, "error"}. Each delivery is signed in
+                 X-Inaba-Signature-256 as sha256=<hex HMAC-SHA256 of the body, keyed with the channel's
+                 secret>, names its event in X-Inaba-Event and itself in X-Inaba-Delivery. Every kind
+                 is tried up to three times.
+            operationId: NotificationService_ListChannels
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListChannelsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - NotificationService
+            description: Adds a channel, turned on. An account has at most 20.
+            operationId: NotificationService_CreateChannel
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/NotificationChannel'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateChannelResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/me/channels/{id}:
+        put:
+            tags:
+                - NotificationService
+            description: Changes the label, events, automations_only and enabled; where it delivers stays.
+            operationId: NotificationService_UpdateChannel
+            parameters:
+                - name: id
+                  in: path
+                  description: Set by the server.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/NotificationChannel'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotificationChannel'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        delete:
+            tags:
+                - NotificationService
+            operationId: NotificationService_DeleteChannel
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteChannelResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/me/channels/{id}/test:
+        post:
+            tags:
+                - NotificationService
+            description: Sends a "test" event, even to a channel turned off, and answers how the delivery went.
+            operationId: NotificationService_TestChannel
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/TestChannelRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ChannelDelivery'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/me/devices:
         get:
             tags:
@@ -1766,128 +1904,6 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Module'
-                default:
-                    description: Default error response
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Status'
-    /v1/hosts/{host_id}/notifiers:
-        get:
-            tags:
-                - AutomationService
-            description: |-
-                Notifiers tell another service when a thread needs attention, by POSTing JSON
-                 to its URL: {"event", "time", "thread": {..., "labels"}, "stopReason", "error", "question"}.
-                 Each delivery is signed in X-Inaba-Signature-256 as sha256=<hex HMAC-SHA256 of
-                 the body, keyed with the notifier's secret>, names its event in X-Inaba-Event
-                 and itself in X-Inaba-Delivery, and is tried up to three times.
-            operationId: AutomationService_ListNotifiers
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ListNotifiersResponse'
-                default:
-                    description: Default error response
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Status'
-            parameters:
-                - name: host_id
-                  in: path
-                  required: true
-                  description: The id of the host, from GET /v1/hosts.
-                  schema:
-                    type: string
-        post:
-            tags:
-                - AutomationService
-            operationId: AutomationService_CreateNotifier
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/Notifier'
-                required: true
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/CreateNotifierResponse'
-                default:
-                    description: Default error response
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Status'
-            parameters:
-                - name: host_id
-                  in: path
-                  required: true
-                  description: The id of the host, from GET /v1/hosts.
-                  schema:
-                    type: string
-    /v1/hosts/{host_id}/notifiers/{id}:
-        delete:
-            tags:
-                - AutomationService
-            operationId: AutomationService_DeleteNotifier
-            parameters:
-                - name: host_id
-                  in: path
-                  required: true
-                  description: The id of the host, from GET /v1/hosts.
-                  schema:
-                    type: string
-                - name: id
-                  in: path
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/DeleteNotifierResponse'
-                default:
-                    description: Default error response
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Status'
-    /v1/hosts/{host_id}/notifiers/{id}/test:
-        post:
-            tags:
-                - AutomationService
-            description: Sends a "test" event and answers how the delivery went.
-            operationId: AutomationService_TestNotifier
-            parameters:
-                - name: host_id
-                  in: path
-                  required: true
-                  description: The id of the host, from GET /v1/hosts.
-                  schema:
-                    type: string
-                - name: id
-                  in: path
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/NotifierDelivery'
                 default:
                     description: Default error response
                     content:
@@ -4439,6 +4455,45 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/hosts/{host_id}/threads:search:
+        get:
+            tags:
+                - ThreadService
+            description: |-
+                Finds the threads whose conversation says something: what people wrote and what the
+                 agents answered, newest first. Text of three or more characters goes through the host's
+                 full-text index; shorter text is looked for directly.
+            operationId: ThreadService_SearchThreads
+            parameters:
+                - name: host_id
+                  in: path
+                  required: true
+                  description: The id of the host, from GET /v1/hosts.
+                  schema:
+                    type: string
+                - name: query
+                  in: query
+                  schema:
+                    type: string
+                - name: limit
+                  in: query
+                  description: At most this many hits; 0 means 50.
+                  schema:
+                    type: integer
+                    format: uint32
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SearchThreadsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/tokens:
         get:
             tags:
@@ -5058,6 +5113,21 @@ components:
         ChangePasswordResponse:
             type: object
             properties: {}
+        ChannelDelivery:
+            type: object
+            properties:
+                time:
+                    type: string
+                    format: date-time
+                event:
+                    type: string
+                status:
+                    type: integer
+                    description: The HTTP status of the last try; 0 when none got an answer.
+                    format: uint32
+                error:
+                    type: string
+                    description: Why it did not get through; empty when it did.
         CheckProvidersRequest:
             type: object
             properties: {}
@@ -5140,6 +5210,14 @@ components:
                 webhook_secret:
                     type: string
                     description: Shown once, for an automation with a webhook.
+        CreateChannelResponse:
+            type: object
+            properties:
+                channel:
+                    $ref: '#/components/schemas/NotificationChannel'
+                secret:
+                    type: string
+                    description: A webhook's signing secret, for checking deliveries. Shown once.
         CreateHostInviteRequest:
             type: object
             properties:
@@ -5177,14 +5255,6 @@ components:
                     $ref: '#/components/schemas/Host'
                 secret:
                     type: string
-        CreateNotifierResponse:
-            type: object
-            properties:
-                notifier:
-                    $ref: '#/components/schemas/Notifier'
-                secret:
-                    type: string
-                    description: For checking deliveries' signatures. Shown once.
         CreateProjectRequest:
             type: object
             properties:
@@ -5273,6 +5343,9 @@ components:
         DeleteAutomationResponse:
             type: object
             properties: {}
+        DeleteChannelResponse:
+            type: object
+            properties: {}
         DeleteDeviceResponse:
             type: object
             properties: {}
@@ -5280,9 +5353,6 @@ components:
             type: object
             properties: {}
         DeleteMcpServerResponse:
-            type: object
-            properties: {}
-        DeleteNotifierResponse:
             type: object
             properties: {}
         DeletePasskeyResponse:
@@ -5318,6 +5388,12 @@ components:
             properties:
                 user:
                     type: string
+        DiscordChannel:
+            type: object
+            properties:
+                webhook_url:
+                    type: string
+                    description: https://discord.com/api/webhooks/...; write-only.
         EditQueuedRequest:
             type: object
             properties:
@@ -5856,6 +5932,13 @@ components:
                     description: Local branches, most recently committed to first.
                 current:
                     type: string
+        ListChannelsResponse:
+            type: object
+            properties:
+                channels:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/NotificationChannel'
         ListDevicesResponse:
             type: object
             properties:
@@ -5951,13 +6034,6 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/Module'
-        ListNotifiersResponse:
-            type: object
-            properties:
-                notifiers:
-                    type: array
-                    items:
-                        $ref: '#/components/schemas/Notifier'
         ListPasskeysResponse:
             type: object
             properties:
@@ -6206,15 +6282,28 @@ components:
                     type: boolean
                     description: Start new threads in a worktree of their own rather than the project's folder.
             description: The choices a new thread in a project starts with; each can still be changed there.
-        Notifier:
+        NotificationChannel:
             type: object
             properties:
                 id:
                     type: string
-                    description: Set by the host.
-                url:
+                    description: Set by the server.
+                kind:
                     type: string
-                    description: An http or https address.
+                    description: '"webhook", "ntfy", "discord", "slack" or "telegram": which of config is set. Set by the server.'
+                label:
+                    type: string
+                    description: What to call it; at most 64 characters.
+                webhook:
+                    $ref: '#/components/schemas/WebhookChannel'
+                ntfy:
+                    $ref: '#/components/schemas/NtfyChannel'
+                discord:
+                    $ref: '#/components/schemas/DiscordChannel'
+                slack:
+                    $ref: '#/components/schemas/SlackChannel'
+                telegram:
+                    $ref: '#/components/schemas/TelegramChannel'
                 events:
                     type: array
                     items:
@@ -6224,31 +6313,28 @@ components:
                          error), input.needed (the agent waits for an answer). Empty for all of them.
                 automations_only:
                     type: boolean
-                    description: 'Only for threads automations started: those with an "automation" label.'
-                deliveries:
-                    type: array
-                    items:
-                        $ref: '#/components/schemas/NotifierDelivery'
-                    description: The latest deliveries, newest first. Set by the host.
+                    description: Only for threads automations started.
+                enabled:
+                    type: boolean
+                    description: A channel turned off is sent nothing but tests. CreateChannel ignores it.
                 created_at:
                     type: string
                     format: date-time
-        NotifierDelivery:
+                last_delivery:
+                    allOf:
+                        - $ref: '#/components/schemas/ChannelDelivery'
+                    description: How the latest delivery went; unset until one was tried. Set by the server.
+        NtfyChannel:
             type: object
             properties:
-                time:
+                server_url:
                     type: string
-                    format: date-time
-                event:
+                    description: The ntfy server, such as https://ntfy.sh.
+                topic:
                     type: string
-                thread_id:
+                access_token:
                     type: string
-                status:
-                    type: integer
-                    description: The HTTP status of the last try; 0 when none got an answer.
-                    format: uint32
-                error:
-                    type: string
+                    description: Optional; write-only.
         OnboardRequest:
             type: object
             properties:
@@ -6781,6 +6867,39 @@ components:
                     items:
                         type: string
                     description: Paths relative to the thread's folder, best match first; at most 50.
+        SearchHit:
+            type: object
+            properties:
+                thread_id:
+                    type: string
+                seq:
+                    type: string
+                    description: 'The message''s event: a user message''s, or the first text of an agent''s answer.'
+                kind:
+                    type: string
+                    description: '"user" or "assistant".'
+                snippet:
+                    type: string
+                    description: |-
+                        The text around the match, on one line, and where the match is in it, in UTF-16
+                         code units as a browser counts them.
+                match_start:
+                    type: integer
+                    format: uint32
+                match_end:
+                    type: integer
+                    format: uint32
+                time:
+                    type: string
+                    format: date-time
+            description: A message that says what was searched for.
+        SearchThreadsResponse:
+            type: object
+            properties:
+                hits:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/SearchHit'
         ServerHousekeeping:
             type: object
             properties:
@@ -6903,6 +7022,12 @@ components:
         SetPasswordResponse:
             type: object
             properties: {}
+        SlackChannel:
+            type: object
+            properties:
+                webhook_url:
+                    type: string
+                    description: https://hooks.slack.com/...; write-only.
         Snooze:
             type: object
             properties:
@@ -7031,6 +7156,19 @@ components:
                 inaba_version:
                     type: string
                     description: The version of inaba the host runs.
+        TelegramChannel:
+            type: object
+            properties:
+                bot_token:
+                    type: string
+                    description: From @BotFather; write-only.
+                chat_id:
+                    type: string
+        TestChannelRequest:
+            type: object
+            properties:
+                id:
+                    type: string
         TestDeviceRequest:
             type: object
             properties:
@@ -7151,6 +7289,12 @@ components:
                          provider and title changes moves last_seq but not this, so opening a thread or moving
                          a tab does not make it unread or recent. 0 until the conversation starts. Resume
                          streams with last_seq; compare seen marks with this.
+                background_agents:
+                    type: integer
+                    description: |-
+                        How many agents of background workflows its agent started are still running. The
+                         thread is still at work while this is above 0, even with its turn over.
+                    format: uint32
         ThreadSeen:
             type: object
             properties:
@@ -7577,6 +7721,12 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/Attachment'
+        WebhookChannel:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: An http or https address.
         WorkflowAgent:
             type: object
             properties:

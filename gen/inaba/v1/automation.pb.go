@@ -4,7 +4,7 @@
 // 	protoc        (unknown)
 // source: inaba/v1/automation.proto
 
-// Automations and notifiers: the automations module of a host. inaba-server proxies
+// Automations: the automations module of a host. inaba-server proxies
 // it under /hosts/{host_id}/, like the rest of the host API.
 
 package inabav1
@@ -25,430 +25,6 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
-
-type Notifier struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Set by the host.
-	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	// An http or https address.
-	Url string `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
-	// Which events to send: turn.ended (a turn finished), turn.failed (it ended in an
-	// error), input.needed (the agent waits for an answer). Empty for all of them.
-	Events []string `protobuf:"bytes,3,rep,name=events,proto3" json:"events,omitempty"`
-	// Only for threads automations started: those with an "automation" label.
-	AutomationsOnly bool `protobuf:"varint,4,opt,name=automations_only,json=automationsOnly,proto3" json:"automations_only,omitempty"`
-	// The latest deliveries, newest first. Set by the host.
-	Deliveries    []*NotifierDelivery    `protobuf:"bytes,5,rep,name=deliveries,proto3" json:"deliveries,omitempty"`
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Notifier) Reset() {
-	*x = Notifier{}
-	mi := &file_inaba_v1_automation_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Notifier) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Notifier) ProtoMessage() {}
-
-func (x *Notifier) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_automation_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Notifier.ProtoReflect.Descriptor instead.
-func (*Notifier) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *Notifier) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *Notifier) GetUrl() string {
-	if x != nil {
-		return x.Url
-	}
-	return ""
-}
-
-func (x *Notifier) GetEvents() []string {
-	if x != nil {
-		return x.Events
-	}
-	return nil
-}
-
-func (x *Notifier) GetAutomationsOnly() bool {
-	if x != nil {
-		return x.AutomationsOnly
-	}
-	return false
-}
-
-func (x *Notifier) GetDeliveries() []*NotifierDelivery {
-	if x != nil {
-		return x.Deliveries
-	}
-	return nil
-}
-
-func (x *Notifier) GetCreatedAt() *timestamppb.Timestamp {
-	if x != nil {
-		return x.CreatedAt
-	}
-	return nil
-}
-
-type NotifierDelivery struct {
-	state    protoimpl.MessageState `protogen:"open.v1"`
-	Time     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=time,proto3" json:"time,omitempty"`
-	Event    string                 `protobuf:"bytes,2,opt,name=event,proto3" json:"event,omitempty"`
-	ThreadId string                 `protobuf:"bytes,3,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
-	// The HTTP status of the last try; 0 when none got an answer.
-	Status        uint32 `protobuf:"varint,4,opt,name=status,proto3" json:"status,omitempty"`
-	Error         string `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *NotifierDelivery) Reset() {
-	*x = NotifierDelivery{}
-	mi := &file_inaba_v1_automation_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *NotifierDelivery) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*NotifierDelivery) ProtoMessage() {}
-
-func (x *NotifierDelivery) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_automation_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use NotifierDelivery.ProtoReflect.Descriptor instead.
-func (*NotifierDelivery) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *NotifierDelivery) GetTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.Time
-	}
-	return nil
-}
-
-func (x *NotifierDelivery) GetEvent() string {
-	if x != nil {
-		return x.Event
-	}
-	return ""
-}
-
-func (x *NotifierDelivery) GetThreadId() string {
-	if x != nil {
-		return x.ThreadId
-	}
-	return ""
-}
-
-func (x *NotifierDelivery) GetStatus() uint32 {
-	if x != nil {
-		return x.Status
-	}
-	return 0
-}
-
-func (x *NotifierDelivery) GetError() string {
-	if x != nil {
-		return x.Error
-	}
-	return ""
-}
-
-type ListNotifiersRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListNotifiersRequest) Reset() {
-	*x = ListNotifiersRequest{}
-	mi := &file_inaba_v1_automation_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListNotifiersRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListNotifiersRequest) ProtoMessage() {}
-
-func (x *ListNotifiersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_automation_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListNotifiersRequest.ProtoReflect.Descriptor instead.
-func (*ListNotifiersRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{2}
-}
-
-type ListNotifiersResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Notifiers     []*Notifier            `protobuf:"bytes,1,rep,name=notifiers,proto3" json:"notifiers,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListNotifiersResponse) Reset() {
-	*x = ListNotifiersResponse{}
-	mi := &file_inaba_v1_automation_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListNotifiersResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListNotifiersResponse) ProtoMessage() {}
-
-func (x *ListNotifiersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_automation_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListNotifiersResponse.ProtoReflect.Descriptor instead.
-func (*ListNotifiersResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *ListNotifiersResponse) GetNotifiers() []*Notifier {
-	if x != nil {
-		return x.Notifiers
-	}
-	return nil
-}
-
-type CreateNotifierResponse struct {
-	state    protoimpl.MessageState `protogen:"open.v1"`
-	Notifier *Notifier              `protobuf:"bytes,1,opt,name=notifier,proto3" json:"notifier,omitempty"`
-	// For checking deliveries' signatures. Shown once.
-	Secret        string `protobuf:"bytes,2,opt,name=secret,proto3" json:"secret,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *CreateNotifierResponse) Reset() {
-	*x = CreateNotifierResponse{}
-	mi := &file_inaba_v1_automation_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CreateNotifierResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CreateNotifierResponse) ProtoMessage() {}
-
-func (x *CreateNotifierResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_automation_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CreateNotifierResponse.ProtoReflect.Descriptor instead.
-func (*CreateNotifierResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *CreateNotifierResponse) GetNotifier() *Notifier {
-	if x != nil {
-		return x.Notifier
-	}
-	return nil
-}
-
-func (x *CreateNotifierResponse) GetSecret() string {
-	if x != nil {
-		return x.Secret
-	}
-	return ""
-}
-
-type DeleteNotifierRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *DeleteNotifierRequest) Reset() {
-	*x = DeleteNotifierRequest{}
-	mi := &file_inaba_v1_automation_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *DeleteNotifierRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*DeleteNotifierRequest) ProtoMessage() {}
-
-func (x *DeleteNotifierRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_automation_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DeleteNotifierRequest.ProtoReflect.Descriptor instead.
-func (*DeleteNotifierRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *DeleteNotifierRequest) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-type DeleteNotifierResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *DeleteNotifierResponse) Reset() {
-	*x = DeleteNotifierResponse{}
-	mi := &file_inaba_v1_automation_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *DeleteNotifierResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*DeleteNotifierResponse) ProtoMessage() {}
-
-func (x *DeleteNotifierResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_automation_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DeleteNotifierResponse.ProtoReflect.Descriptor instead.
-func (*DeleteNotifierResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{6}
-}
-
-type TestNotifierRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *TestNotifierRequest) Reset() {
-	*x = TestNotifierRequest{}
-	mi := &file_inaba_v1_automation_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *TestNotifierRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*TestNotifierRequest) ProtoMessage() {}
-
-func (x *TestNotifierRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_automation_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use TestNotifierRequest.ProtoReflect.Descriptor instead.
-func (*TestNotifierRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *TestNotifierRequest) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
 
 type Automation struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -480,7 +56,7 @@ type Automation struct {
 
 func (x *Automation) Reset() {
 	*x = Automation{}
-	mi := &file_inaba_v1_automation_proto_msgTypes[8]
+	mi := &file_inaba_v1_automation_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -492,7 +68,7 @@ func (x *Automation) String() string {
 func (*Automation) ProtoMessage() {}
 
 func (x *Automation) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_automation_proto_msgTypes[8]
+	mi := &file_inaba_v1_automation_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -505,7 +81,7 @@ func (x *Automation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Automation.ProtoReflect.Descriptor instead.
 func (*Automation) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{8}
+	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Automation) GetId() string {
@@ -599,7 +175,7 @@ type Schedule struct {
 
 func (x *Schedule) Reset() {
 	*x = Schedule{}
-	mi := &file_inaba_v1_automation_proto_msgTypes[9]
+	mi := &file_inaba_v1_automation_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -611,7 +187,7 @@ func (x *Schedule) String() string {
 func (*Schedule) ProtoMessage() {}
 
 func (x *Schedule) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_automation_proto_msgTypes[9]
+	mi := &file_inaba_v1_automation_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -624,7 +200,7 @@ func (x *Schedule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Schedule.ProtoReflect.Descriptor instead.
 func (*Schedule) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{9}
+	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *Schedule) GetWhen() isSchedule_When {
@@ -695,7 +271,7 @@ type Daily struct {
 
 func (x *Daily) Reset() {
 	*x = Daily{}
-	mi := &file_inaba_v1_automation_proto_msgTypes[10]
+	mi := &file_inaba_v1_automation_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -707,7 +283,7 @@ func (x *Daily) String() string {
 func (*Daily) ProtoMessage() {}
 
 func (x *Daily) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_automation_proto_msgTypes[10]
+	mi := &file_inaba_v1_automation_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -720,7 +296,7 @@ func (x *Daily) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Daily.ProtoReflect.Descriptor instead.
 func (*Daily) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{10}
+	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Daily) GetAt() string {
@@ -752,7 +328,7 @@ type NewThread struct {
 
 func (x *NewThread) Reset() {
 	*x = NewThread{}
-	mi := &file_inaba_v1_automation_proto_msgTypes[11]
+	mi := &file_inaba_v1_automation_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -764,7 +340,7 @@ func (x *NewThread) String() string {
 func (*NewThread) ProtoMessage() {}
 
 func (x *NewThread) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_automation_proto_msgTypes[11]
+	mi := &file_inaba_v1_automation_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -777,7 +353,7 @@ func (x *NewThread) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NewThread.ProtoReflect.Descriptor instead.
 func (*NewThread) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{11}
+	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *NewThread) GetProvider() string {
@@ -830,7 +406,7 @@ type AutomationRun struct {
 
 func (x *AutomationRun) Reset() {
 	*x = AutomationRun{}
-	mi := &file_inaba_v1_automation_proto_msgTypes[12]
+	mi := &file_inaba_v1_automation_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -842,7 +418,7 @@ func (x *AutomationRun) String() string {
 func (*AutomationRun) ProtoMessage() {}
 
 func (x *AutomationRun) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_automation_proto_msgTypes[12]
+	mi := &file_inaba_v1_automation_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -855,7 +431,7 @@ func (x *AutomationRun) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AutomationRun.ProtoReflect.Descriptor instead.
 func (*AutomationRun) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{12}
+	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *AutomationRun) GetTime() *timestamppb.Timestamp {
@@ -894,7 +470,7 @@ type ListAutomationsRequest struct {
 
 func (x *ListAutomationsRequest) Reset() {
 	*x = ListAutomationsRequest{}
-	mi := &file_inaba_v1_automation_proto_msgTypes[13]
+	mi := &file_inaba_v1_automation_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -906,7 +482,7 @@ func (x *ListAutomationsRequest) String() string {
 func (*ListAutomationsRequest) ProtoMessage() {}
 
 func (x *ListAutomationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_automation_proto_msgTypes[13]
+	mi := &file_inaba_v1_automation_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -919,7 +495,7 @@ func (x *ListAutomationsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAutomationsRequest.ProtoReflect.Descriptor instead.
 func (*ListAutomationsRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{13}
+	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{5}
 }
 
 type ListAutomationsResponse struct {
@@ -931,7 +507,7 @@ type ListAutomationsResponse struct {
 
 func (x *ListAutomationsResponse) Reset() {
 	*x = ListAutomationsResponse{}
-	mi := &file_inaba_v1_automation_proto_msgTypes[14]
+	mi := &file_inaba_v1_automation_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -943,7 +519,7 @@ func (x *ListAutomationsResponse) String() string {
 func (*ListAutomationsResponse) ProtoMessage() {}
 
 func (x *ListAutomationsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_automation_proto_msgTypes[14]
+	mi := &file_inaba_v1_automation_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -956,7 +532,7 @@ func (x *ListAutomationsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAutomationsResponse.ProtoReflect.Descriptor instead.
 func (*ListAutomationsResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{14}
+	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ListAutomationsResponse) GetAutomations() []*Automation {
@@ -977,7 +553,7 @@ type CreateAutomationResponse struct {
 
 func (x *CreateAutomationResponse) Reset() {
 	*x = CreateAutomationResponse{}
-	mi := &file_inaba_v1_automation_proto_msgTypes[15]
+	mi := &file_inaba_v1_automation_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -989,7 +565,7 @@ func (x *CreateAutomationResponse) String() string {
 func (*CreateAutomationResponse) ProtoMessage() {}
 
 func (x *CreateAutomationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_automation_proto_msgTypes[15]
+	mi := &file_inaba_v1_automation_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1002,7 +578,7 @@ func (x *CreateAutomationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateAutomationResponse.ProtoReflect.Descriptor instead.
 func (*CreateAutomationResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{15}
+	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *CreateAutomationResponse) GetAutomation() *Automation {
@@ -1028,7 +604,7 @@ type DeleteAutomationRequest struct {
 
 func (x *DeleteAutomationRequest) Reset() {
 	*x = DeleteAutomationRequest{}
-	mi := &file_inaba_v1_automation_proto_msgTypes[16]
+	mi := &file_inaba_v1_automation_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1040,7 +616,7 @@ func (x *DeleteAutomationRequest) String() string {
 func (*DeleteAutomationRequest) ProtoMessage() {}
 
 func (x *DeleteAutomationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_automation_proto_msgTypes[16]
+	mi := &file_inaba_v1_automation_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1053,7 +629,7 @@ func (x *DeleteAutomationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAutomationRequest.ProtoReflect.Descriptor instead.
 func (*DeleteAutomationRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{16}
+	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *DeleteAutomationRequest) GetId() string {
@@ -1071,7 +647,7 @@ type DeleteAutomationResponse struct {
 
 func (x *DeleteAutomationResponse) Reset() {
 	*x = DeleteAutomationResponse{}
-	mi := &file_inaba_v1_automation_proto_msgTypes[17]
+	mi := &file_inaba_v1_automation_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1083,7 +659,7 @@ func (x *DeleteAutomationResponse) String() string {
 func (*DeleteAutomationResponse) ProtoMessage() {}
 
 func (x *DeleteAutomationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_automation_proto_msgTypes[17]
+	mi := &file_inaba_v1_automation_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1096,7 +672,7 @@ func (x *DeleteAutomationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAutomationResponse.ProtoReflect.Descriptor instead.
 func (*DeleteAutomationResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{17}
+	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{9}
 }
 
 type RunAutomationRequest struct {
@@ -1108,7 +684,7 @@ type RunAutomationRequest struct {
 
 func (x *RunAutomationRequest) Reset() {
 	*x = RunAutomationRequest{}
-	mi := &file_inaba_v1_automation_proto_msgTypes[18]
+	mi := &file_inaba_v1_automation_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1120,7 +696,7 @@ func (x *RunAutomationRequest) String() string {
 func (*RunAutomationRequest) ProtoMessage() {}
 
 func (x *RunAutomationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_automation_proto_msgTypes[18]
+	mi := &file_inaba_v1_automation_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1133,7 +709,7 @@ func (x *RunAutomationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunAutomationRequest.ProtoReflect.Descriptor instead.
 func (*RunAutomationRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{18}
+	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *RunAutomationRequest) GetId() string {
@@ -1152,7 +728,7 @@ type RotateWebhookSecretRequest struct {
 
 func (x *RotateWebhookSecretRequest) Reset() {
 	*x = RotateWebhookSecretRequest{}
-	mi := &file_inaba_v1_automation_proto_msgTypes[19]
+	mi := &file_inaba_v1_automation_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1164,7 +740,7 @@ func (x *RotateWebhookSecretRequest) String() string {
 func (*RotateWebhookSecretRequest) ProtoMessage() {}
 
 func (x *RotateWebhookSecretRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_automation_proto_msgTypes[19]
+	mi := &file_inaba_v1_automation_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1177,7 +753,7 @@ func (x *RotateWebhookSecretRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RotateWebhookSecretRequest.ProtoReflect.Descriptor instead.
 func (*RotateWebhookSecretRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{19}
+	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *RotateWebhookSecretRequest) GetId() string {
@@ -1196,7 +772,7 @@ type RotateWebhookSecretResponse struct {
 
 func (x *RotateWebhookSecretResponse) Reset() {
 	*x = RotateWebhookSecretResponse{}
-	mi := &file_inaba_v1_automation_proto_msgTypes[20]
+	mi := &file_inaba_v1_automation_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1208,7 +784,7 @@ func (x *RotateWebhookSecretResponse) String() string {
 func (*RotateWebhookSecretResponse) ProtoMessage() {}
 
 func (x *RotateWebhookSecretResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_automation_proto_msgTypes[20]
+	mi := &file_inaba_v1_automation_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1221,7 +797,7 @@ func (x *RotateWebhookSecretResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RotateWebhookSecretResponse.ProtoReflect.Descriptor instead.
 func (*RotateWebhookSecretResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{20}
+	return file_inaba_v1_automation_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *RotateWebhookSecretResponse) GetWebhookSecret() string {
@@ -1235,34 +811,7 @@ var File_inaba_v1_automation_proto protoreflect.FileDescriptor
 
 const file_inaba_v1_automation_proto_rawDesc = "" +
 	"\n" +
-	"\x19inaba/v1/automation.proto\x12\binaba.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe6\x01\n" +
-	"\bNotifier\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
-	"\x03url\x18\x02 \x01(\tR\x03url\x12\x16\n" +
-	"\x06events\x18\x03 \x03(\tR\x06events\x12)\n" +
-	"\x10automations_only\x18\x04 \x01(\bR\x0fautomationsOnly\x12:\n" +
-	"\n" +
-	"deliveries\x18\x05 \x03(\v2\x1a.inaba.v1.NotifierDeliveryR\n" +
-	"deliveries\x129\n" +
-	"\n" +
-	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xa3\x01\n" +
-	"\x10NotifierDelivery\x12.\n" +
-	"\x04time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x12\x14\n" +
-	"\x05event\x18\x02 \x01(\tR\x05event\x12\x1b\n" +
-	"\tthread_id\x18\x03 \x01(\tR\bthreadId\x12\x16\n" +
-	"\x06status\x18\x04 \x01(\rR\x06status\x12\x14\n" +
-	"\x05error\x18\x05 \x01(\tR\x05error\"\x16\n" +
-	"\x14ListNotifiersRequest\"I\n" +
-	"\x15ListNotifiersResponse\x120\n" +
-	"\tnotifiers\x18\x01 \x03(\v2\x12.inaba.v1.NotifierR\tnotifiers\"`\n" +
-	"\x16CreateNotifierResponse\x12.\n" +
-	"\bnotifier\x18\x01 \x01(\v2\x12.inaba.v1.NotifierR\bnotifier\x12\x16\n" +
-	"\x06secret\x18\x02 \x01(\tR\x06secret\"'\n" +
-	"\x15DeleteNotifierRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\x18\n" +
-	"\x16DeleteNotifierResponse\"%\n" +
-	"\x13TestNotifierRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\x9c\x03\n" +
+	"\x19inaba/v1/automation.proto\x12\binaba.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9c\x03\n" +
 	"\n" +
 	"Automation\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -1318,18 +867,14 @@ const file_inaba_v1_automation_proto_rawDesc = "" +
 	"\x1aRotateWebhookSecretRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"D\n" +
 	"\x1bRotateWebhookSecretResponse\x12%\n" +
-	"\x0ewebhook_secret\x18\x01 \x01(\tR\rwebhookSecret2\xf1\b\n" +
+	"\x0ewebhook_secret\x18\x01 \x01(\tR\rwebhookSecret2\xc9\x05\n" +
 	"\x11AutomationService\x12o\n" +
 	"\x0fListAutomations\x12 .inaba.v1.ListAutomationsRequest\x1a!.inaba.v1.ListAutomationsResponse\"\x17\x82\xd3\xe4\x93\x02\x11\x12\x0f/v1/automations\x12h\n" +
 	"\x10CreateAutomation\x12\x14.inaba.v1.Automation\x1a\".inaba.v1.CreateAutomationResponse\"\x1a\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/automations\x12_\n" +
 	"\x10UpdateAutomation\x12\x14.inaba.v1.Automation\x1a\x14.inaba.v1.Automation\"\x1f\x82\xd3\xe4\x93\x02\x19:\x01*\x1a\x14/v1/automations/{id}\x12w\n" +
 	"\x10DeleteAutomation\x12!.inaba.v1.DeleteAutomationRequest\x1a\".inaba.v1.DeleteAutomationResponse\"\x1c\x82\xd3\xe4\x93\x02\x16*\x14/v1/automations/{id}\x12m\n" +
 	"\rRunAutomation\x12\x1e.inaba.v1.RunAutomationRequest\x1a\x17.inaba.v1.AutomationRun\"#\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/automations/{id}/run\x12\x8f\x01\n" +
-	"\x13RotateWebhookSecret\x12$.inaba.v1.RotateWebhookSecretRequest\x1a%.inaba.v1.RotateWebhookSecretResponse\"+\x82\xd3\xe4\x93\x02%\"#/v1/automations/{id}/webhook-secret\x12g\n" +
-	"\rListNotifiers\x12\x1e.inaba.v1.ListNotifiersRequest\x1a\x1f.inaba.v1.ListNotifiersResponse\"\x15\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/notifiers\x12`\n" +
-	"\x0eCreateNotifier\x12\x12.inaba.v1.Notifier\x1a .inaba.v1.CreateNotifierResponse\"\x18\x82\xd3\xe4\x93\x02\x12:\x01*\"\r/v1/notifiers\x12o\n" +
-	"\x0eDeleteNotifier\x12\x1f.inaba.v1.DeleteNotifierRequest\x1a .inaba.v1.DeleteNotifierResponse\"\x1a\x82\xd3\xe4\x93\x02\x14*\x12/v1/notifiers/{id}\x12j\n" +
-	"\fTestNotifier\x12\x1d.inaba.v1.TestNotifierRequest\x1a\x1a.inaba.v1.NotifierDelivery\"\x1f\x82\xd3\xe4\x93\x02\x19\"\x17/v1/notifiers/{id}/testB\x90\x01\n" +
+	"\x13RotateWebhookSecret\x12$.inaba.v1.RotateWebhookSecretRequest\x1a%.inaba.v1.RotateWebhookSecretResponse\"+\x82\xd3\xe4\x93\x02%\"#/v1/automations/{id}/webhook-secretB\x90\x01\n" +
 	"\fcom.inaba.v1B\x0fAutomationProtoP\x01Z.github.com/Alex4386/inaba/gen/inaba/v1;inabav1\xa2\x02\x03IXX\xaa\x02\bInaba.V1\xca\x02\bInaba\\V1\xe2\x02\x14Inaba\\V1\\GPBMetadata\xea\x02\tInaba::V1b\x06proto3"
 
 var (
@@ -1344,74 +889,53 @@ func file_inaba_v1_automation_proto_rawDescGZIP() []byte {
 	return file_inaba_v1_automation_proto_rawDescData
 }
 
-var file_inaba_v1_automation_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_inaba_v1_automation_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_inaba_v1_automation_proto_goTypes = []any{
-	(*Notifier)(nil),                    // 0: inaba.v1.Notifier
-	(*NotifierDelivery)(nil),            // 1: inaba.v1.NotifierDelivery
-	(*ListNotifiersRequest)(nil),        // 2: inaba.v1.ListNotifiersRequest
-	(*ListNotifiersResponse)(nil),       // 3: inaba.v1.ListNotifiersResponse
-	(*CreateNotifierResponse)(nil),      // 4: inaba.v1.CreateNotifierResponse
-	(*DeleteNotifierRequest)(nil),       // 5: inaba.v1.DeleteNotifierRequest
-	(*DeleteNotifierResponse)(nil),      // 6: inaba.v1.DeleteNotifierResponse
-	(*TestNotifierRequest)(nil),         // 7: inaba.v1.TestNotifierRequest
-	(*Automation)(nil),                  // 8: inaba.v1.Automation
-	(*Schedule)(nil),                    // 9: inaba.v1.Schedule
-	(*Daily)(nil),                       // 10: inaba.v1.Daily
-	(*NewThread)(nil),                   // 11: inaba.v1.NewThread
-	(*AutomationRun)(nil),               // 12: inaba.v1.AutomationRun
-	(*ListAutomationsRequest)(nil),      // 13: inaba.v1.ListAutomationsRequest
-	(*ListAutomationsResponse)(nil),     // 14: inaba.v1.ListAutomationsResponse
-	(*CreateAutomationResponse)(nil),    // 15: inaba.v1.CreateAutomationResponse
-	(*DeleteAutomationRequest)(nil),     // 16: inaba.v1.DeleteAutomationRequest
-	(*DeleteAutomationResponse)(nil),    // 17: inaba.v1.DeleteAutomationResponse
-	(*RunAutomationRequest)(nil),        // 18: inaba.v1.RunAutomationRequest
-	(*RotateWebhookSecretRequest)(nil),  // 19: inaba.v1.RotateWebhookSecretRequest
-	(*RotateWebhookSecretResponse)(nil), // 20: inaba.v1.RotateWebhookSecretResponse
-	nil,                                 // 21: inaba.v1.NewThread.OptionsEntry
-	(*timestamppb.Timestamp)(nil),       // 22: google.protobuf.Timestamp
+	(*Automation)(nil),                  // 0: inaba.v1.Automation
+	(*Schedule)(nil),                    // 1: inaba.v1.Schedule
+	(*Daily)(nil),                       // 2: inaba.v1.Daily
+	(*NewThread)(nil),                   // 3: inaba.v1.NewThread
+	(*AutomationRun)(nil),               // 4: inaba.v1.AutomationRun
+	(*ListAutomationsRequest)(nil),      // 5: inaba.v1.ListAutomationsRequest
+	(*ListAutomationsResponse)(nil),     // 6: inaba.v1.ListAutomationsResponse
+	(*CreateAutomationResponse)(nil),    // 7: inaba.v1.CreateAutomationResponse
+	(*DeleteAutomationRequest)(nil),     // 8: inaba.v1.DeleteAutomationRequest
+	(*DeleteAutomationResponse)(nil),    // 9: inaba.v1.DeleteAutomationResponse
+	(*RunAutomationRequest)(nil),        // 10: inaba.v1.RunAutomationRequest
+	(*RotateWebhookSecretRequest)(nil),  // 11: inaba.v1.RotateWebhookSecretRequest
+	(*RotateWebhookSecretResponse)(nil), // 12: inaba.v1.RotateWebhookSecretResponse
+	nil,                                 // 13: inaba.v1.NewThread.OptionsEntry
+	(*timestamppb.Timestamp)(nil),       // 14: google.protobuf.Timestamp
 }
 var file_inaba_v1_automation_proto_depIdxs = []int32{
-	1,  // 0: inaba.v1.Notifier.deliveries:type_name -> inaba.v1.NotifierDelivery
-	22, // 1: inaba.v1.Notifier.created_at:type_name -> google.protobuf.Timestamp
-	22, // 2: inaba.v1.NotifierDelivery.time:type_name -> google.protobuf.Timestamp
-	0,  // 3: inaba.v1.ListNotifiersResponse.notifiers:type_name -> inaba.v1.Notifier
-	0,  // 4: inaba.v1.CreateNotifierResponse.notifier:type_name -> inaba.v1.Notifier
-	9,  // 5: inaba.v1.Automation.schedule:type_name -> inaba.v1.Schedule
-	11, // 6: inaba.v1.Automation.new_thread:type_name -> inaba.v1.NewThread
-	22, // 7: inaba.v1.Automation.next_run:type_name -> google.protobuf.Timestamp
-	12, // 8: inaba.v1.Automation.runs:type_name -> inaba.v1.AutomationRun
-	22, // 9: inaba.v1.Automation.created_at:type_name -> google.protobuf.Timestamp
-	10, // 10: inaba.v1.Schedule.daily:type_name -> inaba.v1.Daily
-	22, // 11: inaba.v1.Schedule.once_at:type_name -> google.protobuf.Timestamp
-	21, // 12: inaba.v1.NewThread.options:type_name -> inaba.v1.NewThread.OptionsEntry
-	22, // 13: inaba.v1.AutomationRun.time:type_name -> google.protobuf.Timestamp
-	8,  // 14: inaba.v1.ListAutomationsResponse.automations:type_name -> inaba.v1.Automation
-	8,  // 15: inaba.v1.CreateAutomationResponse.automation:type_name -> inaba.v1.Automation
-	13, // 16: inaba.v1.AutomationService.ListAutomations:input_type -> inaba.v1.ListAutomationsRequest
-	8,  // 17: inaba.v1.AutomationService.CreateAutomation:input_type -> inaba.v1.Automation
-	8,  // 18: inaba.v1.AutomationService.UpdateAutomation:input_type -> inaba.v1.Automation
-	16, // 19: inaba.v1.AutomationService.DeleteAutomation:input_type -> inaba.v1.DeleteAutomationRequest
-	18, // 20: inaba.v1.AutomationService.RunAutomation:input_type -> inaba.v1.RunAutomationRequest
-	19, // 21: inaba.v1.AutomationService.RotateWebhookSecret:input_type -> inaba.v1.RotateWebhookSecretRequest
-	2,  // 22: inaba.v1.AutomationService.ListNotifiers:input_type -> inaba.v1.ListNotifiersRequest
-	0,  // 23: inaba.v1.AutomationService.CreateNotifier:input_type -> inaba.v1.Notifier
-	5,  // 24: inaba.v1.AutomationService.DeleteNotifier:input_type -> inaba.v1.DeleteNotifierRequest
-	7,  // 25: inaba.v1.AutomationService.TestNotifier:input_type -> inaba.v1.TestNotifierRequest
-	14, // 26: inaba.v1.AutomationService.ListAutomations:output_type -> inaba.v1.ListAutomationsResponse
-	15, // 27: inaba.v1.AutomationService.CreateAutomation:output_type -> inaba.v1.CreateAutomationResponse
-	8,  // 28: inaba.v1.AutomationService.UpdateAutomation:output_type -> inaba.v1.Automation
-	17, // 29: inaba.v1.AutomationService.DeleteAutomation:output_type -> inaba.v1.DeleteAutomationResponse
-	12, // 30: inaba.v1.AutomationService.RunAutomation:output_type -> inaba.v1.AutomationRun
-	20, // 31: inaba.v1.AutomationService.RotateWebhookSecret:output_type -> inaba.v1.RotateWebhookSecretResponse
-	3,  // 32: inaba.v1.AutomationService.ListNotifiers:output_type -> inaba.v1.ListNotifiersResponse
-	4,  // 33: inaba.v1.AutomationService.CreateNotifier:output_type -> inaba.v1.CreateNotifierResponse
-	6,  // 34: inaba.v1.AutomationService.DeleteNotifier:output_type -> inaba.v1.DeleteNotifierResponse
-	1,  // 35: inaba.v1.AutomationService.TestNotifier:output_type -> inaba.v1.NotifierDelivery
-	26, // [26:36] is the sub-list for method output_type
-	16, // [16:26] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	1,  // 0: inaba.v1.Automation.schedule:type_name -> inaba.v1.Schedule
+	3,  // 1: inaba.v1.Automation.new_thread:type_name -> inaba.v1.NewThread
+	14, // 2: inaba.v1.Automation.next_run:type_name -> google.protobuf.Timestamp
+	4,  // 3: inaba.v1.Automation.runs:type_name -> inaba.v1.AutomationRun
+	14, // 4: inaba.v1.Automation.created_at:type_name -> google.protobuf.Timestamp
+	2,  // 5: inaba.v1.Schedule.daily:type_name -> inaba.v1.Daily
+	14, // 6: inaba.v1.Schedule.once_at:type_name -> google.protobuf.Timestamp
+	13, // 7: inaba.v1.NewThread.options:type_name -> inaba.v1.NewThread.OptionsEntry
+	14, // 8: inaba.v1.AutomationRun.time:type_name -> google.protobuf.Timestamp
+	0,  // 9: inaba.v1.ListAutomationsResponse.automations:type_name -> inaba.v1.Automation
+	0,  // 10: inaba.v1.CreateAutomationResponse.automation:type_name -> inaba.v1.Automation
+	5,  // 11: inaba.v1.AutomationService.ListAutomations:input_type -> inaba.v1.ListAutomationsRequest
+	0,  // 12: inaba.v1.AutomationService.CreateAutomation:input_type -> inaba.v1.Automation
+	0,  // 13: inaba.v1.AutomationService.UpdateAutomation:input_type -> inaba.v1.Automation
+	8,  // 14: inaba.v1.AutomationService.DeleteAutomation:input_type -> inaba.v1.DeleteAutomationRequest
+	10, // 15: inaba.v1.AutomationService.RunAutomation:input_type -> inaba.v1.RunAutomationRequest
+	11, // 16: inaba.v1.AutomationService.RotateWebhookSecret:input_type -> inaba.v1.RotateWebhookSecretRequest
+	6,  // 17: inaba.v1.AutomationService.ListAutomations:output_type -> inaba.v1.ListAutomationsResponse
+	7,  // 18: inaba.v1.AutomationService.CreateAutomation:output_type -> inaba.v1.CreateAutomationResponse
+	0,  // 19: inaba.v1.AutomationService.UpdateAutomation:output_type -> inaba.v1.Automation
+	9,  // 20: inaba.v1.AutomationService.DeleteAutomation:output_type -> inaba.v1.DeleteAutomationResponse
+	4,  // 21: inaba.v1.AutomationService.RunAutomation:output_type -> inaba.v1.AutomationRun
+	12, // 22: inaba.v1.AutomationService.RotateWebhookSecret:output_type -> inaba.v1.RotateWebhookSecretResponse
+	17, // [17:23] is the sub-list for method output_type
+	11, // [11:17] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_inaba_v1_automation_proto_init() }
@@ -1419,7 +943,7 @@ func file_inaba_v1_automation_proto_init() {
 	if File_inaba_v1_automation_proto != nil {
 		return
 	}
-	file_inaba_v1_automation_proto_msgTypes[9].OneofWrappers = []any{
+	file_inaba_v1_automation_proto_msgTypes[1].OneofWrappers = []any{
 		(*Schedule_EveryMinutes)(nil),
 		(*Schedule_Daily)(nil),
 		(*Schedule_OnceAt)(nil),
@@ -1430,7 +954,7 @@ func file_inaba_v1_automation_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_inaba_v1_automation_proto_rawDesc), len(file_inaba_v1_automation_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   22,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
