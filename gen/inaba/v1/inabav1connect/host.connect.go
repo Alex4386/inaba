@@ -92,6 +92,9 @@ const (
 	// ThreadServiceGetWorkflowAgentProcedure is the procedure name of the ThreadService's
 	// GetWorkflowAgent RPC.
 	ThreadServiceGetWorkflowAgentProcedure = "/inaba.v1.ThreadService/GetWorkflowAgent"
+	// ThreadServiceWatchWorkflowAgentProcedure is the procedure name of the ThreadService's
+	// WatchWorkflowAgent RPC.
+	ThreadServiceWatchWorkflowAgentProcedure = "/inaba.v1.ThreadService/WatchWorkflowAgent"
 	// ThreadServiceSubscribeProcedure is the procedure name of the ThreadService's Subscribe RPC.
 	ThreadServiceSubscribeProcedure = "/inaba.v1.ThreadService/Subscribe"
 	// ProjectServiceCreateProjectProcedure is the procedure name of the ProjectService's CreateProject
@@ -338,6 +341,13 @@ var (
 			Procedure:  ThreadServiceGetWorkflowAgentProcedure,
 		}
 	})
+	threadServiceWatchWorkflowAgentSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeServer,
+			Schema:     v1.File_inaba_v1_host_proto.Services().ByName("ThreadService").Methods().ByName("WatchWorkflowAgent"),
+			Procedure:  ThreadServiceWatchWorkflowAgentProcedure,
+		}
+	})
 	threadServiceSubscribeSpec = sync.OnceValue(func() connect.Spec {
 		return connect.Spec{
 			StreamType: connect.StreamTypeServer,
@@ -396,6 +406,8 @@ type ThreadServiceClient interface {
 	ListEvents(context.Context, *v1.ListEventsRequest) (*v1.ListEventsResponse, error)
 	// What one agent of a background workflow the thread's agent started has done so far.
 	GetWorkflowAgent(context.Context, *v1.GetWorkflowAgentRequest) (*v1.GetWorkflowAgentResponse, error)
+	// The agent's conversation again whenever it grows, until the agent is done.
+	WatchWorkflowAgent(context.Context, *v1.GetWorkflowAgentRequest) (ThreadServiceWatchWorkflowAgentClientStream, error)
 	// Sends every event after after_seq, then new ones as they happen.
 	Subscribe(context.Context, *v1.SubscribeRequest) (ThreadServiceSubscribeClientStream, error)
 }
@@ -404,6 +416,27 @@ type ThreadServiceClient interface {
 // service clients may share a single connect.Client.
 func NewThreadServiceClient(client *connect.Client) ThreadServiceClient {
 	return &threadServiceClient{client: client}
+}
+
+// ThreadServiceWatchWorkflowAgentClientStream is the client stream for the ThreadService's
+// WatchWorkflowAgent RPC.
+type ThreadServiceWatchWorkflowAgentClientStream struct {
+	stream connect.ClientStream
+}
+
+// Receive returns the next response message from the server.
+func (s ThreadServiceWatchWorkflowAgentClientStream) Receive() (*v1.GetWorkflowAgentResponse, error) {
+	var res v1.GetWorkflowAgentResponse
+	if err := s.stream.Receive(&res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+// Close releases the stream's resources. It is idempotent and is typically deferred to clean up a
+// stream abandoned before io.EOF.
+func (s ThreadServiceWatchWorkflowAgentClientStream) Close() error {
+	return s.stream.Close()
 }
 
 // ThreadServiceSubscribeClientStream is the client stream for the ThreadService's Subscribe RPC.
@@ -475,6 +508,8 @@ type ThreadServiceHandler interface {
 	ListEvents(context.Context, *v1.ListEventsRequest) (*v1.ListEventsResponse, error)
 	// What one agent of a background workflow the thread's agent started has done so far.
 	GetWorkflowAgent(context.Context, *v1.GetWorkflowAgentRequest) (*v1.GetWorkflowAgentResponse, error)
+	// The agent's conversation again whenever it grows, until the agent is done.
+	WatchWorkflowAgent(context.Context, *v1.GetWorkflowAgentRequest, ThreadServiceWatchWorkflowAgentServerStream) error
 	// Sends every event after after_seq, then new ones as they happen.
 	Subscribe(context.Context, *v1.SubscribeRequest, ThreadServiceSubscribeServerStream) error
 }
@@ -506,8 +541,25 @@ func RegisterThreadServiceHandler(server *connect.Server, svc ThreadServiceHandl
 		connect.Method{Spec: threadServiceForkThreadSpec(), Handler: adapter.forkThread},
 		connect.Method{Spec: threadServiceListEventsSpec(), Handler: adapter.listEvents},
 		connect.Method{Spec: threadServiceGetWorkflowAgentSpec(), Handler: adapter.getWorkflowAgent},
+		connect.Method{Spec: threadServiceWatchWorkflowAgentSpec(), Handler: adapter.watchWorkflowAgent},
 		connect.Method{Spec: threadServiceSubscribeSpec(), Handler: adapter.subscribe},
 	)
+}
+
+// ThreadServiceWatchWorkflowAgentServerStream is the server stream for the ThreadService's
+// WatchWorkflowAgent RPC.
+type ThreadServiceWatchWorkflowAgentServerStream struct {
+	stream connect.ServerStream
+}
+
+// SendHeaders flushes the response headers without a message. The first Send does this implicitly.
+func (s ThreadServiceWatchWorkflowAgentServerStream) SendHeaders() error {
+	return s.stream.SendHeaders()
+}
+
+// Send sends a response message to the client.
+func (s ThreadServiceWatchWorkflowAgentServerStream) Send(res *v1.GetWorkflowAgentResponse) error {
+	return s.stream.Send(res)
 }
 
 // ThreadServiceSubscribeServerStream is the server stream for the ThreadService's Subscribe RPC.
@@ -614,6 +666,10 @@ func (UnimplementedThreadServiceHandler) ListEvents(context.Context, *v1.ListEve
 
 func (UnimplementedThreadServiceHandler) GetWorkflowAgent(context.Context, *v1.GetWorkflowAgentRequest) (*v1.GetWorkflowAgentResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.ThreadService.GetWorkflowAgent is not implemented")
+}
+
+func (UnimplementedThreadServiceHandler) WatchWorkflowAgent(context.Context, *v1.GetWorkflowAgentRequest, ThreadServiceWatchWorkflowAgentServerStream) error {
+	return connect.NewError(connect.CodeUnimplemented, "inaba.v1.ThreadService.WatchWorkflowAgent is not implemented")
 }
 
 func (UnimplementedThreadServiceHandler) Subscribe(context.Context, *v1.SubscribeRequest, ThreadServiceSubscribeServerStream) error {
@@ -798,6 +854,14 @@ func (c *threadServiceClient) GetWorkflowAgent(ctx context.Context, req *v1.GetW
 		return nil, err
 	}
 	return &res, nil
+}
+
+func (c *threadServiceClient) WatchWorkflowAgent(ctx context.Context, req *v1.GetWorkflowAgentRequest) (ThreadServiceWatchWorkflowAgentClientStream, error) {
+	stream, err := c.client.CallServerStream(ctx, threadServiceWatchWorkflowAgentSpec(), req)
+	if err != nil {
+		return ThreadServiceWatchWorkflowAgentClientStream{}, err
+	}
+	return ThreadServiceWatchWorkflowAgentClientStream{stream: stream}, nil
 }
 
 func (c *threadServiceClient) Subscribe(ctx context.Context, req *v1.SubscribeRequest) (ThreadServiceSubscribeClientStream, error) {
@@ -1072,6 +1136,14 @@ func (h threadServiceHandler) getWorkflowAgent(ctx context.Context, _ connect.Sp
 		return err
 	}
 	return stream.Send(res)
+}
+
+func (h threadServiceHandler) watchWorkflowAgent(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.GetWorkflowAgentRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	return h.svc.WatchWorkflowAgent(ctx, &req, ThreadServiceWatchWorkflowAgentServerStream{stream: stream})
 }
 
 func (h threadServiceHandler) subscribe(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {

@@ -540,6 +540,8 @@ service ThreadService {
   rpc GetWorkflowAgent(GetWorkflowAgentRequest) returns (GetWorkflowAgentResponse) {
     option (google.api.http) = {get: "/v1/threads/{thread_id}/tools/{tool_call_id}/agents/{agent_id}"};
   }
+  // The agent's conversation again whenever it grows, until the agent is done.
+  rpc WatchWorkflowAgent(GetWorkflowAgentRequest) returns (stream GetWorkflowAgentResponse);
   // Sends every event after after_seq, then new ones as they happen.
   rpc Subscribe(SubscribeRequest) returns (stream Event);
 }

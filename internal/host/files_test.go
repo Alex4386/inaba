@@ -1,7 +1,11 @@
 package host
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
@@ -126,5 +130,125 @@ func TestGetWorkflowAgent(t *testing.T) {
 		if _, err := h.GetWorkflowAgent(ctx, req); connect.CodeOf(err) != connect.CodeNotFound {
 			t.Errorf("%v: %v", req, err)
 		}
+	}
+}
+
+// Server streams come out over REST as JSON messages one after another, and as server-sent
+// events to a client that asks for them.
+func TestStreamsOverRESTAndSSE(t *testing.T) {
+	srv, threads, _ := setup(t)
+	ctx := context.Background()
+	th, err := threads.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "fake", Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := threads.StartTurn(ctx, &inabav1.StartTurnRequest{ThreadId: th.Id, Text: "hi"}); err != nil {
+		t.Fatal(err)
+	}
+	waitIdle(t, threads, th.Id)
+	get := func(path, accept string) (*http.Response, *bufio.Reader) {
+		t.Helper()
+		reqCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		t.Cleanup(cancel)
+		req, _ := http.NewRequestWithContext(reqCtx, "GET", srv.URL+path, nil)
+		req.Header.Set("Accept", accept)
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { res.Body.Close() })
+		return res, bufio.NewReader(res.Body)
+	}
+
+	// Plain REST streaming: the first event as a JSON object.
+	res, body := get("/v1/threads/"+th.Id+"/events/watch", "application/json")
+	var first struct {
+		Seq string `json:"seq"`
+	}
+	if err := json.NewDecoder(body).Decode(&first); err != nil || res.StatusCode != 200 || first.Seq != "1" {
+		t.Fatalf("REST stream: %d %v %+v", res.StatusCode, err, first)
+	}
+
+	// SSE: one event per message, each a data line of JSON.
+	res, body = get("/v1/threads/"+th.Id+"/events/watch?afterSeq=1", "text/event-stream")
+	if res.StatusCode != 200 || res.Header.Get("Content-Type") != "text/event-stream" {
+		t.Fatalf("SSE response: %d %s", res.StatusCode, res.Header.Get("Content-Type"))
+	}
+	line, _ := body.ReadString('\n')
+	blank, _ := body.ReadString('\n')
+	var ev struct {
+		Seq string `json:"seq"`
+	}
+	if !strings.HasPrefix(line, "data: ") || blank != "\n" || json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &ev) != nil || ev.Seq != "2" {
+		t.Fatalf("SSE event: %q %q", line, blank)
+	}
+
+	// An error before the stream starts keeps its status, not an event stream.
+	if res, _ := get("/v1/threads/nope/events/watch", "text/event-stream"); res.StatusCode != http.StatusNotFound || res.Header.Get("Content-Type") == "text/event-stream" {
+		t.Fatalf("missing thread over SSE: %d %s", res.StatusCode, res.Header.Get("Content-Type"))
+	}
+}
+
+// Watching a workflow agent sends its transcript as it grows and ends once it is done,
+// which SSE reports with an end event.
+func TestWatchWorkflowAgentOverSSE(t *testing.T) {
+	workflowPoll = 20 * time.Millisecond
+	t.Cleanup(func() { workflowPoll = 2 * time.Second })
+	h := New(fakeProvider{})
+	t.Cleanup(h.Close)
+	handler, err := h.Handler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(asServer(handler))
+	t.Cleanup(srv.Close)
+	ctx := Trusted(context.Background())
+	th, _ := h.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "fake", Cwd: t.TempDir()})
+	dir := filepath.Join(t.TempDir(), "subagents", "workflows", "wf_1")
+	os.MkdirAll(dir, 0o700)
+	agentFile := filepath.Join(dir, "agent-a1.jsonl")
+	os.WriteFile(agentFile, []byte(`{"type":"assistant","message":{"content":[{"type":"text","text":"looking"}]}}`+"\n"), 0o600)
+	os.WriteFile(filepath.Join(dir, "journal.jsonl"), []byte(`{"type":"started","agentId":"a1","label":"x"}`+"\n"), 0o600)
+	raw, _ := structpb.NewValue(map[string]any{"_meta": map[string]any{"claudeCode": map[string]any{"toolResponse": map[string]any{"taskType": "local_workflow", "transcriptDir": dir}}}})
+	tr, _ := h.thread(th.Id)
+	tr.emit(&inabav1.Event{Payload: &inabav1.Event_ToolCall{ToolCall: &inabav1.ToolCall{Id: "w", Raw: raw}}})
+
+	reqCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(reqCtx, "GET", srv.URL+"/v1/threads/"+th.Id+"/tools/w/agents/a1/watch", nil)
+	req.Header.Set("Accept", "text/event-stream")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	body := bufio.NewReader(res.Body)
+	next := func() string {
+		t.Helper()
+		var ev strings.Builder
+		for {
+			line, err := body.ReadString('\n')
+			if err != nil {
+				t.Fatalf("stream ended early: %v (%q)", err, ev.String())
+			}
+			if line == "\n" {
+				return ev.String()
+			}
+			ev.WriteString(line)
+		}
+	}
+	if ev := next(); !strings.Contains(ev, "looking") {
+		t.Fatalf("first event: %q", ev)
+	}
+	// The agent says more and finishes.
+	f, _ := os.OpenFile(agentFile, os.O_APPEND|os.O_WRONLY, 0)
+	f.WriteString(`{"type":"assistant","message":{"content":[{"type":"text","text":"found it"}]}}` + "\n")
+	f.Close()
+	os.WriteFile(filepath.Join(dir, "journal.jsonl"), []byte(`{"type":"started","agentId":"a1","label":"x"}`+"\n"+`{"type":"result","agentId":"a1","result":"ok"}`+"\n"), 0o600)
+	if ev := next(); !strings.Contains(ev, "found it") {
+		t.Fatalf("second event: %q", ev)
+	}
+	if ev := next(); !strings.HasPrefix(ev, "event: end\n") {
+		t.Fatalf("last event: %q", ev)
 	}
 }

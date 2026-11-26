@@ -9797,7 +9797,7 @@ const file_inaba_v1_host_proto_rawDesc = "" +
 	"\x19THREAD_STATUS_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12THREAD_STATUS_IDLE\x10\x01\x12\x19\n" +
 	"\x15THREAD_STATUS_RUNNING\x10\x02\x12\x19\n" +
-	"\x15THREAD_STATUS_WAITING\x10\x032\xbc\x13\n" +
+	"\x15THREAD_STATUS_WAITING\x10\x032\x9b\x14\n" +
 	"\rThreadService\x12g\n" +
 	"\rListProviders\x12\x1e.inaba.v1.ListProvidersRequest\x1a\x1f.inaba.v1.ListProvidersResponse\"\x15\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/providers\x12W\n" +
 	"\fCreateThread\x12\x1d.inaba.v1.CreateThreadRequest\x1a\x10.inaba.v1.Thread\"\x16\x82\xd3\xe4\x93\x02\x10:\x01*\"\v/v1/threads\x12_\n" +
@@ -9824,7 +9824,8 @@ const file_inaba_v1_host_proto_rawDesc = "" +
 	"ForkThread\x12\x1b.inaba.v1.ForkThreadRequest\x1a\x10.inaba.v1.Thread\"'\x82\xd3\xe4\x93\x02!:\x01*\"\x1c/v1/threads/{thread_id}/fork\x12o\n" +
 	"\n" +
 	"ListEvents\x12\x1b.inaba.v1.ListEventsRequest\x1a\x1c.inaba.v1.ListEventsResponse\"&\x82\xd3\xe4\x93\x02 \x12\x1e/v1/threads/{thread_id}/events\x12\xa1\x01\n" +
-	"\x10GetWorkflowAgent\x12!.inaba.v1.GetWorkflowAgentRequest\x1a\".inaba.v1.GetWorkflowAgentResponse\"F\x82\xd3\xe4\x93\x02@\x12>/v1/threads/{thread_id}/tools/{tool_call_id}/agents/{agent_id}\x12:\n" +
+	"\x10GetWorkflowAgent\x12!.inaba.v1.GetWorkflowAgentRequest\x1a\".inaba.v1.GetWorkflowAgentResponse\"F\x82\xd3\xe4\x93\x02@\x12>/v1/threads/{thread_id}/tools/{tool_call_id}/agents/{agent_id}\x12]\n" +
+	"\x12WatchWorkflowAgent\x12!.inaba.v1.GetWorkflowAgentRequest\x1a\".inaba.v1.GetWorkflowAgentResponse0\x01\x12:\n" +
 	"\tSubscribe\x12\x1a.inaba.v1.SubscribeRequest\x1a\x0f.inaba.v1.Event0\x012\x9c\x04\n" +
 	"\x0eProjectService\x12[\n" +
 	"\rCreateProject\x12\x1e.inaba.v1.CreateProjectRequest\x1a\x11.inaba.v1.Project\"\x17\x82\xd3\xe4\x93\x02\x11:\x01*\"\f/v1/projects\x12h\n" +
@@ -10163,102 +10164,104 @@ var file_inaba_v1_host_proto_depIdxs = []int32{
 	51,  // 117: inaba.v1.ThreadService.ForkThread:input_type -> inaba.v1.ForkThreadRequest
 	66,  // 118: inaba.v1.ThreadService.ListEvents:input_type -> inaba.v1.ListEventsRequest
 	28,  // 119: inaba.v1.ThreadService.GetWorkflowAgent:input_type -> inaba.v1.GetWorkflowAgentRequest
-	68,  // 120: inaba.v1.ThreadService.Subscribe:input_type -> inaba.v1.SubscribeRequest
-	69,  // 121: inaba.v1.ProjectService.CreateProject:input_type -> inaba.v1.CreateProjectRequest
-	74,  // 122: inaba.v1.ProjectService.UpdateProject:input_type -> inaba.v1.UpdateProjectRequest
-	70,  // 123: inaba.v1.ProjectService.ListProjects:input_type -> inaba.v1.ListProjectsRequest
-	72,  // 124: inaba.v1.ProjectService.ListDirectory:input_type -> inaba.v1.ListDirectoryRequest
-	75,  // 125: inaba.v1.ProjectService.DeleteProject:input_type -> inaba.v1.DeleteProjectRequest
-	85,  // 126: inaba.v1.GitService.GetStatus:input_type -> inaba.v1.GetGitStatusRequest
-	87,  // 127: inaba.v1.GitService.GetDiff:input_type -> inaba.v1.GetGitDiffRequest
-	77,  // 128: inaba.v1.GitService.ListBranches:input_type -> inaba.v1.ListBranchesRequest
-	79,  // 129: inaba.v1.GitService.Checkout:input_type -> inaba.v1.GitCheckoutRequest
-	80,  // 130: inaba.v1.GitService.Restore:input_type -> inaba.v1.GitRestoreRequest
-	82,  // 131: inaba.v1.GitService.Push:input_type -> inaba.v1.GitPushRequest
-	83,  // 132: inaba.v1.GitService.Fetch:input_type -> inaba.v1.GitFetchRequest
-	84,  // 133: inaba.v1.GitService.Pull:input_type -> inaba.v1.GitPullBranchRequest
-	90,  // 134: inaba.v1.GitService.CreatePullRequest:input_type -> inaba.v1.GitPullRequestRequest
-	89,  // 135: inaba.v1.GitService.Commit:input_type -> inaba.v1.GitCommitRequest
-	94,  // 136: inaba.v1.ModuleService.ListModules:input_type -> inaba.v1.ListModulesRequest
-	96,  // 137: inaba.v1.ModuleService.SetModule:input_type -> inaba.v1.SetModuleRequest
-	97,  // 138: inaba.v1.HousekeepingService.GetHousekeeping:input_type -> inaba.v1.GetHousekeepingRequest
-	100, // 139: inaba.v1.HousekeepingService.GetArchivePolicy:input_type -> inaba.v1.GetArchivePolicyRequest
-	101, // 140: inaba.v1.HousekeepingService.SetArchivePolicy:input_type -> inaba.v1.ArchivePolicy
-	99,  // 141: inaba.v1.HousekeepingService.CleanUp:input_type -> inaba.v1.CleanUpRequest
-	103, // 142: inaba.v1.TerminalService.Attach:input_type -> inaba.v1.AttachRequest
-	105, // 143: inaba.v1.TerminalService.Write:input_type -> inaba.v1.WriteRequest
-	107, // 144: inaba.v1.TerminalService.Resize:input_type -> inaba.v1.ResizeRequest
-	109, // 145: inaba.v1.PeerService.Connect:input_type -> inaba.v1.ConnectRequest
-	117, // 146: inaba.v1.ProviderConfigService.ListProviderConfigs:input_type -> inaba.v1.ListProviderConfigsRequest
-	119, // 147: inaba.v1.ProviderConfigService.SaveProviderConfig:input_type -> inaba.v1.SaveProviderConfigRequest
-	120, // 148: inaba.v1.ProviderConfigService.DeleteProviderConfig:input_type -> inaba.v1.DeleteProviderConfigRequest
-	116, // 149: inaba.v1.ProviderConfigService.CheckProviders:input_type -> inaba.v1.CheckProvidersRequest
-	111, // 150: inaba.v1.ProviderConfigService.ListAcpAgents:input_type -> inaba.v1.ListAcpAgentsRequest
-	122, // 151: inaba.v1.SystemService.GetSystemInfo:input_type -> inaba.v1.GetSystemInfoRequest
-	123, // 152: inaba.v1.SystemService.RestartHost:input_type -> inaba.v1.RestartHostRequest
-	125, // 153: inaba.v1.SystemService.UpgradeHost:input_type -> inaba.v1.UpgradeHostRequest
-	128, // 154: inaba.v1.UsageService.GetUsageSummary:input_type -> inaba.v1.GetUsageSummaryRequest
-	131, // 155: inaba.v1.AlertService.WatchAlerts:input_type -> inaba.v1.WatchAlertsRequest
-	37,  // 156: inaba.v1.ThreadService.ListProviders:output_type -> inaba.v1.ListProvidersResponse
-	4,   // 157: inaba.v1.ThreadService.CreateThread:output_type -> inaba.v1.Thread
-	41,  // 158: inaba.v1.ThreadService.ListThreads:output_type -> inaba.v1.ListThreadsResponse
-	4,   // 159: inaba.v1.ThreadService.GetThread:output_type -> inaba.v1.Thread
-	4,   // 160: inaba.v1.ThreadService.UpdateThread:output_type -> inaba.v1.Thread
-	46,  // 161: inaba.v1.ThreadService.DeleteThread:output_type -> inaba.v1.DeleteThreadResponse
-	52,  // 162: inaba.v1.ThreadService.StartTurn:output_type -> inaba.v1.StartTurnResponse
-	60,  // 163: inaba.v1.ThreadService.Interrupt:output_type -> inaba.v1.InterruptResponse
-	4,   // 164: inaba.v1.ThreadService.SetOption:output_type -> inaba.v1.Thread
-	4,   // 165: inaba.v1.ThreadService.CancelQueued:output_type -> inaba.v1.Thread
-	4,   // 166: inaba.v1.ThreadService.EditQueued:output_type -> inaba.v1.Thread
-	4,   // 167: inaba.v1.ThreadService.MoveQueued:output_type -> inaba.v1.Thread
-	4,   // 168: inaba.v1.ThreadService.SendQueuedNow:output_type -> inaba.v1.Thread
-	4,   // 169: inaba.v1.ThreadService.ResumeQueue:output_type -> inaba.v1.Thread
-	62,  // 170: inaba.v1.ThreadService.Respond:output_type -> inaba.v1.RespondResponse
-	4,   // 171: inaba.v1.ThreadService.SetMode:output_type -> inaba.v1.Thread
-	65,  // 172: inaba.v1.ThreadService.Raw:output_type -> inaba.v1.RawResponse
-	49,  // 173: inaba.v1.ThreadService.Rewind:output_type -> inaba.v1.RewindResponse
-	4,   // 174: inaba.v1.ThreadService.SetLayout:output_type -> inaba.v1.Thread
-	4,   // 175: inaba.v1.ThreadService.ForkThread:output_type -> inaba.v1.Thread
-	67,  // 176: inaba.v1.ThreadService.ListEvents:output_type -> inaba.v1.ListEventsResponse
-	29,  // 177: inaba.v1.ThreadService.GetWorkflowAgent:output_type -> inaba.v1.GetWorkflowAgentResponse
-	14,  // 178: inaba.v1.ThreadService.Subscribe:output_type -> inaba.v1.Event
-	12,  // 179: inaba.v1.ProjectService.CreateProject:output_type -> inaba.v1.Project
-	12,  // 180: inaba.v1.ProjectService.UpdateProject:output_type -> inaba.v1.Project
-	71,  // 181: inaba.v1.ProjectService.ListProjects:output_type -> inaba.v1.ListProjectsResponse
-	73,  // 182: inaba.v1.ProjectService.ListDirectory:output_type -> inaba.v1.ListDirectoryResponse
-	76,  // 183: inaba.v1.ProjectService.DeleteProject:output_type -> inaba.v1.DeleteProjectResponse
-	86,  // 184: inaba.v1.GitService.GetStatus:output_type -> inaba.v1.GitStatus
-	88,  // 185: inaba.v1.GitService.GetDiff:output_type -> inaba.v1.GetGitDiffResponse
-	78,  // 186: inaba.v1.GitService.ListBranches:output_type -> inaba.v1.ListBranchesResponse
-	86,  // 187: inaba.v1.GitService.Checkout:output_type -> inaba.v1.GitStatus
-	81,  // 188: inaba.v1.GitService.Restore:output_type -> inaba.v1.GitRestoreResponse
-	92,  // 189: inaba.v1.GitService.Push:output_type -> inaba.v1.GitCommitResponse
-	92,  // 190: inaba.v1.GitService.Fetch:output_type -> inaba.v1.GitCommitResponse
-	92,  // 191: inaba.v1.GitService.Pull:output_type -> inaba.v1.GitCommitResponse
-	91,  // 192: inaba.v1.GitService.CreatePullRequest:output_type -> inaba.v1.GitPullRequestResponse
-	92,  // 193: inaba.v1.GitService.Commit:output_type -> inaba.v1.GitCommitResponse
-	95,  // 194: inaba.v1.ModuleService.ListModules:output_type -> inaba.v1.ListModulesResponse
-	93,  // 195: inaba.v1.ModuleService.SetModule:output_type -> inaba.v1.Module
-	98,  // 196: inaba.v1.HousekeepingService.GetHousekeeping:output_type -> inaba.v1.Housekeeping
-	101, // 197: inaba.v1.HousekeepingService.GetArchivePolicy:output_type -> inaba.v1.ArchivePolicy
-	101, // 198: inaba.v1.HousekeepingService.SetArchivePolicy:output_type -> inaba.v1.ArchivePolicy
-	102, // 199: inaba.v1.HousekeepingService.CleanUp:output_type -> inaba.v1.CleanUpResponse
-	104, // 200: inaba.v1.TerminalService.Attach:output_type -> inaba.v1.TerminalOutput
-	106, // 201: inaba.v1.TerminalService.Write:output_type -> inaba.v1.WriteResponse
-	108, // 202: inaba.v1.TerminalService.Resize:output_type -> inaba.v1.ResizeResponse
-	110, // 203: inaba.v1.PeerService.Connect:output_type -> inaba.v1.ConnectResponse
-	118, // 204: inaba.v1.ProviderConfigService.ListProviderConfigs:output_type -> inaba.v1.ListProviderConfigsResponse
-	114, // 205: inaba.v1.ProviderConfigService.SaveProviderConfig:output_type -> inaba.v1.ProviderConfig
-	121, // 206: inaba.v1.ProviderConfigService.DeleteProviderConfig:output_type -> inaba.v1.DeleteProviderConfigResponse
-	118, // 207: inaba.v1.ProviderConfigService.CheckProviders:output_type -> inaba.v1.ListProviderConfigsResponse
-	112, // 208: inaba.v1.ProviderConfigService.ListAcpAgents:output_type -> inaba.v1.ListAcpAgentsResponse
-	127, // 209: inaba.v1.SystemService.GetSystemInfo:output_type -> inaba.v1.SystemInfo
-	124, // 210: inaba.v1.SystemService.RestartHost:output_type -> inaba.v1.RestartHostResponse
-	126, // 211: inaba.v1.SystemService.UpgradeHost:output_type -> inaba.v1.UpgradeHostResponse
-	130, // 212: inaba.v1.UsageService.GetUsageSummary:output_type -> inaba.v1.UsageSummary
-	132, // 213: inaba.v1.AlertService.WatchAlerts:output_type -> inaba.v1.Alert
-	156, // [156:214] is the sub-list for method output_type
-	98,  // [98:156] is the sub-list for method input_type
+	28,  // 120: inaba.v1.ThreadService.WatchWorkflowAgent:input_type -> inaba.v1.GetWorkflowAgentRequest
+	68,  // 121: inaba.v1.ThreadService.Subscribe:input_type -> inaba.v1.SubscribeRequest
+	69,  // 122: inaba.v1.ProjectService.CreateProject:input_type -> inaba.v1.CreateProjectRequest
+	74,  // 123: inaba.v1.ProjectService.UpdateProject:input_type -> inaba.v1.UpdateProjectRequest
+	70,  // 124: inaba.v1.ProjectService.ListProjects:input_type -> inaba.v1.ListProjectsRequest
+	72,  // 125: inaba.v1.ProjectService.ListDirectory:input_type -> inaba.v1.ListDirectoryRequest
+	75,  // 126: inaba.v1.ProjectService.DeleteProject:input_type -> inaba.v1.DeleteProjectRequest
+	85,  // 127: inaba.v1.GitService.GetStatus:input_type -> inaba.v1.GetGitStatusRequest
+	87,  // 128: inaba.v1.GitService.GetDiff:input_type -> inaba.v1.GetGitDiffRequest
+	77,  // 129: inaba.v1.GitService.ListBranches:input_type -> inaba.v1.ListBranchesRequest
+	79,  // 130: inaba.v1.GitService.Checkout:input_type -> inaba.v1.GitCheckoutRequest
+	80,  // 131: inaba.v1.GitService.Restore:input_type -> inaba.v1.GitRestoreRequest
+	82,  // 132: inaba.v1.GitService.Push:input_type -> inaba.v1.GitPushRequest
+	83,  // 133: inaba.v1.GitService.Fetch:input_type -> inaba.v1.GitFetchRequest
+	84,  // 134: inaba.v1.GitService.Pull:input_type -> inaba.v1.GitPullBranchRequest
+	90,  // 135: inaba.v1.GitService.CreatePullRequest:input_type -> inaba.v1.GitPullRequestRequest
+	89,  // 136: inaba.v1.GitService.Commit:input_type -> inaba.v1.GitCommitRequest
+	94,  // 137: inaba.v1.ModuleService.ListModules:input_type -> inaba.v1.ListModulesRequest
+	96,  // 138: inaba.v1.ModuleService.SetModule:input_type -> inaba.v1.SetModuleRequest
+	97,  // 139: inaba.v1.HousekeepingService.GetHousekeeping:input_type -> inaba.v1.GetHousekeepingRequest
+	100, // 140: inaba.v1.HousekeepingService.GetArchivePolicy:input_type -> inaba.v1.GetArchivePolicyRequest
+	101, // 141: inaba.v1.HousekeepingService.SetArchivePolicy:input_type -> inaba.v1.ArchivePolicy
+	99,  // 142: inaba.v1.HousekeepingService.CleanUp:input_type -> inaba.v1.CleanUpRequest
+	103, // 143: inaba.v1.TerminalService.Attach:input_type -> inaba.v1.AttachRequest
+	105, // 144: inaba.v1.TerminalService.Write:input_type -> inaba.v1.WriteRequest
+	107, // 145: inaba.v1.TerminalService.Resize:input_type -> inaba.v1.ResizeRequest
+	109, // 146: inaba.v1.PeerService.Connect:input_type -> inaba.v1.ConnectRequest
+	117, // 147: inaba.v1.ProviderConfigService.ListProviderConfigs:input_type -> inaba.v1.ListProviderConfigsRequest
+	119, // 148: inaba.v1.ProviderConfigService.SaveProviderConfig:input_type -> inaba.v1.SaveProviderConfigRequest
+	120, // 149: inaba.v1.ProviderConfigService.DeleteProviderConfig:input_type -> inaba.v1.DeleteProviderConfigRequest
+	116, // 150: inaba.v1.ProviderConfigService.CheckProviders:input_type -> inaba.v1.CheckProvidersRequest
+	111, // 151: inaba.v1.ProviderConfigService.ListAcpAgents:input_type -> inaba.v1.ListAcpAgentsRequest
+	122, // 152: inaba.v1.SystemService.GetSystemInfo:input_type -> inaba.v1.GetSystemInfoRequest
+	123, // 153: inaba.v1.SystemService.RestartHost:input_type -> inaba.v1.RestartHostRequest
+	125, // 154: inaba.v1.SystemService.UpgradeHost:input_type -> inaba.v1.UpgradeHostRequest
+	128, // 155: inaba.v1.UsageService.GetUsageSummary:input_type -> inaba.v1.GetUsageSummaryRequest
+	131, // 156: inaba.v1.AlertService.WatchAlerts:input_type -> inaba.v1.WatchAlertsRequest
+	37,  // 157: inaba.v1.ThreadService.ListProviders:output_type -> inaba.v1.ListProvidersResponse
+	4,   // 158: inaba.v1.ThreadService.CreateThread:output_type -> inaba.v1.Thread
+	41,  // 159: inaba.v1.ThreadService.ListThreads:output_type -> inaba.v1.ListThreadsResponse
+	4,   // 160: inaba.v1.ThreadService.GetThread:output_type -> inaba.v1.Thread
+	4,   // 161: inaba.v1.ThreadService.UpdateThread:output_type -> inaba.v1.Thread
+	46,  // 162: inaba.v1.ThreadService.DeleteThread:output_type -> inaba.v1.DeleteThreadResponse
+	52,  // 163: inaba.v1.ThreadService.StartTurn:output_type -> inaba.v1.StartTurnResponse
+	60,  // 164: inaba.v1.ThreadService.Interrupt:output_type -> inaba.v1.InterruptResponse
+	4,   // 165: inaba.v1.ThreadService.SetOption:output_type -> inaba.v1.Thread
+	4,   // 166: inaba.v1.ThreadService.CancelQueued:output_type -> inaba.v1.Thread
+	4,   // 167: inaba.v1.ThreadService.EditQueued:output_type -> inaba.v1.Thread
+	4,   // 168: inaba.v1.ThreadService.MoveQueued:output_type -> inaba.v1.Thread
+	4,   // 169: inaba.v1.ThreadService.SendQueuedNow:output_type -> inaba.v1.Thread
+	4,   // 170: inaba.v1.ThreadService.ResumeQueue:output_type -> inaba.v1.Thread
+	62,  // 171: inaba.v1.ThreadService.Respond:output_type -> inaba.v1.RespondResponse
+	4,   // 172: inaba.v1.ThreadService.SetMode:output_type -> inaba.v1.Thread
+	65,  // 173: inaba.v1.ThreadService.Raw:output_type -> inaba.v1.RawResponse
+	49,  // 174: inaba.v1.ThreadService.Rewind:output_type -> inaba.v1.RewindResponse
+	4,   // 175: inaba.v1.ThreadService.SetLayout:output_type -> inaba.v1.Thread
+	4,   // 176: inaba.v1.ThreadService.ForkThread:output_type -> inaba.v1.Thread
+	67,  // 177: inaba.v1.ThreadService.ListEvents:output_type -> inaba.v1.ListEventsResponse
+	29,  // 178: inaba.v1.ThreadService.GetWorkflowAgent:output_type -> inaba.v1.GetWorkflowAgentResponse
+	29,  // 179: inaba.v1.ThreadService.WatchWorkflowAgent:output_type -> inaba.v1.GetWorkflowAgentResponse
+	14,  // 180: inaba.v1.ThreadService.Subscribe:output_type -> inaba.v1.Event
+	12,  // 181: inaba.v1.ProjectService.CreateProject:output_type -> inaba.v1.Project
+	12,  // 182: inaba.v1.ProjectService.UpdateProject:output_type -> inaba.v1.Project
+	71,  // 183: inaba.v1.ProjectService.ListProjects:output_type -> inaba.v1.ListProjectsResponse
+	73,  // 184: inaba.v1.ProjectService.ListDirectory:output_type -> inaba.v1.ListDirectoryResponse
+	76,  // 185: inaba.v1.ProjectService.DeleteProject:output_type -> inaba.v1.DeleteProjectResponse
+	86,  // 186: inaba.v1.GitService.GetStatus:output_type -> inaba.v1.GitStatus
+	88,  // 187: inaba.v1.GitService.GetDiff:output_type -> inaba.v1.GetGitDiffResponse
+	78,  // 188: inaba.v1.GitService.ListBranches:output_type -> inaba.v1.ListBranchesResponse
+	86,  // 189: inaba.v1.GitService.Checkout:output_type -> inaba.v1.GitStatus
+	81,  // 190: inaba.v1.GitService.Restore:output_type -> inaba.v1.GitRestoreResponse
+	92,  // 191: inaba.v1.GitService.Push:output_type -> inaba.v1.GitCommitResponse
+	92,  // 192: inaba.v1.GitService.Fetch:output_type -> inaba.v1.GitCommitResponse
+	92,  // 193: inaba.v1.GitService.Pull:output_type -> inaba.v1.GitCommitResponse
+	91,  // 194: inaba.v1.GitService.CreatePullRequest:output_type -> inaba.v1.GitPullRequestResponse
+	92,  // 195: inaba.v1.GitService.Commit:output_type -> inaba.v1.GitCommitResponse
+	95,  // 196: inaba.v1.ModuleService.ListModules:output_type -> inaba.v1.ListModulesResponse
+	93,  // 197: inaba.v1.ModuleService.SetModule:output_type -> inaba.v1.Module
+	98,  // 198: inaba.v1.HousekeepingService.GetHousekeeping:output_type -> inaba.v1.Housekeeping
+	101, // 199: inaba.v1.HousekeepingService.GetArchivePolicy:output_type -> inaba.v1.ArchivePolicy
+	101, // 200: inaba.v1.HousekeepingService.SetArchivePolicy:output_type -> inaba.v1.ArchivePolicy
+	102, // 201: inaba.v1.HousekeepingService.CleanUp:output_type -> inaba.v1.CleanUpResponse
+	104, // 202: inaba.v1.TerminalService.Attach:output_type -> inaba.v1.TerminalOutput
+	106, // 203: inaba.v1.TerminalService.Write:output_type -> inaba.v1.WriteResponse
+	108, // 204: inaba.v1.TerminalService.Resize:output_type -> inaba.v1.ResizeResponse
+	110, // 205: inaba.v1.PeerService.Connect:output_type -> inaba.v1.ConnectResponse
+	118, // 206: inaba.v1.ProviderConfigService.ListProviderConfigs:output_type -> inaba.v1.ListProviderConfigsResponse
+	114, // 207: inaba.v1.ProviderConfigService.SaveProviderConfig:output_type -> inaba.v1.ProviderConfig
+	121, // 208: inaba.v1.ProviderConfigService.DeleteProviderConfig:output_type -> inaba.v1.DeleteProviderConfigResponse
+	118, // 209: inaba.v1.ProviderConfigService.CheckProviders:output_type -> inaba.v1.ListProviderConfigsResponse
+	112, // 210: inaba.v1.ProviderConfigService.ListAcpAgents:output_type -> inaba.v1.ListAcpAgentsResponse
+	127, // 211: inaba.v1.SystemService.GetSystemInfo:output_type -> inaba.v1.SystemInfo
+	124, // 212: inaba.v1.SystemService.RestartHost:output_type -> inaba.v1.RestartHostResponse
+	126, // 213: inaba.v1.SystemService.UpgradeHost:output_type -> inaba.v1.UpgradeHostResponse
+	130, // 214: inaba.v1.UsageService.GetUsageSummary:output_type -> inaba.v1.UsageSummary
+	132, // 215: inaba.v1.AlertService.WatchAlerts:output_type -> inaba.v1.Alert
+	157, // [157:216] is the sub-list for method output_type
+	98,  // [98:157] is the sub-list for method input_type
 	98,  // [98:98] is the sub-list for extension type_name
 	98,  // [98:98] is the sub-list for extension extendee
 	0,   // [0:98] is the sub-list for field type_name

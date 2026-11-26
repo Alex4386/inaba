@@ -13,8 +13,13 @@ import (
 	"connectrpc.com/vanguard"
 )
 
-func Mount(mux *http.ServeMux, server *connect.Server) error {
+// Mount serves the server's procedures by name and at their REST paths from the protos,
+// and the server streams given at their own GET paths, which the protos cannot hold.
+func Mount(mux *http.ServeMux, server *connect.Server, streams ...Stream) error {
 	connecthttp.Mount(mux, server)
+	for _, s := range streams {
+		mux.Handle(s.Pattern, serveStream(server, s))
+	}
 	return vanguard.Mount(mux, server)
 }
 

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+	"time"
 
 	"connectrpc.com/connect/v2"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -13,6 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	inabav1 "github.com/Alex4386/inaba/gen/inaba/v1"
+	"github.com/Alex4386/inaba/gen/inaba/v1/inabav1connect"
 	"github.com/Alex4386/inaba/internal/workflow"
 )
 
@@ -121,16 +123,17 @@ func forkEvents(events []*inabav1.Event, seq uint64) ([]*inabav1.Event, error) {
 	return out, nil
 }
 
-func (h *Host) GetWorkflowAgent(_ context.Context, req *inabav1.GetWorkflowAgentRequest) (*inabav1.GetWorkflowAgentResponse, error) {
-	t, err := h.thread(req.ThreadId)
+// workflowDir finds the folder of the workflow a thread's call started, from the thread's own
+// record of the call, never from a request.
+func (h *Host) workflowDir(threadID, toolCallID string) (string, error) {
+	t, err := h.thread(threadID)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	// The folder comes from the thread's own record of the call, never from the request.
 	dir := ""
 	t.mu.Lock()
 	for _, e := range t.events {
-		if c := e.GetToolCall(); c != nil && c.Id == req.ToolCallId && c.Raw != nil {
+		if c := e.GetToolCall(); c != nil && c.Id == toolCallID && c.Raw != nil {
 			var update struct {
 				Meta map[string]json.RawMessage `json:"_meta"`
 			}
@@ -141,11 +144,56 @@ func (h *Host) GetWorkflowAgent(_ context.Context, req *inabav1.GetWorkflowAgent
 	}
 	t.mu.Unlock()
 	if dir == "" {
-		return nil, connect.NewError(connect.CodeNotFound, "that call started no workflow")
+		return "", connect.NewError(connect.CodeNotFound, "that call started no workflow")
 	}
-	steps, err := workflow.Transcript(dir, req.AgentId)
+	return dir, nil
+}
+
+func agentTranscript(dir, agentID string) (*inabav1.GetWorkflowAgentResponse, error) {
+	steps, err := workflow.Transcript(dir, agentID)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, "no transcript for that agent: "+err.Error())
 	}
 	return &inabav1.GetWorkflowAgentResponse{Steps: steps}, nil
+}
+
+func (h *Host) GetWorkflowAgent(_ context.Context, req *inabav1.GetWorkflowAgentRequest) (*inabav1.GetWorkflowAgentResponse, error) {
+	dir, err := h.workflowDir(req.ThreadId, req.ToolCallId)
+	if err != nil {
+		return nil, err
+	}
+	return agentTranscript(dir, req.AgentId)
+}
+
+// workflowPoll is how often a watched agent's transcript is read again.
+var workflowPoll = 2 * time.Second
+
+func (h *Host) WatchWorkflowAgent(ctx context.Context, req *inabav1.GetWorkflowAgentRequest, stream inabav1connect.ThreadServiceWatchWorkflowAgentServerStream) error {
+	dir, err := h.workflowDir(req.ThreadId, req.ToolCallId)
+	if err != nil {
+		return err
+	}
+	var last *inabav1.GetWorkflowAgentResponse
+	for {
+		// Done is read before the transcript, so the last one sent holds everything.
+		done := slices.ContainsFunc(workflow.Agents(dir), func(a *inabav1.WorkflowAgent) bool { return a.Id == req.AgentId && a.Done })
+		res, err := agentTranscript(dir, req.AgentId)
+		if err != nil {
+			return err
+		}
+		if !proto.Equal(res, last) {
+			if err := stream.Send(res); err != nil {
+				return err
+			}
+			last = res
+		}
+		if done {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(workflowPoll):
+		}
+	}
 }

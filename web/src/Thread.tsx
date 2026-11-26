@@ -1019,7 +1019,10 @@ function Chat({
   }, [turnKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const lastSeq = useRef(0n);
   useMarkSeen(link.hostId, threadId, log.lastSeq);
-  const readWorkflowAgent = useCallback((toolCallId: string, agentId: string) => link.threads.getWorkflowAgent({ threadId, toolCallId, agentId }).then((r) => r.steps), [link, threadId]);
+  const readWorkflowAgent = useCallback(
+    (toolCallId: string, agentId: string, signal: AbortSignal) => link.threads.watchWorkflowAgent({ threadId, toolCallId, agentId }, { signal }),
+    [link, threadId],
+  );
   const bottom = useRef<HTMLDivElement>(null);
   const direct = link.direct;
 
@@ -1544,7 +1547,7 @@ function ToolRow({ item }: { item: Extract<Item, { type: "tool" }> }) {
 type WorkflowAgentItem = Extract<Item, { type: "tool" }>["agents"][number];
 
 /** Reads what one agent of a workflow did, for the thread on screen. */
-const WorkflowReader = createContext<((toolCallId: string, agentId: string) => Promise<WorkflowStep[]>) | undefined>(undefined);
+const WorkflowReader = createContext<((toolCallId: string, agentId: string, signal: AbortSignal) => AsyncIterable<{ steps: WorkflowStep[] }>) | undefined>(undefined);
 
 /**
  * The agents a background workflow spawned: one folded line saying how many and how far
@@ -1591,20 +1594,20 @@ function AgentTranscript({ toolCallId, agent }: { toolCallId: string; agent: Wor
   const [error, setError] = useState<string>();
   useEffect(() => {
     if (!read) return;
-    let stop = false;
-    const load = () =>
-      read(toolCallId, agent.id).then(
-        (s) => !stop && (setSteps(s), setError(undefined)),
-        (e) => !stop && setError(errorText(e)),
-      );
-    void load();
-    // A running agent is read again until it is done; agent.done changing reloads once more.
-    const timer = agent.done ? undefined : setInterval(load, 2000);
-    return () => {
-      stop = true;
-      clearInterval(timer);
-    };
-  }, [read, toolCallId, agent.id, agent.done]);
+    // The host sends the conversation again whenever it grows, and ends the stream once the agent is done.
+    const abort = new AbortController();
+    void (async () => {
+      try {
+        for await (const res of read(toolCallId, agent.id, abort.signal)) {
+          setSteps(res.steps);
+          setError(undefined);
+        }
+      } catch (e) {
+        if (!abort.signal.aborted) setError(errorText(e));
+      }
+    })();
+    return () => abort.abort();
+  }, [read, toolCallId, agent.id]);
   return (
     <>
       <div className="grid gap-0.5 border-b px-4 py-3 pr-12">

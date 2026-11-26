@@ -216,7 +216,7 @@ func (h *Host) rebuild() error {
 	}
 	// The REST mapping claims "/" on its mux; modules' own routes sit in front of it.
 	api := http.NewServeMux()
-	if err := rpc.Mount(api, server); err != nil {
+	if err := rpc.Mount(api, server, streams...); err != nil {
 		return err
 	}
 	var top http.Handler = api
@@ -329,3 +329,12 @@ func (h *Host) DB() *gorm.DB {
 
 // DataDir is the host's data folder; empty for a host without a database.
 func (h *Host) DataDir() string { return h.dataDir }
+
+// streams are the host's server streams at GET paths, as JSON lines or server-sent events.
+var streams = []rpc.Stream{
+	{Pattern: "GET /v1/threads/{thread_id}/events/watch", Procedure: inabav1connect.ThreadServiceSubscribeProcedure, Request: func() proto.Message { return &inabav1.SubscribeRequest{} }},
+	{Pattern: "GET /v1/threads/{thread_id}/tools/{tool_call_id}/agents/{agent_id}/watch", Procedure: inabav1connect.ThreadServiceWatchWorkflowAgentProcedure, Request: func() proto.Message { return &inabav1.GetWorkflowAgentRequest{} }},
+	{Pattern: "GET /v1/threads/{thread_id}/terminal/output", Procedure: inabav1connect.TerminalServiceAttachProcedure, Request: func() proto.Message { return &inabav1.AttachRequest{} }},
+	{Pattern: "GET /v1/threads/{thread_id}/shells/{shell_id}/output", Procedure: inabav1connect.ShellServiceAttachShellProcedure, Request: func() proto.Message { return &inabav1.AttachShellRequest{} }},
+	{Pattern: "GET /v1/threads/{thread_id}/browser/frames", Procedure: inabav1connect.BrowserServiceWatchPageProcedure, Request: func() proto.Message { return &inabav1.WatchPageRequest{} }},
+}
