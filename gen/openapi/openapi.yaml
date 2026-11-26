@@ -4148,6 +4148,48 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/hosts/{host_id}/threads/{thread_id}/tools/{tool_call_id}/agents/{agent_id}:
+        get:
+            tags:
+                - ThreadService
+            description: What one agent of a background workflow the thread's agent started has done so far.
+            operationId: ThreadService_GetWorkflowAgent
+            parameters:
+                - name: host_id
+                  in: path
+                  required: true
+                  description: The id of the host, from GET /v1/hosts.
+                  schema:
+                    type: string
+                - name: thread_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: tool_call_id
+                  in: path
+                  description: The call that started the workflow, and the agent of it.
+                  required: true
+                  schema:
+                    type: string
+                - name: agent_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetWorkflowAgentResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/hosts/{host_id}/threads/{thread_id}/tree:
         get:
             tags:
@@ -5235,6 +5277,13 @@ components:
                 vapid_public_key:
                     type: string
                     description: base64url, as PushManager.subscribe takes it for applicationServerKey.
+        GetWorkflowAgentResponse:
+            type: object
+            properties:
+                steps:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/WorkflowStep'
         GitCheckoutRequest:
             type: object
             properties:
@@ -7316,6 +7365,26 @@ components:
                     type: string
                     description: What it returned, cut short, once done.
             description: One agent of a background workflow, such as Claude Code's ultracode runs.
+        WorkflowStep:
+            type: object
+            properties:
+                kind:
+                    type: string
+                    description: 'prompt: the task it was given; text: what it said; tool: a tool call it made.'
+                text:
+                    type: string
+                tool:
+                    type: string
+                    description: |-
+                        For a tool call: the tool, what it was given in brief, what it gave back (cut short),
+                         and whether that was an error.
+                input:
+                    type: string
+                output:
+                    type: string
+                failed:
+                    type: boolean
+            description: One step of a workflow agent's own conversation.
         Worktree:
             type: object
             properties:

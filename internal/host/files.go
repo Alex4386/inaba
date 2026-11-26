@@ -2,15 +2,18 @@ package host
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"slices"
 	"strings"
 
 	"connectrpc.com/connect/v2"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	inabav1 "github.com/Alex4386/inaba/gen/inaba/v1"
+	"github.com/Alex4386/inaba/internal/workflow"
 )
 
 func (h *Host) ForkThread(ctx context.Context, req *inabav1.ForkThreadRequest) (*inabav1.Thread, error) {
@@ -116,4 +119,33 @@ func forkEvents(events []*inabav1.Event, seq uint64) ([]*inabav1.Event, error) {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, "that turn is still running; fork once it has ended")
 	}
 	return out, nil
+}
+
+func (h *Host) GetWorkflowAgent(_ context.Context, req *inabav1.GetWorkflowAgentRequest) (*inabav1.GetWorkflowAgentResponse, error) {
+	t, err := h.thread(req.ThreadId)
+	if err != nil {
+		return nil, err
+	}
+	// The folder comes from the thread's own record of the call, never from the request.
+	dir := ""
+	t.mu.Lock()
+	for _, e := range t.events {
+		if c := e.GetToolCall(); c != nil && c.Id == req.ToolCallId && c.Raw != nil {
+			var update struct {
+				Meta map[string]json.RawMessage `json:"_meta"`
+			}
+			if b, err := protojson.Marshal(c.Raw); err == nil && json.Unmarshal(b, &update) == nil {
+				dir = cmpOr(dir, workflow.Dir(update.Meta))
+			}
+		}
+	}
+	t.mu.Unlock()
+	if dir == "" {
+		return nil, connect.NewError(connect.CodeNotFound, "that call started no workflow")
+	}
+	steps, err := workflow.Transcript(dir, req.AgentId)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, "no transcript for that agent: "+err.Error())
+	}
+	return &inabav1.GetWorkflowAgentResponse{Steps: steps}, nil
 }

@@ -30,6 +30,7 @@ import (
 	inabav1 "github.com/Alex4386/inaba/gen/inaba/v1"
 	"github.com/Alex4386/inaba/internal/mcpbridge"
 	"github.com/Alex4386/inaba/internal/proc"
+	"github.com/Alex4386/inaba/internal/workflow"
 	"github.com/Alex4386/inaba/pkg/provider"
 )
 
@@ -396,7 +397,7 @@ func (s *session) onUpdate(u sdk.SessionUpdate) {
 			Input: toolInput(input), Output: toolOutput(content, output),
 		}}})
 		if meta, ok := t.Meta.Value(); ok {
-			if dir := workflowDir(meta); dir != "" {
+			if dir := workflow.Dir(meta); dir != "" {
 				id := string(t.ToolCallId)
 				s.mu.Lock()
 				start := !s.watching[id]

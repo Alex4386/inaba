@@ -342,6 +342,30 @@ message WorkflowAgent {
   string result = 6;
 }
 
+// One step of a workflow agent's own conversation.
+message WorkflowStep {
+  // prompt: the task it was given; text: what it said; tool: a tool call it made.
+  string kind = 1;
+  string text = 2;
+  // For a tool call: the tool, what it was given in brief, what it gave back (cut short),
+  // and whether that was an error.
+  string tool = 3;
+  string input = 4;
+  string output = 5;
+  bool failed = 6;
+}
+
+message GetWorkflowAgentRequest {
+  string thread_id = 1;
+  // The call that started the workflow, and the agent of it.
+  string tool_call_id = 2;
+  string agent_id = 3;
+}
+
+message GetWorkflowAgentResponse {
+  repeated WorkflowStep steps = 1;
+}
+
 message PermissionRequest {
   message Option {
     string id = 1;
@@ -511,6 +535,10 @@ service ThreadService {
   }
   rpc ListEvents(ListEventsRequest) returns (ListEventsResponse) {
     option (google.api.http) = {get: "/v1/threads/{thread_id}/events"};
+  }
+  // What one agent of a background workflow the thread's agent started has done so far.
+  rpc GetWorkflowAgent(GetWorkflowAgentRequest) returns (GetWorkflowAgentResponse) {
+    option (google.api.http) = {get: "/v1/threads/{thread_id}/tools/{tool_call_id}/agents/{agent_id}"};
   }
   // Sends every event after after_seq, then new ones as they happen.
   rpc Subscribe(SubscribeRequest) returns (stream Event);

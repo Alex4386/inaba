@@ -2,6 +2,8 @@ package host
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -9,6 +11,7 @@ import (
 
 	"connectrpc.com/connect/v2"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	inabav1 "github.com/Alex4386/inaba/gen/inaba/v1"
@@ -87,5 +90,41 @@ func TestForkRefusesARunningTurn(t *testing.T) {
 	}
 	if _, err := forkEvents(events, 3); connect.CodeOf(err) != connect.CodeFailedPrecondition {
 		t.Fatalf("fork of a running turn: %v", err)
+	}
+}
+
+// A workflow agent's transcript is read from the folder the thread's own record of the call
+// names, and only for a call that started a workflow.
+func TestGetWorkflowAgent(t *testing.T) {
+	h := New(fakeProvider{})
+	t.Cleanup(h.Close)
+	ctx := Trusted(context.Background())
+	th, _ := h.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "fake", Cwd: t.TempDir()})
+	dir := filepath.Join(t.TempDir(), "subagents", "workflows", "wf_1")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(dir, "agent-a1.jsonl"), []byte(`{"type":"assistant","message":{"content":[{"type":"text","text":"done"}]}}`+"\n"), 0o600)
+	raw, err := structpb.NewValue(map[string]any{"_meta": map[string]any{"claudeCode": map[string]any{"toolResponse": map[string]any{"taskType": "local_workflow", "transcriptDir": dir}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr, _ := h.thread(th.Id)
+	tr.emit(&inabav1.Event{Payload: &inabav1.Event_ToolCall{ToolCall: &inabav1.ToolCall{Id: "w", Title: "Workflow"}}})
+	tr.emit(&inabav1.Event{Payload: &inabav1.Event_ToolCall{ToolCall: &inabav1.ToolCall{Id: "w", Raw: raw}}})
+	tr.emit(&inabav1.Event{Payload: &inabav1.Event_ToolCall{ToolCall: &inabav1.ToolCall{Id: "plain", Title: "Bash"}}})
+
+	res, err := h.GetWorkflowAgent(ctx, &inabav1.GetWorkflowAgentRequest{ThreadId: th.Id, ToolCallId: "w", AgentId: "a1"})
+	if err != nil || len(res.Steps) != 1 || res.Steps[0].Text != "done" {
+		t.Fatalf("transcript: %v %v", res, err)
+	}
+	for _, req := range []*inabav1.GetWorkflowAgentRequest{
+		{ThreadId: th.Id, ToolCallId: "plain", AgentId: "a1"},
+		{ThreadId: th.Id, ToolCallId: "w", AgentId: "../a1"},
+		{ThreadId: th.Id, ToolCallId: "w", AgentId: "a2"},
+	} {
+		if _, err := h.GetWorkflowAgent(ctx, req); connect.CodeOf(err) != connect.CodeNotFound {
+			t.Errorf("%v: %v", req, err)
+		}
 	}
 }

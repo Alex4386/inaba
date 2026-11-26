@@ -42,7 +42,7 @@ import {
 } from "lucide-react";
 import { bytes } from "@/components/metrics";
 import { useDefaultLayout } from "react-resizable-panels";
-import { type FormEvent, type ReactNode, useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { createContext, type FormEvent, type ReactNode, useCallback, useContext, useEffect, useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useMarkSeen } from "@/lib/seen";
 import type { HostLink } from "./api";
@@ -53,6 +53,7 @@ import {
   type Project,
   type Provider,
   type Thread,
+  type WorkflowStep,
   ThreadMode,
   ThreadStatus,
 } from "./gen/inaba/v1/host_pb";
@@ -79,11 +80,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { showError } from "@/lib/errors";
+import { errorText, showError } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
 import { bindingOf, formatBinding, matches, useKeybindings } from "@/lib/keybindings";
 import { cn, pathNames } from "@/lib/utils";
@@ -1017,6 +1019,7 @@ function Chat({
   }, [turnKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const lastSeq = useRef(0n);
   useMarkSeen(link.hostId, threadId, log.lastSeq);
+  const readWorkflowAgent = useCallback((toolCallId: string, agentId: string) => link.threads.getWorkflowAgent({ threadId, toolCallId, agentId }).then((r) => r.steps), [link, threadId]);
   const bottom = useRef<HTMLDivElement>(null);
   const direct = link.direct;
 
@@ -1319,30 +1322,32 @@ function Chat({
           setQuoting(undefined);
         }}
       >
-        <div ref={content} className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-6">
-          {log.items.length === 0 && <p className="text-muted-foreground py-16 text-center text-sm">{t("chat.empty")}</p>}
-          {blocks(log.items).map((block, i) =>
-            "work" in block ? (
-              <WorkLog key={i} turn={block.turn} work={block.work} />
-            ) : (
-              <ItemView
-                key={i}
-                item={block}
-                names={names}
-                respond={locked ? undefined : (requestId, optionId) => run(link.threads.respond({ threadId, requestId, optionId }))}
-                onChanges={onTurnChanges}
-                onRewind={busy || locked ? undefined : setRewinding}
-                onFork={(seq) =>
-                  link.threads.forkThread({ threadId, seq, title: t("fork.name", { name: threadName(thread) }) }).then((fork) => {
-                    toast.success(t("fork.done"));
-                    onOpen(fork.id);
-                  }, showError)
-                }
-              />
-            ),
-          )}
-          <div ref={bottom} />
-        </div>
+        <WorkflowReader value={readWorkflowAgent}>
+          <div ref={content} className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-6">
+            {log.items.length === 0 && <p className="text-muted-foreground py-16 text-center text-sm">{t("chat.empty")}</p>}
+            {blocks(log.items).map((block, i) =>
+              "work" in block ? (
+                <WorkLog key={i} turn={block.turn} work={block.work} />
+              ) : (
+                <ItemView
+                  key={i}
+                  item={block}
+                  names={names}
+                  respond={locked ? undefined : (requestId, optionId) => run(link.threads.respond({ threadId, requestId, optionId }))}
+                  onChanges={onTurnChanges}
+                  onRewind={busy || locked ? undefined : setRewinding}
+                  onFork={(seq) =>
+                    link.threads.forkThread({ threadId, seq, title: t("fork.name", { name: threadName(thread) }) }).then((fork) => {
+                      toast.success(t("fork.done"));
+                      onOpen(fork.id);
+                    }, showError)
+                  }
+                />
+              ),
+            )}
+            <div ref={bottom} />
+          </div>
+        </WorkflowReader>
       </div>
       {behind && (
         <Button
@@ -1531,36 +1536,100 @@ function ToolRow({ item }: { item: Extract<Item, { type: "tool" }> }) {
           <pre className="px-3 py-2 break-all whitespace-pre-wrap">{item.output || t("chat.noOutput")}</pre>
         </div>
       )}
-      {item.agents.length > 0 && <WorkflowAgents agents={item.agents} />}
+      {item.agents.length > 0 && <WorkflowAgents toolCallId={item.id} agents={item.agents} />}
     </Row>
   );
 }
 
-/** The agents a background workflow spawned, by phase: what each is doing, or what it found. */
-function WorkflowAgents({ agents }: { agents: Extract<Item, { type: "tool" }>["agents"] }) {
+type WorkflowAgentItem = Extract<Item, { type: "tool" }>["agents"][number];
+
+/** Reads what one agent of a workflow did, for the thread on screen. */
+const WorkflowReader = createContext<((toolCallId: string, agentId: string) => Promise<WorkflowStep[]>) | undefined>(undefined);
+
+/**
+ * The agents a background workflow spawned: one folded line saying how many and how far
+ * along, opened to a line per agent; each agent's own conversation opens on its own.
+ */
+function WorkflowAgents({ toolCallId, agents }: { toolCallId: string; agents: WorkflowAgentItem[] }) {
   const { t } = useI18n();
-  const phases = [...new Set(agents.map((a) => a.phase))];
+  const [open, setOpen] = useState(false);
+  const [shown, setShown] = useState<string>();
   const done = agents.filter((a) => a.done).length;
+  const running = agents.length - done;
+  const agent = agents.find((a) => a.id === shown);
   return (
-    <div className="mt-1 mb-2 grid gap-2 rounded-md border px-3 py-2">
-      <div className="text-xs">{t("chat.workflowAgents", { done: String(done), count: String(agents.length) })}</div>
-      {phases.map((phase) => (
-        <div key={phase} className="grid gap-1">
-          {phase && <div className="text-foreground text-xs font-medium">{phase}</div>}
-          {agents
-            .filter((a) => a.phase === phase)
-            .map((a) => (
-              <div key={a.id} className="flex items-start gap-2 text-xs leading-5">
-                <span className="flex h-5 w-3.5 shrink-0 items-center justify-center">{a.done ? <CheckIcon className="text-success size-3.5" /> : <Spinner className="size-3.5" />}</span>
-                <div className="min-w-0 flex-1">
-                  <span className="text-foreground">{a.label || a.id}</span>
-                  {a.done ? a.result && <p className="line-clamp-3 wrap-anywhere">{a.result}</p> : a.activity && <p className="truncate font-mono">{a.activity}</p>}
-                </div>
-              </div>
-            ))}
-        </div>
-      ))}
-    </div>
+    <Collapsible open={open} onOpenChange={setOpen} className="mt-1 mb-2 rounded-md border">
+      <CollapsibleTrigger className="hover:bg-muted/50 flex w-full items-center gap-2 px-3 py-2 text-left text-xs">
+        {running > 0 ? <Spinner className="size-3.5" /> : <CheckIcon className="text-success size-3.5" />}
+        <span className="text-foreground font-medium">{t("chat.workflowAgentCount", { count: String(agents.length) })}</span>
+        <span className="min-w-0 flex-1 truncate">{running > 0 ? t("chat.workflowRunning", { running: String(running), done: String(done) }) : t("chat.workflowDone")}</span>
+        <ChevronDownIcon className={cn("size-3.5 shrink-0 transition-transform", open && "rotate-180")} />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="grid gap-0.5 border-t p-1">
+        {agents.map((a) => (
+          <button key={a.id} type="button" className="hover:bg-muted flex min-w-0 items-center gap-2 rounded-sm px-2 py-1 text-left text-xs" onClick={() => setShown(a.id)}>
+            {a.done ? <CheckIcon className="text-success size-3.5 shrink-0" /> : <Spinner className="size-3.5 shrink-0" />}
+            <span className="text-foreground shrink-0">{a.label || a.id}</span>
+            {a.phase && <span className="shrink-0">{a.phase}</span>}
+            {!a.done && a.activity && <span className="min-w-0 flex-1 truncate font-mono">{a.activity}</span>}
+            <ChevronRightIcon className="ml-auto size-3.5 shrink-0" />
+          </button>
+        ))}
+      </CollapsibleContent>
+      <Sheet open={agent !== undefined} onOpenChange={(o) => !o && setShown(undefined)}>
+        <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-xl">{agent && <AgentTranscript toolCallId={toolCallId} agent={agent} />}</SheetContent>
+      </Sheet>
+    </Collapsible>
+  );
+}
+
+/** One workflow agent's own conversation, read only, kept current while it runs. */
+function AgentTranscript({ toolCallId, agent }: { toolCallId: string; agent: WorkflowAgentItem }) {
+  const { t } = useI18n();
+  const read = useContext(WorkflowReader);
+  const [steps, setSteps] = useState<WorkflowStep[]>();
+  const [error, setError] = useState<string>();
+  useEffect(() => {
+    if (!read) return;
+    let stop = false;
+    const load = () =>
+      read(toolCallId, agent.id).then(
+        (s) => !stop && (setSteps(s), setError(undefined)),
+        (e) => !stop && setError(errorText(e)),
+      );
+    void load();
+    // A running agent is read again until it is done; agent.done changing reloads once more.
+    const timer = agent.done ? undefined : setInterval(load, 2000);
+    return () => {
+      stop = true;
+      clearInterval(timer);
+    };
+  }, [read, toolCallId, agent.id, agent.done]);
+  return (
+    <>
+      <div className="grid gap-0.5 border-b px-4 py-3 pr-12">
+        <SheetTitle className="flex items-center gap-2">
+          {agent.done ? <CheckIcon className="text-success size-4" /> : <Spinner className="size-4" />}
+          {agent.label || agent.id}
+        </SheetTitle>
+        <p className="text-muted-foreground text-xs">{[agent.phase, t(agent.done ? "chat.workflowAgentDone" : "chat.workflowAgentRunning"), t("chat.workflowReadOnly")].filter(Boolean).join(" · ")}</p>
+      </div>
+      <div className="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto px-4 py-4">
+        {error && <p className="text-destructive text-sm">{error}</p>}
+        {!steps && !error && <Spinner />}
+        {steps?.map((s, i) =>
+          s.kind === "prompt" ? (
+            <div key={i} className="bg-muted/50 rounded-md border px-3 py-2 text-xs whitespace-pre-wrap">
+              {s.text}
+            </div>
+          ) : s.kind === "tool" ? (
+            <ToolRow key={i} item={{ type: "tool", id: String(i), title: s.input ? `${s.tool}: ${s.input}` : s.tool, kind: "", status: s.failed ? "failed" : "", input: "", output: s.output, agents: [] }} />
+          ) : (
+            <Markdown key={i}>{s.text}</Markdown>
+          ),
+        )}
+      </div>
+    </>
   );
 }
 

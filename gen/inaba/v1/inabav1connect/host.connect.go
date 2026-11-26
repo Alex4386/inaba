@@ -89,6 +89,9 @@ const (
 	ThreadServiceForkThreadProcedure = "/inaba.v1.ThreadService/ForkThread"
 	// ThreadServiceListEventsProcedure is the procedure name of the ThreadService's ListEvents RPC.
 	ThreadServiceListEventsProcedure = "/inaba.v1.ThreadService/ListEvents"
+	// ThreadServiceGetWorkflowAgentProcedure is the procedure name of the ThreadService's
+	// GetWorkflowAgent RPC.
+	ThreadServiceGetWorkflowAgentProcedure = "/inaba.v1.ThreadService/GetWorkflowAgent"
 	// ThreadServiceSubscribeProcedure is the procedure name of the ThreadService's Subscribe RPC.
 	ThreadServiceSubscribeProcedure = "/inaba.v1.ThreadService/Subscribe"
 	// ProjectServiceCreateProjectProcedure is the procedure name of the ProjectService's CreateProject
@@ -328,6 +331,13 @@ var (
 			Procedure:  ThreadServiceListEventsProcedure,
 		}
 	})
+	threadServiceGetWorkflowAgentSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_inaba_v1_host_proto.Services().ByName("ThreadService").Methods().ByName("GetWorkflowAgent"),
+			Procedure:  ThreadServiceGetWorkflowAgentProcedure,
+		}
+	})
 	threadServiceSubscribeSpec = sync.OnceValue(func() connect.Spec {
 		return connect.Spec{
 			StreamType: connect.StreamTypeServer,
@@ -384,6 +394,8 @@ type ThreadServiceClient interface {
 	SetLayout(context.Context, *v1.SetLayoutRequest) (*v1.Thread, error)
 	ForkThread(context.Context, *v1.ForkThreadRequest) (*v1.Thread, error)
 	ListEvents(context.Context, *v1.ListEventsRequest) (*v1.ListEventsResponse, error)
+	// What one agent of a background workflow the thread's agent started has done so far.
+	GetWorkflowAgent(context.Context, *v1.GetWorkflowAgentRequest) (*v1.GetWorkflowAgentResponse, error)
 	// Sends every event after after_seq, then new ones as they happen.
 	Subscribe(context.Context, *v1.SubscribeRequest) (ThreadServiceSubscribeClientStream, error)
 }
@@ -461,6 +473,8 @@ type ThreadServiceHandler interface {
 	SetLayout(context.Context, *v1.SetLayoutRequest) (*v1.Thread, error)
 	ForkThread(context.Context, *v1.ForkThreadRequest) (*v1.Thread, error)
 	ListEvents(context.Context, *v1.ListEventsRequest) (*v1.ListEventsResponse, error)
+	// What one agent of a background workflow the thread's agent started has done so far.
+	GetWorkflowAgent(context.Context, *v1.GetWorkflowAgentRequest) (*v1.GetWorkflowAgentResponse, error)
 	// Sends every event after after_seq, then new ones as they happen.
 	Subscribe(context.Context, *v1.SubscribeRequest, ThreadServiceSubscribeServerStream) error
 }
@@ -491,6 +505,7 @@ func RegisterThreadServiceHandler(server *connect.Server, svc ThreadServiceHandl
 		connect.Method{Spec: threadServiceSetLayoutSpec(), Handler: adapter.setLayout},
 		connect.Method{Spec: threadServiceForkThreadSpec(), Handler: adapter.forkThread},
 		connect.Method{Spec: threadServiceListEventsSpec(), Handler: adapter.listEvents},
+		connect.Method{Spec: threadServiceGetWorkflowAgentSpec(), Handler: adapter.getWorkflowAgent},
 		connect.Method{Spec: threadServiceSubscribeSpec(), Handler: adapter.subscribe},
 	)
 }
@@ -595,6 +610,10 @@ func (UnimplementedThreadServiceHandler) ForkThread(context.Context, *v1.ForkThr
 
 func (UnimplementedThreadServiceHandler) ListEvents(context.Context, *v1.ListEventsRequest) (*v1.ListEventsResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.ThreadService.ListEvents is not implemented")
+}
+
+func (UnimplementedThreadServiceHandler) GetWorkflowAgent(context.Context, *v1.GetWorkflowAgentRequest) (*v1.GetWorkflowAgentResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.ThreadService.GetWorkflowAgent is not implemented")
 }
 
 func (UnimplementedThreadServiceHandler) Subscribe(context.Context, *v1.SubscribeRequest, ThreadServiceSubscribeServerStream) error {
@@ -768,6 +787,14 @@ func (c *threadServiceClient) ForkThread(ctx context.Context, req *v1.ForkThread
 func (c *threadServiceClient) ListEvents(ctx context.Context, req *v1.ListEventsRequest) (*v1.ListEventsResponse, error) {
 	var res v1.ListEventsResponse
 	if err := c.client.CallUnary(ctx, threadServiceListEventsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *threadServiceClient) GetWorkflowAgent(ctx context.Context, req *v1.GetWorkflowAgentRequest) (*v1.GetWorkflowAgentResponse, error) {
+	var res v1.GetWorkflowAgentResponse
+	if err := c.client.CallUnary(ctx, threadServiceGetWorkflowAgentSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -1029,6 +1056,18 @@ func (h threadServiceHandler) listEvents(ctx context.Context, _ connect.Spec, st
 		return err
 	}
 	res, err := h.svc.ListEvents(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h threadServiceHandler) getWorkflowAgent(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.GetWorkflowAgentRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.GetWorkflowAgent(ctx, &req)
 	if err != nil {
 		return err
 	}
