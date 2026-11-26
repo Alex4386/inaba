@@ -340,6 +340,11 @@ message WorkflowAgent {
   string activity = 5;
   // What it returned, cut short, once done.
   string result = 6;
+  // When it started, and when it finished or was stopped; the latter unset while it runs.
+  google.protobuf.Timestamp started_at = 7;
+  google.protobuf.Timestamp ended_at = 8;
+  // It never finished: its session closed, or it wrote nothing for a long while.
+  bool stopped = 9;
 }
 
 // One step of a workflow agent's own conversation.
@@ -536,6 +541,13 @@ service ThreadService {
   rpc ListEvents(ListEventsRequest) returns (ListEventsResponse) {
     option (google.api.http) = {get: "/v1/threads/{thread_id}/events"};
   }
+  // A file attached to one of the thread's messages, by the message's event and the
+  // file's place among its attachments. Subscribe leaves images' bytes out; this is
+  // where they come from.
+  rpc GetAttachment(GetAttachmentRequest) returns (Attachment) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (google.api.http) = {get: "/v1/threads/{thread_id}/events/{seq}/attachments/{index}"};
+  }
   // What one agent of a background workflow the thread's agent started has done so far.
   rpc GetWorkflowAgent(GetWorkflowAgentRequest) returns (GetWorkflowAgentResponse) {
     option (google.api.http) = {get: "/v1/threads/{thread_id}/tools/{tool_call_id}/agents/{agent_id}"};
@@ -543,6 +555,10 @@ service ThreadService {
   // The agent's conversation again whenever it grows, until the agent is done.
   rpc WatchWorkflowAgent(GetWorkflowAgentRequest) returns (stream GetWorkflowAgentResponse);
   // Sends every event after after_seq, then new ones as they happen.
+  // The events after after_seq, then each as it happens. To stay light for a thread
+  // that is opened often, it leaves out what ListEvents carries for the record: a tool
+  // call's or permission request's raw, and an attached image's data (its size is set
+  // instead; GetAttachment has it).
   rpc Subscribe(SubscribeRequest) returns (stream Event);
 }
 
@@ -721,6 +737,13 @@ message ListEventsRequest {
 }
 message ListEventsResponse {
   repeated Event events = 1;
+}
+message GetAttachmentRequest {
+  string thread_id = 1;
+  // The user message's event.
+  uint64 seq = 2;
+  // Which of its attachments, from 0.
+  uint32 index = 3;
 }
 
 message SubscribeRequest {

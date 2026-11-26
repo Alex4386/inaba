@@ -31,13 +31,18 @@ export function FilesPanel({ link, threadId, root, onClose, readOnly = false }: 
     else go();
   };
   const [error, setError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(() => {
     setError("");
-    link.files.listFolder({ threadId, path: folder }).then(
-      (r) => setEntries(r.entries),
-      (e) => (setEntries([]), setError(errorText(e))),
-    );
+    setRefreshing(true);
+    link.files
+      .listFolder({ threadId, path: folder })
+      .then(
+        (r) => setEntries(r.entries),
+        (e) => (setEntries([]), setError(errorText(e))),
+      )
+      .finally(() => setRefreshing(false));
   }, [link, threadId, folder]);
   useEffect(() => {
     setEntries(undefined);
@@ -75,9 +80,12 @@ export function FilesPanel({ link, threadId, root, onClose, readOnly = false }: 
             </>
           )}
         </nav>
-        <Button size="icon-sm" variant="ghost" aria-label={t("git.refresh")} title={t("git.refresh")} onClick={load}>
-          <RefreshCwIcon />
-        </Button>
+        {/* The folder list is hidden while a file is open; the file has its own reload when it changes on disk. */}
+        {file === undefined && (
+          <Button size="icon-sm" variant="ghost" aria-label={t("git.refresh")} title={t("git.refresh")} disabled={refreshing} onClick={load}>
+            {refreshing ? <Spinner /> : <RefreshCwIcon />}
+          </Button>
+        )}
         <Button size="icon-sm" variant="ghost" aria-label={t("palette.close")} title={t("palette.close")} onClick={onClose}>
           <XIcon />
         </Button>
@@ -144,6 +152,8 @@ function FileView({ link, threadId, path, onDirty, readOnly, onOpen }: { link: H
   const [version, setVersion] = useState("");
   const [saving, setSaving] = useState(false);
   const [stale, setStale] = useState(false);
+  // Reloading over unsaved edits waits for a yes.
+  const [reloading, setReloading] = useState(false);
   // Markdown and tables open rendered; the source view is the editor.
   const kind = previewKind(path);
   const [source, setSource] = useState(false);
@@ -177,13 +187,16 @@ function FileView({ link, threadId, path, onDirty, readOnly, onOpen }: { link: H
   const save = () => {
     if (!dirty || saving || file?.truncated) return;
     setSaving(true);
+    // What was written; anything typed while it was being written stays in the editor.
+    const saved = draft;
+    const data = new TextEncoder().encode(saved);
     link.files
-      .writeFile({ threadId, path, data: new TextEncoder().encode(draft), baseVersion: version })
+      .writeFile({ threadId, path, data, baseVersion: version })
       .then(
         (r) => {
           setVersion(r.version);
-          setFile((f) => f && { ...f, data: new TextEncoder().encode(draft) });
-          setDraft(undefined);
+          setFile((f) => f && { ...f, data });
+          setDraft((d) => (d === saved ? undefined : d));
         },
         (e) => (ConnectError.from(e).code === Code.Aborted ? setStale(true) : showError(e)),
       )
@@ -208,7 +221,7 @@ function FileView({ link, threadId, path, onDirty, readOnly, onOpen }: { link: H
       {stale && (
         <div className="bg-warning/10 flex items-center gap-2 border-b px-3 py-1.5 text-xs">
           <span className="flex-1">{t("files.changedOnDisk")}</span>
-          <Button size="xs" variant="outline" onClick={load}>
+          <Button size="xs" variant="outline" onClick={() => (dirty ? setReloading(true) : load())}>
             {t("files.reload")}
           </Button>
         </div>
@@ -229,6 +242,7 @@ function FileView({ link, threadId, path, onDirty, readOnly, onOpen }: { link: H
           )}
           <span className="text-muted-foreground flex-1">{dirty ? t("files.unsaved") : t("files.saved")}</span>
           <Button size="xs" variant={dirty ? "default" : "ghost"} disabled={!dirty || saving || file.truncated} onClick={save} title="⌘S">
+            {saving && <Spinner data-icon="inline-start" />}
             {t("providers.save")}
           </Button>
         </div>
@@ -251,6 +265,16 @@ function FileView({ link, threadId, path, onDirty, readOnly, onOpen }: { link: H
       ) : (
         <p className="text-muted-foreground p-4 text-sm">{t("files.binary", { type: file.mimeType, size: size(file.size) })}</p>
       )}
+      <ConfirmDialog
+        open={reloading}
+        onClose={() => setReloading(false)}
+        title={t("files.discard")}
+        description={t("files.discardHelp")}
+        cancel={t("files.keepEditing")}
+        confirm={t("files.discardConfirm")}
+        destructive
+        onConfirm={load}
+      />
     </div>
   );
 }

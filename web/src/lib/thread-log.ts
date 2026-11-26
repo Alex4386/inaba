@@ -129,6 +129,9 @@ export function apply(log: Log, event: Event): Log {
   return { items, lastSeq: event.seq };
 }
 
+/** Folds events that arrived together, for one render for the lot rather than one each. */
+export const applyAll = (log: Log, events: Event[]) => events.reduce(apply, log);
+
 export type Turn = Extract<Item, { type: "turn" }>;
 export type Block = Item | { turn: Turn; work: Item[] };
 

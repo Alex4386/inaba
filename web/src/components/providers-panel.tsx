@@ -126,6 +126,9 @@ function Models({ config, onHidden }: { config: ProviderConfig; onHidden: (hidde
   );
 }
 
+// What the form edits; the status and models are the host's, and models save on their own.
+const editable = (c?: ProviderConfig) => c && JSON.stringify({ ...c, status: undefined, models: undefined, hiddenModels: undefined });
+
 /** The agents a host offers, from its config file: a list to pick from and the picked one's settings. */
 export function ProvidersPanel({ hostId }: { hostId: string }) {
   const { t } = useI18n();
@@ -176,9 +179,18 @@ export function ProvidersPanel({ hostId }: { hostId: string }) {
     );
   }, [load, check, client]);
   const saved = configs?.find((c) => c.id === picked);
-  // Editing starts over from what is saved whenever another provider is picked.
+  // Editing starts over from what is saved whenever another provider is picked; a reload or check of
+  // the same one keeps unsaved edits and takes only what is changed outside the form.
+  const shownSaved = useRef<ProviderConfig>(undefined);
   useEffect(() => {
-    if (saved) setDraft(create(ProviderConfigSchema, saved));
+    const before = shownSaved.current;
+    shownSaved.current = saved;
+    if (!saved) return;
+    setDraft((d) =>
+      d && before && d.id === saved.id && editable(d) !== editable(before)
+        ? create(ProviderConfigSchema, { ...d, icon: saved.icon, enabled: saved.enabled, hiddenModels: saved.hiddenModels, models: saved.models, status: saved.status })
+        : create(ProviderConfigSchema, saved),
+    );
   }, [saved]);
 
   const save = (c: ProviderConfig) => {
@@ -206,8 +218,6 @@ export function ProvidersPanel({ hostId }: { hostId: string }) {
 
   if (error) return <p className="text-destructive text-sm">{error}</p>;
   if (!configs) return <Spinner />;
-  // What the form edits; the status and models are the host's, and models save on their own.
-  const editable = (c?: ProviderConfig) => c && JSON.stringify({ ...c, status: undefined, models: undefined, hiddenModels: undefined });
   const changed = draft && saved && editable(draft) !== editable(saved);
   const checkedAt = configs
     .flatMap((c) => (c.status?.checkedAt ? [timestampDate(c.status.checkedAt)] : []))
@@ -295,6 +305,7 @@ export function ProvidersPanel({ hostId }: { hostId: string }) {
             </div>
             <div className="flex justify-end py-3">
               <Button type="submit" disabled={saving || !changed}>
+                {saving && <Spinner data-icon="inline-start" />}
                 {t("providers.save")}
               </Button>
             </div>

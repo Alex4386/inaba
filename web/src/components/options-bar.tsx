@@ -4,6 +4,7 @@ import { Picker } from "@/components/picker";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { selectTriggerClass } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import type { SessionOption } from "@/gen/inaba/v1/host_pb";
 import { useI18n } from "@/lib/i18n";
@@ -43,18 +44,21 @@ function ModelPicker({
   provider,
   onProvider,
   field = false,
+  busy = false,
 }: {
   /** Shown as a field in a settings row, like a select, rather than by the composer. */
   field?: boolean;
+  /** A change made here is still on its way. */
+  busy?: boolean;
   /** None for an agent with no models to pick, or a plain terminal: the picker still switches providers. */
   model?: SessionOption;
   effort?: SessionOption;
   switches: SessionOption[];
   mode?: SessionOption;
-  onSet: (optionId: string, value: string) => void;
+  onSet: (optionId: string, value: string) => unknown;
   providers?: PickerProvider[];
   provider?: string;
-  onProvider?: (id: string) => void;
+  onProvider?: (id: string) => unknown;
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -104,7 +108,7 @@ function ModelPicker({
       <PopoverTrigger
         render={field ? <button type="button" data-size="default" className={cn(selectTriggerClass, "max-w-64")} /> : <Button type="button" size="sm" variant="ghost" className="max-w-64" />}
       >
-        {!model && shownProvider && (shownProvider.terminal ? <SquareTerminalIcon /> : <BotIcon />)}
+        {busy ? <Spinner /> : !model && shownProvider && (shownProvider.terminal ? <SquareTerminalIcon /> : <BotIcon />)}
         <span className="truncate">{current?.name ?? model?.value ?? shownProvider?.name}</span>
         {currentEffort && effort?.value !== "default" && <span className="text-muted-foreground">{currentEffort.name}</span>}
         {field ? <ChevronDownIcon className="text-muted-foreground size-4" /> : <ChevronUpIcon data-icon="inline-end" />}
@@ -125,6 +129,7 @@ function ModelPicker({
                 aria-pressed={p.id === provider}
                 aria-label={p.name}
                 title={p.name}
+                disabled={busy}
                 onClick={() => {
                   // A provider shows all its models, leaving the favorites view.
                   setOnlyFavorites(false);
@@ -221,7 +226,7 @@ function ModelPicker({
 
 /** The settings the agent offers for this thread: its model, its mode, and whatever else it has. */
 export function OptionsBar({
-  options,
+  options: given,
   onSet,
   providers,
   provider,
@@ -229,14 +234,36 @@ export function OptionsBar({
   field = false,
 }: {
   options: SessionOption[];
-  onSet: (optionId: string, value: string) => void;
+  /** May return a promise; the picked value shows until it settles. */
+  onSet: (optionId: string, value: string) => unknown;
   /** Providers to switch between, offered in the model picker before a thread exists. */
   providers?: PickerProvider[];
   provider?: string;
-  onProvider?: (id: string) => void;
+  onProvider?: (id: string) => unknown;
   /** In a settings row: the picker looks like the selects beside it. */
   field?: boolean;
 }) {
+  // What was just picked shows at once, until the agent has taken it, so the control does not snap back meanwhile.
+  const [pending, setPending] = useState<Record<string, string>>({});
+  const [switching, setSwitching] = useState<string>();
+  const set = (id: string, value: string) => {
+    setPending((p) => ({ ...p, [id]: value }));
+    void Promise.resolve(onSet(id, value)).finally(() =>
+      setPending((p) => {
+        // A later pick of the same option is still on its way, and keeps showing.
+        if (p[id] !== value) return p;
+        const { [id]: _, ...rest } = p;
+        return rest;
+      }),
+    );
+  };
+  const switchTo =
+    onProvider &&
+    ((id: string) => {
+      setSwitching(id);
+      void Promise.resolve(onProvider(id)).finally(() => setSwitching(undefined));
+    });
+  const options = given.map((o) => (o.id in pending ? { ...o, value: pending[o.id] } : o));
   const rank = (o: SessionOption) => optionOrder.indexOf(o.category) + 1 || optionOrder.length + 1;
   const model = options.find((o) => o.category === "model" && !o.boolean);
   // With a model to pick, its effort, its switches (speed among them) and the access mode go in its picker.
@@ -252,11 +279,12 @@ export function OptionsBar({
           effort={model && options.find((o) => o.category === "thought_level" && !o.boolean)}
           switches={model ? options.filter(isSwitch) : []}
           mode={model && options.find((o) => o.category === "mode" && !o.boolean)}
-          onSet={onSet}
+          onSet={set}
           providers={providers}
-          provider={provider}
-          onProvider={onProvider}
+          provider={switching ?? provider}
+          onProvider={switchTo}
           field={field}
+          busy={switching !== undefined || Object.keys(pending).length > 0}
         />
       )}
       {[...rest]
@@ -270,8 +298,10 @@ export function OptionsBar({
               variant={option.value === "true" ? "secondary" : "ghost"}
               aria-pressed={option.value === "true"}
               title={option.description || option.name}
-              onClick={() => onSet(option.id, option.value === "true" ? "false" : "true")}
+              disabled={option.id in pending}
+              onClick={() => set(option.id, option.value === "true" ? "false" : "true")}
             >
+              {option.id in pending && <Spinner data-icon="inline-start" />}
               {option.name}
             </Button>
           ) : (
@@ -281,7 +311,7 @@ export function OptionsBar({
               className="border-0 shadow-none"
               label={option.name}
               value={option.value}
-              onChange={(value) => onSet(option.id, value)}
+              onChange={(value) => set(option.id, value)}
               options={option.choices.map((c) => ({ value: c.value, label: c.name }))}
             />
           ),

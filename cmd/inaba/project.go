@@ -1,9 +1,11 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -129,6 +131,72 @@ func projectCommand() *cobra.Command {
 		},
 	)
 	return cmd
+}
+
+// openCommand makes a folder a project if it is not one yet, then opens it in the web UI,
+// where a thread can start in it.
+func openCommand() *cobra.Command {
+	var name string
+	var noBrowser bool
+	cmd := &cobra.Command{
+		Use:   "open [FOLDER]",
+		Short: "Open a folder in the web UI, adding it as a project first if it is not one",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: run(func(ctx context.Context, c *hostClient, args []string) error {
+			folder := "."
+			if len(args) > 0 {
+				folder = args[0]
+			}
+			folder, err := filepath.Abs(folder)
+			if err != nil {
+				return err
+			}
+			if st, err := os.Stat(folder); err != nil || !st.IsDir() {
+				return fmt.Errorf("%s is not a folder", folder)
+			}
+			p, err := projectAt(ctx, c, folder)
+			if err != nil {
+				return err
+			}
+			if p == nil {
+				if p, err = c.projects.CreateProject(ctx, &inabav1.CreateProjectRequest{Name: name, Cwd: folder}); err != nil {
+					return err
+				}
+				fmt.Printf("Added project %s (%s) at %s\n", p.Name, p.Id, p.Cwd)
+			}
+			creds, err := loadCredentials()
+			if err != nil || creds.HostID == "" {
+				fmt.Println("Sign in with `inaba login` to open projects in the web UI.")
+				return nil
+			}
+			link := strings.TrimRight(cmp.Or(creds.Server, cfg.Server), "/") + "/ui/hosts/" + url.PathEscape(creds.HostID) + "/projects/" + url.PathEscape(p.Id)
+			fmt.Println(link)
+			if !c.live {
+				fmt.Println("inaba is not running here, so the project shows once `inaba connect` runs.")
+			}
+			if !noBrowser {
+				openBrowser(link)
+			}
+			return nil
+		}),
+	}
+	cmd.Flags().StringVar(&name, "name", "", "name for a new project; defaults to the folder's name")
+	cmd.Flags().BoolVar(&noBrowser, "no-browser", false, "print the link without opening a browser")
+	return cmd
+}
+
+// projectAt is the project whose folder is this one, or nil.
+func projectAt(ctx context.Context, c *hostClient, folder string) (*inabav1.Project, error) {
+	res, err := c.projects.ListProjects(ctx, &inabav1.ListProjectsRequest{})
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range res.Projects {
+		if filepath.Clean(p.Cwd) == folder {
+			return p, nil
+		}
+	}
+	return nil, nil
 }
 
 // Threads live in the running host's memory, so these need one to be running.

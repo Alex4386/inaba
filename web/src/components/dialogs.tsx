@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { showError } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
 
@@ -54,16 +55,21 @@ export function CreateSecretDialog({
 }) {
   const { t } = useI18n();
   const [secret, setSecret] = useState("");
+  const [busy, setBusy] = useState(false);
   const close = () => {
     setSecret("");
     onClose();
   };
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (busy) return;
+    setBusy(true);
     try {
       setSecret(await create(String(new FormData(event.currentTarget).get("name"))));
     } catch (e) {
       showError(e);
+    } finally {
+      setBusy(false);
     }
   };
   return (
@@ -87,7 +93,10 @@ export function CreateSecretDialog({
               <Input id="create-name" name="name" autoFocus required />
             </Field>
             <DialogFooter>
-              <Button type="submit">{t("common.create")}</Button>
+              <Button type="submit" disabled={busy}>
+                {busy && <Spinner data-icon="inline-start" />}
+                {t("common.create")}
+              </Button>
             </DialogFooter>
           </form>
         )}
@@ -113,24 +122,35 @@ export function ConfirmDialog({
   cancel: string;
   confirm: string;
   destructive?: boolean;
-  onConfirm: () => void;
+  /** May return a promise; the dialog stays open, busy, until it settles. */
+  onConfirm: () => unknown;
 }) {
+  const [busy, setBusy] = useState(false);
   return (
-    <AlertDialog open={open} onOpenChange={(next) => !next && onClose()}>
+    <AlertDialog open={open} onOpenChange={(next) => !next && !busy && onClose()}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>{cancel}</AlertDialogCancel>
+          <AlertDialogCancel disabled={busy}>{cancel}</AlertDialogCancel>
           <AlertDialogAction
             variant={destructive ? "destructive" : "default"}
-            onClick={() => {
-              onConfirm();
-              onClose();
+            disabled={busy}
+            onClick={(e) => {
+              e.preventDefault();
+              setBusy(true);
+              void Promise.resolve()
+                .then(onConfirm)
+                .catch(showError)
+                .finally(() => {
+                  setBusy(false);
+                  onClose();
+                });
             }}
           >
+            {busy && <Spinner data-icon="inline-start" />}
             {confirm}
           </AlertDialogAction>
         </AlertDialogFooter>
@@ -142,13 +162,18 @@ export function ConfirmDialog({
 /** Asks for a new name for something that already has one. */
 export function RenameDialog({ open, onClose, title, name, onRename }: { open: boolean; onClose: () => void; title: string; name: string; onRename: (name: string) => Promise<unknown> }) {
   const { t } = useI18n();
+  const [busy, setBusy] = useState(false);
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (busy) return;
+    setBusy(true);
     try {
       await onRename(String(new FormData(event.currentTarget).get("name")));
       onClose();
     } catch (e) {
       showError(e);
+    } finally {
+      setBusy(false);
     }
   };
   return (
@@ -160,7 +185,10 @@ export function RenameDialog({ open, onClose, title, name, onRename }: { open: b
         <form onSubmit={submit} className="grid gap-4">
           <Input name="name" defaultValue={name} aria-label={t("common.name")} autoFocus required onFocus={(e) => e.currentTarget.select()} />
           <DialogFooter>
-            <Button type="submit">{t("common.save")}</Button>
+            <Button type="submit" disabled={busy}>
+              {busy && <Spinner data-icon="inline-start" />}
+              {t("common.save")}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

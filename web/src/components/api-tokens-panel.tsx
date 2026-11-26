@@ -4,6 +4,7 @@ import { auth } from "@/api";
 import { Secret } from "@/components/dialogs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import type { Token } from "@/gen/inaba/v1/server_pb";
 import { showError } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
@@ -11,17 +12,21 @@ import { useI18n } from "@/lib/i18n";
 /** The signed-in user's API tokens: see them, make one, revoke one. */
 export function ApiTokensPanel() {
   const { t, locale } = useI18n();
-  const [tokens, setTokens] = useState<Token[]>([]);
+  const [tokens, setTokens] = useState<Token[]>();
   const [secret, setSecret] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [revoking, setRevoking] = useState("");
 
-  const refresh = useCallback(() => auth.listTokens({}).then((r) => setTokens(r.tokens), showError), []);
+  const refresh = useCallback(() => auth.listTokens({}).then((r) => setTokens(r.tokens), (e) => (showError(e), setTokens((l) => l ?? []))), []);
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
   const create = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (creating) return;
     const form = event.currentTarget;
+    setCreating(true);
     try {
       const created = await auth.createToken({ name: String(new FormData(form).get("name")) });
       setSecret(created.secret);
@@ -29,9 +34,17 @@ export function ApiTokensPanel() {
       await refresh();
     } catch (e) {
       showError(e);
+    } finally {
+      setCreating(false);
     }
   };
-  const revoke = (id: string) => auth.revokeToken({ id }).then(refresh, showError);
+  const revoke = (id: string) => {
+    setRevoking(id);
+    return auth
+      .revokeToken({ id })
+      .then(refresh, showError)
+      .finally(() => setRevoking(""));
+  };
 
   return (
     <div className="grid gap-4">
@@ -42,7 +55,9 @@ export function ApiTokensPanel() {
             <Secret value={secret} />
           </div>
         )}
-        {tokens.length === 0 ? (
+        {!tokens ? (
+          <Spinner />
+        ) : tokens.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t("tokens.none")}</p>
         ) : (
           <ul className="divide-y rounded-lg border">
@@ -54,8 +69,8 @@ export function ApiTokensPanel() {
                     {t("tokens.created", { date: token.createdAt ? new Date(Number(token.createdAt.seconds) * 1000).toLocaleDateString(locale) : "" })}
                   </span>
                 </div>
-                <Button size="sm" variant="destructive" aria-label={t("tokens.revokeNamed", { name: token.name })} onClick={() => void revoke(token.id)}>
-                  <Trash2Icon data-icon="inline-start" />
+                <Button size="sm" variant="destructive" aria-label={t("tokens.revokeNamed", { name: token.name })} disabled={revoking === token.id} onClick={() => void revoke(token.id)}>
+                  {revoking === token.id ? <Spinner data-icon="inline-start" /> : <Trash2Icon data-icon="inline-start" />}
                   {t("tokens.revoke")}
                 </Button>
               </li>
@@ -64,7 +79,10 @@ export function ApiTokensPanel() {
         )}
         <form onSubmit={create} className="flex gap-2">
           <Input name="name" placeholder={t("tokens.newName")} aria-label={t("tokens.newName")} required />
-          <Button type="submit">{t("tokens.create")}</Button>
+          <Button type="submit" disabled={creating}>
+            {creating && <Spinner data-icon="inline-start" />}
+            {t("tokens.create")}
+          </Button>
         </form>
     </div>
   );

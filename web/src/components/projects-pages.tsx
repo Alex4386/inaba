@@ -1,5 +1,5 @@
 import { ArchiveIcon, BotIcon, ChevronRightIcon, CircleAlertIcon, PinIcon, PlusIcon, SquareTerminalIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { HostLink } from "@/api";
 import { ProjectIcon, threadFailed, threadName, threadState, timeAgo } from "@/components/project-tree";
 import { Badge } from "@/components/reui/badge";
@@ -9,20 +9,38 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { type Project, type Thread, ThreadMode } from "@/gen/inaba/v1/host_pb";
-import { showError } from "@/lib/errors";
+import { errorText } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
 
 /** The host's projects and threads, read once for a page that lists them. */
 function useListing(link: HostLink) {
   const [projects, setProjects] = useState<Project[]>();
   const [threads, setThreads] = useState<Thread[]>([]);
-  useEffect(() => {
-    Promise.all([link.projects.listProjects({}), link.threads.listThreads({})]).then(([p, th]) => {
-      setProjects(p.projects);
-      setThreads(th.threads);
-    }, showError);
+  const [error, setError] = useState("");
+  const load = useCallback(() => {
+    setError("");
+    Promise.all([link.projects.listProjects({}), link.threads.listThreads({})]).then(
+      ([p, th]) => {
+        setProjects(p.projects);
+        setThreads(th.threads);
+      },
+      (e) => setError(errorText(e)),
+    );
   }, [link]);
-  return { projects, threads };
+  useEffect(load, [load]);
+  return { projects, threads, failed: error && <LoadError error={error} onRetry={load} /> };
+}
+
+function LoadError({ error, onRetry }: { error: string; onRetry: () => void }) {
+  const { t } = useI18n();
+  return (
+    <div className="grid justify-items-start gap-2">
+      <p className="text-destructive text-sm">{error}</p>
+      <Button size="sm" variant="outline" onClick={onRetry}>
+        {t("common.retry")}
+      </Button>
+    </div>
+  );
 }
 
 function PageHeader({ children }: { children: React.ReactNode }) {
@@ -57,7 +75,7 @@ function Archived() {
 /** Every project on the host, archived ones too: pick one to see all its threads. */
 export function ProjectsPage({ link, onOpen, onAddProject }: { link: HostLink; onOpen: (project: Project) => void; /** Opens the folder picker that adds a project; absent when the account may not. */ onAddProject?: () => void }) {
   const { t } = useI18n();
-  const { projects, threads } = useListing(link);
+  const { projects, threads, failed } = useListing(link);
   const [filter, setFilter] = useState("");
   const q = filter.trim().toLowerCase();
   const shown = projects?.filter((p) => !q || p.name.toLowerCase().includes(q) || p.cwd.toLowerCase().includes(q)).sort((a, b) => Number(b.pinned) - Number(a.pinned));
@@ -75,7 +93,9 @@ export function ProjectsPage({ link, onOpen, onAddProject }: { link: HostLink; o
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto grid w-full max-w-3xl grid-cols-[minmax(0,1fr)] gap-4 p-6">
           <Input className="max-w-64" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t("archive.filterProjects")} aria-label={t("archive.filterProjects")} />
-          {!shown ? (
+          {failed ? (
+            failed
+          ) : !shown ? (
             <Spinner />
           ) : shown.length === 0 ? (
             <p className="text-muted-foreground text-sm">{t("project.noneNoPermission")}</p>
@@ -133,7 +153,7 @@ export function ProjectThreadsPage({
   onNewThread: (project: Project) => void;
 }) {
   const { t, locale } = useI18n();
-  const { projects, threads } = useListing(link);
+  const { projects, threads, failed } = useListing(link);
   const [filter, setFilter] = useState("");
   const project = projects?.find((p) => p.id === projectId);
   const q = filter.trim().toLowerCase();
@@ -161,7 +181,9 @@ export function ProjectThreadsPage({
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto grid w-full max-w-3xl grid-cols-[minmax(0,1fr)] gap-4 p-6">
           <Input className="max-w-64" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t("archive.filterThreads")} aria-label={t("archive.filterThreads")} />
-          {!projects ? (
+          {failed ? (
+            failed
+          ) : !projects ? (
             <Spinner />
           ) : listed.length === 0 ? (
             <p className="text-muted-foreground text-sm">{t("project.noThreads")}</p>

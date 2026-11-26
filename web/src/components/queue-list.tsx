@@ -1,10 +1,12 @@
 import { ArrowDownIcon, ArrowUpIcon, CheckIcon, PaperclipIcon, PencilIcon, SendHorizontalIcon, XIcon } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import type { QueuedMessage } from "@/gen/inaba/v1/host_pb";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { showError } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 
 /**
  * The messages waiting for the running turn, each one editable, movable, sendable at once
@@ -24,19 +26,31 @@ export function QueueList({
   /** Resolves once the new text is saved; a failure keeps the editor open. */
   onEdit: (queuedId: string, text: string) => Promise<unknown>;
   /** toIndex 0 runs next. */
-  onMove: (queuedId: string, toIndex: number) => void;
-  onSendNow: (queuedId: string) => void;
-  onRemove: (queuedId: string) => void;
-  onResume: () => void;
+  onMove: (queuedId: string, toIndex: number) => Promise<unknown>;
+  onSendNow: (queuedId: string) => Promise<unknown>;
+  onRemove: (queuedId: string) => Promise<unknown>;
+  onResume: () => Promise<unknown>;
 }) {
   const { t } = useI18n();
   // The message being edited, and its text so far.
   const [editing, setEditing] = useState<string>();
   const [text, setText] = useState("");
+  const [saving, setSaving] = useState(false);
+  // The message a move, send or removal is on its way for, and which button did it; one at a time.
+  const [busy, setBusy] = useState<{ id: string; what: string }>();
+  const act = (id: string, what: string, call: () => Promise<unknown>) => {
+    if (busy) return;
+    setBusy({ id, what });
+    void call().finally(() => setBusy(undefined));
+  };
+  const icon = (id: string, what: string, node: ReactNode) => (busy?.id === id && busy.what === what ? <Spinner /> : node);
   const save = (queued: QueuedMessage) => {
     // The host refuses a message left with nothing in it; say so here instead of round-tripping.
-    if (!text.trim() && queued.attachments.length === 0) return;
-    onEdit(queued.id, text).then(() => setEditing(undefined), showError);
+    if (saving || (!text.trim() && queued.attachments.length === 0)) return;
+    setSaving(true);
+    onEdit(queued.id, text)
+      .then(() => setEditing(undefined), showError)
+      .finally(() => setSaving(false));
   };
   if (queue.length === 0) return null;
   return (
@@ -47,6 +61,7 @@ export function QueueList({
             <Textarea
               autoFocus
               value={text}
+              disabled={saving}
               aria-label={t("queue.editLabel")}
               className="min-h-9 flex-1 resize-none"
               onChange={(e) => setText(e.target.value)}
@@ -62,22 +77,22 @@ export function QueueList({
                 }
               }}
             />
-            <Button type="button" size="icon-xs" variant="ghost" aria-label={t("common.save")} title={t("common.save")} disabled={!text.trim() && queued.attachments.length === 0} onClick={() => save(queued)}>
-              <CheckIcon />
+            <Button type="button" size="icon-xs" variant="ghost" aria-label={t("common.save")} title={t("common.save")} disabled={saving || (!text.trim() && queued.attachments.length === 0)} onClick={() => save(queued)}>
+              {saving ? <Spinner /> : <CheckIcon />}
             </Button>
             <Button type="button" size="icon-xs" variant="ghost" aria-label={t("providers.cancel")} title={t("providers.cancel")} onClick={() => setEditing(undefined)}>
               <XIcon />
             </Button>
           </li>
         ) : (
-          <li key={queued.id} className="text-muted-foreground flex items-center gap-1 rounded-lg border border-dashed py-1 pr-1 pl-3 text-sm">
+          <li key={queued.id} className={cn("text-muted-foreground flex items-center gap-1 rounded-lg border border-dashed py-1 pr-1 pl-3 text-sm", busy?.id === queued.id && "opacity-60")}>
             <span className="min-w-0 flex-1 truncate">{queued.text}</span>
             {queued.attachments.length > 0 && <PaperclipIcon className="size-3.5 shrink-0" />}
-            <Button type="button" size="icon-xs" variant="ghost" aria-label={t("queue.moveUp")} title={t("queue.moveUp")} disabled={i === 0} onClick={() => onMove(queued.id, i - 1)}>
-              <ArrowUpIcon />
+            <Button type="button" size="icon-xs" variant="ghost" aria-label={t("queue.moveUp")} title={t("queue.moveUp")} disabled={Boolean(busy) || i === 0} onClick={() => act(queued.id, "up", () => onMove(queued.id, i - 1))}>
+              {icon(queued.id, "up", <ArrowUpIcon />)}
             </Button>
-            <Button type="button" size="icon-xs" variant="ghost" aria-label={t("queue.moveDown")} title={t("queue.moveDown")} disabled={i === queue.length - 1} onClick={() => onMove(queued.id, i + 1)}>
-              <ArrowDownIcon />
+            <Button type="button" size="icon-xs" variant="ghost" aria-label={t("queue.moveDown")} title={t("queue.moveDown")} disabled={Boolean(busy) || i === queue.length - 1} onClick={() => act(queued.id, "down", () => onMove(queued.id, i + 1))}>
+              {icon(queued.id, "down", <ArrowDownIcon />)}
             </Button>
             <Button
               type="button"
@@ -85,6 +100,7 @@ export function QueueList({
               variant="ghost"
               aria-label={t("queue.edit")}
               title={t("queue.edit")}
+              disabled={busy?.id === queued.id}
               onClick={() => {
                 setText(queued.text);
                 setEditing(queued.id);
@@ -92,11 +108,11 @@ export function QueueList({
             >
               <PencilIcon />
             </Button>
-            <Button type="button" size="icon-xs" variant="ghost" aria-label={t("queue.sendNow")} title={t("queue.sendNow")} onClick={() => onSendNow(queued.id)}>
-              <SendHorizontalIcon />
+            <Button type="button" size="icon-xs" variant="ghost" aria-label={t("queue.sendNow")} title={t("queue.sendNow")} disabled={Boolean(busy)} onClick={() => act(queued.id, "send", () => onSendNow(queued.id))}>
+              {icon(queued.id, "send", <SendHorizontalIcon />)}
             </Button>
-            <Button type="button" size="icon-xs" variant="ghost" aria-label={t("queue.remove")} title={t("queue.remove")} onClick={() => onRemove(queued.id)}>
-              <XIcon />
+            <Button type="button" size="icon-xs" variant="ghost" aria-label={t("queue.remove")} title={t("queue.remove")} disabled={Boolean(busy)} onClick={() => act(queued.id, "remove", () => onRemove(queued.id))}>
+              {icon(queued.id, "remove", <XIcon />)}
             </Button>
           </li>
         ),
@@ -104,7 +120,8 @@ export function QueueList({
       {paused && (
         <li className="text-muted-foreground flex items-center gap-2 text-xs">
           {t("queue.paused")}
-          <Button type="button" size="xs" variant="outline" onClick={onResume}>
+          <Button type="button" size="xs" variant="outline" disabled={Boolean(busy)} onClick={() => act("", "resume", onResume)}>
+            {busy?.what === "resume" && <Spinner data-icon="inline-start" />}
             {t("queue.resume")}
           </Button>
         </li>

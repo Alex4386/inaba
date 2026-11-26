@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { type Project, ProjectService } from "@/gen/inaba/v1/host_pb";
@@ -77,7 +78,18 @@ export function McpServersPanel({ hostId }: { hostId: string }) {
                 </code>
                 <span className="text-muted-foreground text-xs">{scope(m)}</span>
               </div>
-              <Switch checked={m.enabled} aria-label={t("mcp.enabled")} title={t("mcp.enabled")} onCheckedChange={(enabled) => save({ ...m, enabled }).catch(showError)} />
+              <Switch
+                checked={m.enabled}
+                aria-label={t("mcp.enabled")}
+                title={t("mcp.enabled")}
+                onCheckedChange={(enabled) => {
+                  setServers((now) => now.map((x) => (x.id === m.id ? { ...x, enabled } : x)));
+                  save({ ...m, enabled }).catch((e) => {
+                    showError(e);
+                    refresh();
+                  });
+                }}
+              />
               <Button size="icon-sm" variant="ghost" aria-label={t("mcp.edit")} title={t("mcp.edit")} onClick={() => setEditing(m)}>
                 <PencilIcon />
               </Button>
@@ -113,6 +125,7 @@ function McpServerDialog({ server, projects, onClose, onSave }: { server?: McpSe
   const [url, setUrl] = useState("");
   const [headers, setHeaders] = useState("");
   const [projectIds, setProjectIds] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!server) return;
     setName(server.name);
@@ -127,7 +140,7 @@ function McpServerDialog({ server, projects, onClose, onSave }: { server?: McpSe
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!server) return;
+    if (!server || busy) return;
     const lines = (text: string) =>
       text
         .split("\n")
@@ -140,11 +153,14 @@ function McpServerDialog({ server, projects, onClose, onSave }: { server?: McpSe
       projectIds,
       ...(kind === "command" ? { command, args: lines(args), env: parsePairs(env, "=") } : { url, headers: parsePairs(headers, ":") }),
     });
+    setBusy(true);
     try {
       await onSave(next);
       onClose();
     } catch (e) {
       showError(e);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -216,7 +232,10 @@ function McpServerDialog({ server, projects, onClose, onSave }: { server?: McpSe
             </Field>
           )}
           <DialogFooter>
-            <Button type="submit">{server?.id ? t("common.save") : t("common.create")}</Button>
+            <Button type="submit" disabled={busy}>
+              {busy && <Spinner data-icon="inline-start" />}
+              {server?.id ? t("common.save") : t("common.create")}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

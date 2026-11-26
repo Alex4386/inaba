@@ -6,6 +6,7 @@ import type { HostLink } from "@/api";
 import { OptionsBar, type PickerProvider } from "@/components/options-bar";
 import { Button } from "@/components/ui/button";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
+import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import type { Attachment, Thread, Usage } from "@/gen/inaba/v1/host_pb";
 import { attachmentProblem, type BuiltinCommand, builtinCommands, commandTakesText, formatBytes, parseBuiltin } from "@/lib/composer-input";
@@ -22,8 +23,8 @@ const maxPromptChars = 200_000;
 const warnPromptChars = 50_000;
 
 /** What the composer holds: text, and files (images or not) not yet sent. */
-/** What the composer is set to hold; without images, the attachments already there stay. */
-export type Draft = { text: string; images?: Attachment[] };
+/** What the composer is set to hold; without images, the attachments already there stay. A restore adds to what is there instead. */
+export type Draft = { text: string; images?: Attachment[]; restore?: boolean };
 
 type Suggestion = { key: string; label: string; detail?: string; insert: string; path?: string; builtin?: BuiltinCommand };
 
@@ -63,7 +64,7 @@ export function Composer({
   provider?: PickerProvider;
   /** Providers the thread can move to; offered while it is idle. */
   providers?: PickerProvider[];
-  onProvider?: (id: string) => void;
+  onProvider?: (id: string) => unknown;
   link: HostLink;
   thread: Thread;
   busy: boolean;
@@ -72,8 +73,9 @@ export function Composer({
   /** Replaces what the composer holds when it changes, as after a rewind. */
   draft?: Draft;
   onSend: (text: string, attachments: Attachment[], interrupt: boolean) => void;
-  onStop: (force: boolean) => void;
-  onSetOption: (optionId: string, value: string) => void;
+  /** Resolves once the host has the stop. */
+  onStop: (force: boolean) => Promise<unknown>;
+  onSetOption: (optionId: string, value: string) => unknown;
 }) {
   const { t, locale } = useI18n();
   const box = useRef<HTMLTextAreaElement>(null);
@@ -108,13 +110,20 @@ export function Composer({
   const [dismissed, setDismissed] = useState<string>();
   // Whether Stop was pressed for the turn still running; the button then offers to force it.
   const [stopping, setStopping] = useState(false);
-  useEffect(() => {
-    if (!busy) setStopping(false);
-  }, [busy]);
+  // Set while the stop is on its way, so it is not pressed again meanwhile.
+  const [requesting, setRequesting] = useState(false);
+  // Reset when a turn starts too: a stop that comes back after its turn ended must not carry into the next.
+  useEffect(() => setStopping(false), [busy]);
   useEffect(() => {
     if (!draft) return;
-    setText(draft.text);
-    if (draft.images) setImages(draft.images);
+    // A message that failed to send comes back ahead of whatever was typed since, which stays.
+    if (draft.restore) {
+      setText((now) => (now ? `${draft.text}\n\n${now}` : draft.text));
+      setImages((now) => [...(draft.images ?? []), ...now]);
+    } else {
+      setText(draft.text);
+      if (draft.images) setImages(draft.images);
+    }
     setRecalled(undefined);
     box.current?.focus();
   }, [draft]);
@@ -177,26 +186,38 @@ export function Composer({
     });
   };
 
+  // Files still being read in; sending waits for them, or a screenshot pasted just before Enter would be left behind.
+  const [reading, setReading] = useState(0);
   const addFiles = async (list: FileList | File[]) => {
     // Counted as files are accepted, since state set in this loop is not visible until it ends.
     // shortcut: two pastes/drops in flight both count from the same `images`, so together they can pass the caps; the host still refuses at send. Serialize addFiles if that bites.
     const held = { count: images.length, bytes: images.reduce((n, a) => n + a.data.length, 0) };
-    for (const file of Array.from(list)) {
-      const problem = attachmentProblem(file, held);
-      if (problem) {
-        toast.error(t(`composer.${problem}`, { name: file.name }));
-        continue;
+    setReading((n) => n + 1);
+    try {
+      for (const file of Array.from(list)) {
+        const problem = attachmentProblem(file, held);
+        if (problem) {
+          toast.error(t(`composer.${problem}`, { name: file.name }));
+          continue;
+        }
+        held.count++;
+        held.bytes += file.size;
+        try {
+          const data = new Uint8Array(await file.arrayBuffer());
+          // The host tells images from other files by the type, so an unknown type must not be left empty.
+          const mimeType = file.type || "application/octet-stream";
+          setImages((now) => [...now, { $typeName: "inaba.v1.Attachment", name: file.name, mimeType, data, path: "" }]);
+        } catch (e) {
+          showError(e);
+        }
       }
-      held.count++;
-      held.bytes += file.size;
-      const data = new Uint8Array(await file.arrayBuffer());
-      // The host tells images from other files by the type, so an unknown type must not be left empty.
-      const mimeType = file.type || "application/octet-stream";
-      setImages((now) => [...now, { $typeName: "inaba.v1.Attachment", name: file.name, mimeType, data, path: "" }]);
+    } finally {
+      setReading((n) => n - 1);
     }
   };
 
   const send = (interrupt: boolean) => {
+    if (reading > 0) return;
     const builtin = parseBuiltin(text, builtins);
     if (builtin) return runCommand(builtin.command, builtin.arg);
     const message = text.trim();
@@ -299,7 +320,7 @@ export function Composer({
         </Command>
       )}
       <div className="bg-card focus-within:ring-ring/50 grid gap-1 rounded-xl border p-2 shadow-xs focus-within:ring-3">
-        {images.length > 0 && (
+        {(images.length > 0 || reading > 0) && (
           <ul className="flex flex-wrap gap-1.5 px-1 pt-1" aria-label={t("composer.attachments")}>
             {images.map((image, i) => (
               <li key={i} className="group/image relative">
@@ -317,6 +338,11 @@ export function Composer({
                 </Button>
               </li>
             ))}
+            {reading > 0 && (
+              <li className="bg-muted flex size-14 items-center justify-center rounded-lg">
+                <Spinner className="text-muted-foreground" />
+              </li>
+            )}
           </ul>
         )}
         <Textarea
@@ -355,12 +381,15 @@ export function Composer({
                 variant="destructive"
                 aria-label={stopping ? t("chat.forceStop") : t("chat.stop")}
                 title={stopping ? t("chat.forceStopHelp") : t("chat.stop")}
+                disabled={requesting}
                 onClick={() => {
-                  onStop(stopping);
-                  setStopping(true);
+                  setRequesting(true);
+                  void onStop(stopping)
+                    .then(() => setStopping(true))
+                    .finally(() => setRequesting(false));
                 }}
               >
-                {stopping ? <OctagonXIcon /> : <SquareIcon />}
+                {requesting ? <Spinner /> : stopping ? <OctagonXIcon /> : <SquareIcon />}
               </Button>
             )}
             {length > warnPromptChars && (
@@ -379,7 +408,7 @@ export function Composer({
             <Button
               type="button"
               size="icon"
-              disabled={tooLong}
+              disabled={tooLong || reading > 0}
               aria-label={tooLong ? t("composer.tooLong", { max: maxPromptChars.toLocaleString(locale) }) : busy ? t("chat.queue") : t("chat.send")}
               title={tooLong ? t("composer.tooLong", { max: maxPromptChars.toLocaleString(locale) }) : busy ? t("chat.queueHelp", { keys: formatBinding(bindingOf("interrupt")) }) : t("chat.send")}
               onClick={() => send(false)}

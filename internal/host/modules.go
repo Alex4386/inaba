@@ -337,4 +337,5 @@ var streams = []rpc.Stream{
 	{Pattern: "GET /v1/threads/{thread_id}/terminal/output", Procedure: inabav1connect.TerminalServiceAttachProcedure, Request: func() proto.Message { return &inabav1.AttachRequest{} }},
 	{Pattern: "GET /v1/threads/{thread_id}/shells/{shell_id}/output", Procedure: inabav1connect.ShellServiceAttachShellProcedure, Request: func() proto.Message { return &inabav1.AttachShellRequest{} }},
 	{Pattern: "GET /v1/threads/{thread_id}/browser/frames", Procedure: inabav1connect.BrowserServiceWatchPageProcedure, Request: func() proto.Message { return &inabav1.WatchPageRequest{} }},
+	{Pattern: "GET /v1/terminals/{id}/output", Procedure: inabav1connect.HostTerminalServiceAttachHostTerminalProcedure, Request: func() proto.Message { return &inabav1.AttachHostTerminalRequest{} }},
 }

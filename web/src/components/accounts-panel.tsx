@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
 import { Permission, type User } from "@/gen/inaba/v1/server_pb";
@@ -176,6 +177,7 @@ function AddAccountDialog({ open, onClose, onAdded }: { open: boolean; onClose: 
   const [password, setPassword] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
   const [permissions, setPermissions] = useState<Permission[]>([]);
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!open) return;
     setName("");
@@ -186,6 +188,8 @@ function AddAccountDialog({ open, onClose, onAdded }: { open: boolean; onClose: 
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (busy) return;
+    setBusy(true);
     try {
       await admin.createUser({ name, password, admin: isAdmin, permissions: isAdmin ? [] : permissions });
       toast.success(t("accounts.added", { name }));
@@ -193,6 +197,8 @@ function AddAccountDialog({ open, onClose, onAdded }: { open: boolean; onClose: 
       onAdded();
     } catch (e) {
       showError(e);
+    } finally {
+      setBusy(false);
     }
   };
   return (
@@ -225,7 +231,10 @@ function AddAccountDialog({ open, onClose, onAdded }: { open: boolean; onClose: 
             ))}
           </div>
           <DialogFooter>
-            <Button type="submit">{t("accounts.add")}</Button>
+            <Button type="submit" disabled={busy}>
+              {busy && <Spinner data-icon="inline-start" />}
+              {t("accounts.add")}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -236,18 +245,22 @@ function AddAccountDialog({ open, onClose, onAdded }: { open: boolean; onClose: 
 export function ResetPasswordDialog({ user, onClose }: { user?: User; onClose: () => void }) {
   const { t } = useI18n();
   const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (user) setPassword(randomPassword());
   }, [user]);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!user) return;
+    if (!user || busy) return;
+    setBusy(true);
     try {
       await admin.setPassword({ user: user.id, password });
       toast.success(t("accounts.passwordSet", { name: user.name }));
       onClose();
     } catch (e) {
       showError(e);
+    } finally {
+      setBusy(false);
     }
   };
   return (
@@ -260,7 +273,10 @@ export function ResetPasswordDialog({ user, onClose }: { user?: User; onClose: (
         <form onSubmit={submit} className="grid gap-4">
           <PasswordField id="reset-password" value={password} onChange={setPassword} />
           <DialogFooter>
-            <Button type="submit">{t("accounts.setPassword")}</Button>
+            <Button type="submit" disabled={busy}>
+              {busy && <Spinner data-icon="inline-start" />}
+              {t("accounts.setPassword")}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

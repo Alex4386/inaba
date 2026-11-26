@@ -203,7 +203,7 @@ function PushSettings({ userId }: { userId: string }) {
         cancel={t("project.keep")}
         confirm={t("settings.deviceRemove")}
         destructive
-        onConfirm={() => removing && void remove(removing)}
+        onConfirm={() => removing && remove(removing)}
       />
     </>
   );

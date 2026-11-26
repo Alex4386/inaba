@@ -6,6 +6,7 @@ import { McpService } from "./gen/inaba/v1/mcp_pb";
 import { BrowserService } from "./gen/inaba/v1/browser_pb";
 import { FileService } from "./gen/inaba/v1/files_pb";
 import { ShellService } from "./gen/inaba/v1/shell_pb";
+import { HostTerminalService } from "./gen/inaba/v1/terminal_pb";
 import { GitService, HousekeepingService, ModuleService, PeerService, ProjectService, TerminalService, ThreadService } from "./gen/inaba/v1/host_pb";
 import { AdminService, AuthService, HostService, NotificationService } from "./gen/inaba/v1/server_pb";
 
@@ -106,6 +107,7 @@ export class HostLink {
   readonly browser: Client<typeof BrowserService>;
   readonly files: Client<typeof FileService>;
   readonly shell: Client<typeof ShellService>;
+  readonly hostTerminals: Client<typeof HostTerminalService>;
   /** Whether calls currently go straight to the host. */
   direct = false;
 
@@ -137,6 +139,7 @@ export class HostLink {
     this.browser = createClient(BrowserService, transport);
     this.files = createClient(FileService, transport);
     this.shell = createClient(ShellService, transport);
+    this.hostTerminals = createClient(HostTerminalService, transport);
     void this.connect();
   }
 

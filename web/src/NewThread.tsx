@@ -4,16 +4,20 @@ import {
   GitForkIcon,
   PanelTopIcon,
   SquareTerminalIcon,
+  XIcon,
 } from "lucide-react";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import type { HostLink } from "./api";
 import {
+  type Attachment,
   type GitStatus,
   type Project,
   type Provider,
   ThreadMode,
 } from "./gen/inaba/v1/host_pb";
 import type { Host } from "./gen/inaba/v1/server_pb";
+import { AttachmentImage } from "@/components/composer";
 import { WhereCard } from "@/components/where-card";
 import { PeopleStack, usePeople } from "@/components/presence";
 import { ProjectIcon } from "@/components/project-tree";
@@ -22,7 +26,9 @@ import { Input } from "@/components/ui/input";
 import { Picker } from "@/components/picker";
 import { OptionsBar } from "@/components/options-bar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import { attachmentProblem } from "@/lib/composer-input";
 import { showError } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
 import { shortPath } from "@/lib/utils";
@@ -59,6 +65,12 @@ export function NewThreadView({
   const defaults = project.newThread;
   const [providerId, setProviderId] = useState(defaults?.provider ?? "");
   const [starting, setStarting] = useState(false);
+  // Files still being read: a message sent now would go without them.
+  const [reading, setReading] = useState(0);
+  // The thread made by a send whose first message failed, so sending again uses it rather than making another.
+  const made = useRef<string>(undefined);
+  // Pasted or dropped files, sent with the first message as the thread's composer would.
+  const [images, setImages] = useState<Attachment[]>([]);
   // Option choices made here, by option id, for the provider currently picked.
   const [chosen, setChosen] = useState<Record<string, string>>(
     defaults?.options ?? {},
@@ -101,11 +113,38 @@ export function NewThreadView({
     providers.find((p) => p.structured) ??
     providers[0];
 
+  // As the thread's composer adds them, checked against the same limits.
+  const addFiles = async (list: FileList) => {
+    const held = { count: images.length, bytes: images.reduce((n, a) => n + a.data.length, 0) };
+    const files = Array.from(list);
+    setReading((n) => n + files.length);
+    for (const file of files) {
+      const problem = attachmentProblem(file, held);
+      if (problem) {
+        toast.error(t(`composer.${problem}`, { name: file.name }));
+        setReading((n) => n - 1);
+        continue;
+      }
+      held.count++;
+      held.bytes += file.size;
+      try {
+        const data = new Uint8Array(await file.arrayBuffer());
+        const mimeType = file.type || "application/octet-stream";
+        setImages((now) => [...now, { $typeName: "inaba.v1.Attachment", name: file.name, mimeType, data, path: "" }]);
+      } catch (e) {
+        showError(e);
+      } finally {
+        setReading((n) => n - 1);
+      }
+    }
+  };
+
   const start = async (text: string) => {
-    if (!provider || starting || (worktree && branchInvalid)) return;
+    if (!provider || starting || reading > 0 || (worktree && branchInvalid)) return;
     setStarting(true);
+    let thread;
     try {
-      const thread = await link.threads.createThread({
+      thread = made.current ? { id: made.current } : await link.threads.createThread({
         provider: provider.id,
         projectId: project.id,
         mode: ThreadMode.STRUCTURED,
@@ -114,13 +153,24 @@ export function NewThreadView({
         // The toggle is hidden outside a git repository, so a default of "worktree" cannot be turned off there; drop it.
         worktree: worktree && repository ? { branch: branch.trim(), base } : undefined,
       });
-      if (provider.structured && text)
-        await link.threads.startTurn({ threadId: thread.id, text });
-      onCreated(thread.id);
     } catch (e) {
       showError(e);
       setStarting(false);
+      return;
     }
+    // The thread exists now. A failed first message stays here with its files, and sending again
+    // goes to the same thread instead of starting a second one.
+    made.current = thread.id;
+    if (provider.structured && (text || images.length > 0)) {
+      try {
+        await link.threads.startTurn({ threadId: thread.id, text, attachments: images });
+      } catch (e) {
+        showError(e);
+        setStarting(false);
+        return;
+      }
+    }
+    onCreated(thread.id);
   };
   const switchProvider = (id: string) => {
     setProviderId(id);
@@ -132,7 +182,7 @@ export function NewThreadView({
     const text = String(
       new FormData(event.currentTarget).get("text") ?? "",
     ).trim();
-    if (text || !provider?.structured) void start(text);
+    if (text || images.length > 0 || !provider?.structured) void start(text);
   };
 
   return (
@@ -188,11 +238,51 @@ export function NewThreadView({
             {shortPath(project.cwd)}
           </p>
         </div>
-        <div className="bg-card focus-within:ring-ring/50 grid gap-2 rounded-xl border p-2 shadow-xs focus-within:ring-3">
+        <div
+          className="bg-card focus-within:ring-ring/50 grid gap-2 rounded-xl border p-2 shadow-xs focus-within:ring-3"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            if (e.dataTransfer.files.length === 0) return;
+            e.preventDefault();
+            if (provider?.structured && !starting) void addFiles(e.dataTransfer.files);
+          }}
+        >
+          {provider?.structured && (images.length > 0 || reading > 0) && (
+            <ul className="flex flex-wrap gap-1.5 px-1 pt-1" aria-label={t("composer.attachments")}>
+              {images.map((image, i) => (
+                <li key={i} className="relative">
+                  <AttachmentImage attachment={image} className={image.mimeType.startsWith("image/") ? "size-14" : undefined} />
+                  <Button
+                    type="button"
+                    size="icon-xs"
+                    variant="secondary"
+                    className="absolute -top-1.5 -right-1.5 rounded-full border"
+                    aria-label={t("composer.remove", { name: image.name })}
+                    title={t("composer.remove", { name: image.name })}
+                    disabled={starting}
+                    onClick={() => setImages((now) => now.filter((_, j) => j !== i))}
+                  >
+                    <XIcon />
+                  </Button>
+                </li>
+              ))}
+              {Array.from({ length: reading }, (_, i) => (
+                <li key={`reading-${i}`} className="bg-muted flex size-14 items-center justify-center rounded-lg border">
+                  <Spinner />
+                </li>
+              ))}
+            </ul>
+          )}
           {provider?.structured ? (
             <Textarea
               name="text"
               autoFocus
+              disabled={starting}
+              onPaste={(e) => {
+                if (e.clipboardData.files.length === 0) return;
+                e.preventDefault();
+                void addFiles(e.clipboardData.files);
+              }}
               placeholder={t("chat.placeholder")}
               aria-label={t("chat.message")}
               rows={3}
@@ -254,15 +344,15 @@ export function NewThreadView({
                 <Button
                   type="submit"
                   size="icon"
-                  disabled={starting || (worktree && branchInvalid)}
+                  disabled={starting || reading > 0 || (worktree && branchInvalid)}
                   aria-label={t("chat.send")}
                   title={t("chat.send")}
                 >
-                  <ArrowUpIcon />
+                  {starting ? <Spinner /> : <ArrowUpIcon />}
                 </Button>
               ) : (
                 <Button type="submit" disabled={starting || !provider || (worktree && branchInvalid)}>
-                  <SquareTerminalIcon data-icon="inline-start" />
+                  {starting ? <Spinner data-icon="inline-start" /> : <SquareTerminalIcon data-icon="inline-start" />}
                   {t("new.openTerminal")}
                 </Button>
               )}

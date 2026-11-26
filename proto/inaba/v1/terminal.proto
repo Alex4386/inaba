@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+// Terminals of a host, apart from its projects and threads: the terminal module of a
+// host. inaba-server proxies it under /hosts/{host_id}/, like the rest of the host API.
+package inaba.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "inaba/v1/host.proto";
+
+// Login shells on the host, each in the folder it was opened in. One runs until it is
+// closed, its shell exits, or the host stops; leaving its page does not end it. They
+// need the threads-anywhere permission, as a shell reaches any folder.
+service HostTerminalService {
+  rpc ListHostTerminals(ListHostTerminalsRequest) returns (ListHostTerminalsResponse) {
+    option (google.api.http) = {get: "/v1/terminals"};
+  }
+  // Starts a terminal; an empty folder is the home folder.
+  rpc OpenHostTerminal(OpenHostTerminalRequest) returns (HostTerminal) {
+    option (google.api.http) = {
+      post: "/v1/terminals"
+      body: "*"
+    };
+  }
+  // Sends the recent output first, then output as it comes, until the shell exits.
+  rpc AttachHostTerminal(AttachHostTerminalRequest) returns (stream TerminalOutput);
+  rpc WriteHostTerminal(WriteHostTerminalRequest) returns (WriteHostTerminalResponse) {
+    option (google.api.http) = {
+      post: "/v1/terminals/{id}/input"
+      body: "*"
+    };
+  }
+  rpc ResizeHostTerminal(ResizeHostTerminalRequest) returns (ResizeHostTerminalResponse) {
+    option (google.api.http) = {
+      post: "/v1/terminals/{id}/size"
+      body: "*"
+    };
+  }
+  // Ends a terminal and its process.
+  rpc CloseHostTerminal(CloseHostTerminalRequest) returns (CloseHostTerminalResponse) {
+    option (google.api.http) = {delete: "/v1/terminals/{id}"};
+  }
+}
+
+message HostTerminal {
+  string id = 1;
+  // The folder it started in.
+  string cwd = 2;
+  google.protobuf.Timestamp started_at = 3;
+  // Its shell has exited; it stays listed, with its last output, until closed.
+  bool exited = 4;
+}
+
+message ListHostTerminalsRequest {}
+message ListHostTerminalsResponse {
+  // Oldest first.
+  repeated HostTerminal terminals = 1;
+}
+message OpenHostTerminalRequest {
+  string cwd = 1;
+  // The viewer's terminal size, so the first screen is drawn for it. Zero means 80 by 24.
+  uint32 cols = 2;
+  uint32 rows = 3;
+}
+message AttachHostTerminalRequest {
+  string id = 1;
+  // The viewer's size, which the terminal takes.
+  uint32 cols = 2;
+  uint32 rows = 3;
+}
+message WriteHostTerminalRequest {
+  string id = 1;
+  bytes data = 2;
+}
+message WriteHostTerminalResponse {}
+message ResizeHostTerminalRequest {
+  string id = 1;
+  uint32 cols = 2;
+  uint32 rows = 3;
+}
+message ResizeHostTerminalResponse {}
+message CloseHostTerminalRequest {
+  string id = 1;
+}
+message CloseHostTerminalResponse {}

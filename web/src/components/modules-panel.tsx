@@ -59,6 +59,7 @@ export function ModulesPanel({ hostId, onChanged }: { hostId: string; onChanged:
                 <span className="text-muted-foreground text-xs">{m.description}</span>
                 {m.error && <span className="text-destructive text-xs">{t("modules.failed", { error: m.error })}</span>}
               </div>
+              {busy === m.name && <Spinner className="mt-0.5" />}
               <Switch checked={m.enabled} disabled={busy === m.name} aria-label={m.title || m.name} onCheckedChange={(on) => set(m, on)} />
             </div>
           ))}

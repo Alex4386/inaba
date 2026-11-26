@@ -106,7 +106,9 @@ export function ChangesPanel({
       if (!next.delete(name)) next.add(name);
       return next;
     });
-  const [committing, setCommitting] = useState(false);
+  // The header or commit action running, so its own button spins and the rest wait.
+  const [busy, setBusy] = useState<"fetch" | "pull" | "push" | "commit" | "commitPush">();
+  const [switching, setSwitching] = useState<string>();
   const [branches, setBranches] = useState<string[]>([]);
   const [naming, setNaming] = useState(false);
   const [opening, setOpening] = useState(false);
@@ -114,15 +116,24 @@ export function ChangesPanel({
   useEffect(() => {
     link.git.listBranches({ threadId }).then((r) => setBranches(r.branches), () => setBranches([]));
   }, [link, threadId, status.branch]);
-  const checkout = (branch: string, create: boolean) => link.git.checkout({ threadId, branch, create }).then(onStatus, showError);
+  const checkout = (branch: string) => {
+    setSwitching(branch);
+    link.git
+      .checkout({ threadId, branch, create: false })
+      .then(onStatus, showError)
+      .finally(() => setSwitching(undefined));
+  };
 
   const before = turn?.before;
   const after = turn?.after;
   const ignoreWhitespace = prefs.ignoreWhitespace;
+  // A new scope starts blank; a plain status change keeps the old diff and folds until the new one lands.
   useEffect(() => {
-    let current = true;
     setDiff(undefined);
     setFolded(new Set());
+  }, [link, threadId, before, after, ignoreWhitespace]);
+  useEffect(() => {
+    let current = true;
     (after ? link.git.getDiff({ threadId, from: before, to: after, ignoreWhitespace }) : link.git.getDiff({ threadId, path: "", ignoreWhitespace })).then(
       (r) => current && setDiff({ text: r.diff, truncated: r.truncated }),
       (e) => current && (showError(e), setDiff({ text: "", truncated: false })),
@@ -170,7 +181,7 @@ export function ChangesPanel({
     event.preventDefault();
     const form = event.currentTarget;
     const push = (event.nativeEvent as SubmitEvent).submitter?.getAttribute("value") === "push";
-    setCommitting(true);
+    setBusy(push ? "commitPush" : "commit");
     try {
       const res = await link.git.commit({ threadId, message: String(new FormData(form).get("message")), push });
       form.reset();
@@ -181,7 +192,7 @@ export function ChangesPanel({
       // A push can fail after the commit was made; show where things stand.
       onStatus();
     } finally {
-      setCommitting(false);
+      setBusy(undefined);
     }
   };
 
@@ -194,11 +205,12 @@ export function ChangesPanel({
         <fieldset disabled={readOnly} className="contents">
         <GitBranchIcon className="text-muted-foreground size-4 shrink-0" />
         {branches.includes(status.branch) ? (
-          <Picker size="sm" className="min-w-0 border-0 font-medium shadow-none" label={t("git.branch")} value={status.branch} onChange={(branch) => checkout(branch, false)} options={branches.map((b) => ({ value: b, label: b }))} />
+          <Picker size="sm" className="min-w-0 border-0 font-medium shadow-none" label={t("git.branch")} value={switching ?? status.branch} onChange={(branch) => !switching && checkout(branch)} options={branches.map((b) => ({ value: b, label: b }))} />
         ) : (
           // No branch checked out, or the list has not loaded: show where HEAD is.
           <span className="truncate text-sm font-medium">{status.branch}</span>
         )}
+        {switching && <Spinner className="shrink-0" />}
         <Button size="icon-sm" variant="ghost" aria-label={t("git.newBranch")} title={t("git.newBranch")} onClick={() => setNaming(true)}>
           <PlusIcon />
         </Button>
@@ -222,15 +234,16 @@ export function ChangesPanel({
         <Button
           size="sm"
           variant="ghost"
-          disabled={committing}
+          disabled={busy !== undefined}
           onClick={() => {
-            setCommitting(true);
+            setBusy("fetch");
             link.git
               .fetch({ threadId })
               .then((res) => (toast.success(t("git.fetched", { ahead: String(res.status?.ahead ?? 0), behind: String(res.status?.behind ?? 0) })), onStatus(res.status)), showError)
-              .finally(() => setCommitting(false));
+              .finally(() => setBusy(undefined));
           }}
         >
+          {busy === "fetch" && <Spinner data-icon="inline-start" />}
           {t("git.fetch")}
         </Button>
         {/* Fast-forward only on the host, so nothing is merged and no confirm is needed. */}
@@ -239,15 +252,16 @@ export function ChangesPanel({
             size="sm"
             variant="outline"
             title={t("git.pullHelp")}
-            disabled={committing || running || status.behind === 0}
+            disabled={busy !== undefined || running || status.behind === 0}
             onClick={() => {
-              setCommitting(true);
+              setBusy("pull");
               link.git
                 .pull({ threadId })
                 .then((res) => (toast.success(t("git.pulled")), onStatus(res.status)), showError)
-                .finally(() => setCommitting(false));
+                .finally(() => setBusy(undefined));
             }}
           >
+            {busy === "pull" && <Spinner data-icon="inline-start" />}
             {t("git.pull")}
           </Button>
         )}
@@ -256,20 +270,21 @@ export function ChangesPanel({
           <Button
             size="sm"
             variant="outline"
-            disabled={committing}
+            disabled={busy !== undefined}
             onClick={() => {
-              setCommitting(true);
+              setBusy("push");
               link.git
                 .push({ threadId })
                 .then((res) => (toast.success(t("git.pushDone")), onStatus(res.status)), showError)
-                .finally(() => setCommitting(false));
+                .finally(() => setBusy(undefined));
             }}
           >
+            {busy === "push" && <Spinner data-icon="inline-start" />}
             {t("git.push")}
           </Button>
         )}
         {branches.includes(status.branch) && (
-          <Button size="icon-sm" variant="ghost" aria-label={t("pr.title")} title={t("pr.title")} disabled={committing} onClick={() => setOpening(true)}>
+          <Button size="icon-sm" variant="ghost" aria-label={t("pr.title")} title={t("pr.title")} disabled={busy !== undefined} onClick={() => setOpening(true)}>
             <GitPullRequestIcon />
           </Button>
         )}
@@ -286,13 +301,14 @@ export function ChangesPanel({
       ) : (
         <>
           {!readOnly && !turn && status.files.length > 0 && <form onSubmit={commit} className="grid gap-2 border-b p-3">
-            <Input name="message" placeholder={t("git.message")} aria-label={t("git.message")} required disabled={committing} />
+            <Input name="message" placeholder={t("git.message")} aria-label={t("git.message")} required disabled={busy !== undefined} />
             <div className="flex gap-2">
-              <Button className="flex-1" type="submit" variant="outline" value="commit" disabled={committing}>
+              <Button className="flex-1" type="submit" variant="outline" value="commit" disabled={busy !== undefined}>
+                {busy === "commit" && <Spinner data-icon="inline-start" />}
                 {t("git.commit")}
               </Button>
-              <Button className="flex-1" type="submit" value="push" disabled={committing}>
-                {committing && <Spinner data-icon="inline-start" />}
+              <Button className="flex-1" type="submit" value="push" disabled={busy !== undefined}>
+                {busy === "commitPush" && <Spinner data-icon="inline-start" />}
                 {t("git.commitAndPush")}
               </Button>
             </div>
@@ -370,7 +386,7 @@ export function ChangesPanel({
         description={t("changes.restoreHelp")}
         cancel={t("project.keep")}
         confirm={t("changes.restore")}
-        onConfirm={() => void restore()}
+        onConfirm={restore}
       />
     </div>
   );

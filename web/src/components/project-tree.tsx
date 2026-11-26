@@ -45,7 +45,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SnoozeKind } from "@/gen/inaba/v1/server_pb";
 import { type Project, type Thread, ThreadMode, ThreadStatus } from "@/gen/inaba/v1/host_pb";
-import { showError } from "@/lib/errors";
+import { errorText, showError } from "@/lib/errors";
 import { notifyEnabled } from "@/lib/settings";
 import { type Translate, useI18n } from "@/lib/i18n";
 import { useSeen } from "@/lib/seen";
@@ -344,10 +344,16 @@ export function ProjectTree({
           onNewThread(project);
         }
       : undefined,
-    onPin: (pinned) => link.threads.updateThread({ threadId: th.id, pinned }).then(refresh, showError),
-    onArchive: (archived) => link.threads.updateThread({ threadId: th.id, archived }).then(refresh, showError),
+    onPin: (pinned) => (relabel(th.id, "pinned", pinned), link.threads.updateThread({ threadId: th.id, pinned }).catch(showError).finally(refresh)),
+    onArchive: (archived) => (relabel(th.id, "archived", archived), link.threads.updateThread({ threadId: th.id, archived }).catch(showError).finally(refresh)),
     onRename: () => setRenaming(th),
-    onFork: () => link.threads.forkThread({ threadId: th.id, seq: th.lastSeq }).then((f) => (void refresh(), onSelect(f.id)), showError),
+    onFork: () => {
+      if (forking.current) return;
+      forking.current = true;
+      const fork = link.threads.forkThread({ threadId: th.id, seq: th.lastSeq }).then((f) => (void refresh(), onSelect(f.id)));
+      toast.promise(fork, { loading: t("thread.forking"), error: errorText });
+      fork.catch(() => {}).finally(() => (forking.current = false));
+    },
     onEnd: () => setEnding(th),
     onSnooze: (preset) => snoozes.set(SnoozeKind.THREAD, th.id, preset),
     onUnsnooze: () => snoozes.clear(SnoozeKind.THREAD, th.id),
@@ -359,6 +365,19 @@ export function ProjectTree({
   selectedRef.current = selected;
   const [projects, setProjects] = useState<Project[]>();
   const [threads, setThreads] = useState<Thread[]>([]);
+  const forking = useRef(false);
+  // Shown at once; the refresh after the call puts back what the host really has.
+  const relabel = (id: string, label: "pinned" | "archived", on: boolean) =>
+    setThreads((ts) =>
+      ts.map((x) => {
+        if (x.id !== id) return x;
+        const labels = { ...x.labels };
+        if (on) labels[label] = "true";
+        else delete labels[label];
+        return { ...x, labels };
+      }),
+    );
+  const reproject = (id: string, change: Partial<Pick<Project, "pinned" | "archived">>) => setProjects((ps) => ps?.map((p) => (p.id === id ? { ...p, ...change } : p)));
   const statuses = useRef(new Map<string, ThreadStatus>());
   const [removing, setRemoving] = useState<Project>();
   const snoozes = useSnoozes(link.hostId);
@@ -415,6 +434,11 @@ export function ProjectTree({
           </SidebarGroupAction>
         )}
         <SidebarMenu>
+          {!projects && (
+            <li className="flex justify-center py-2">
+              <Spinner />
+            </li>
+          )}
           {projects?.length === 0 && <li className="text-muted-foreground px-2 py-1.5 text-sm group-data-[collapsible=icon]:hidden">{t(canManage ? "project.none" : "project.noneNoPermission")}</li>}
           {listed?.map((project) => {
             const listedThreads = threads.filter((th) => th.projectId === project.id && shown(th));
@@ -486,11 +510,21 @@ export function ProjectTree({
                     )}
                     {canManage && (
                       <>
-                        <DropdownMenuItem onClick={() => link.projects.updateProject({ projectId: project.id, pinned: !project.pinned }).then(refresh, showError)}>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            reproject(project.id, { pinned: !project.pinned });
+                            link.projects.updateProject({ projectId: project.id, pinned: !project.pinned }).catch(showError).finally(refresh);
+                          }}
+                        >
                           {project.pinned ? <PinOffIcon /> : <PinIcon />}
                           {t(project.pinned ? "project.unpin" : "project.pin")}
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => link.projects.updateProject({ projectId: project.id, archived: !project.archived }).then(refresh, showError)}>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            reproject(project.id, { archived: !project.archived });
+                            link.projects.updateProject({ projectId: project.id, archived: !project.archived }).catch(showError).finally(refresh);
+                          }}
+                        >
                           {project.archived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
                           {t(project.archived ? "archive.unarchiveProject" : "archive.archiveProject")}
                         </DropdownMenuItem>

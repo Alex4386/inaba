@@ -29,6 +29,13 @@ func (s *session) watchWorkflow(id, dir string) {
 	defer tick.Stop()
 	var last []*inabav1.WorkflowAgent
 	changed, settled := time.Now(), time.Time{}
+	// Agents still running when the watch ends are not going to finish: the session that ran
+	// them closed, or they went quiet. Said once, so they do not show as running for good.
+	defer func() {
+		if stopped := workflow.Stop(dir, last); !agentsEqual(stopped, last) {
+			s.emit(&inabav1.Event{Payload: &inabav1.Event_ToolCall{ToolCall: &inabav1.ToolCall{Id: id, Agents: stopped}}})
+		}
+	}()
 	for {
 		select {
 		case <-s.closed:

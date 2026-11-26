@@ -1153,7 +1153,7 @@ func (h *Host) Subscribe(ctx context.Context, req *inabav1.SubscribeRequest, str
 	for {
 		evs, changed := t.after(seq, 0)
 		for _, e := range evs {
-			if err := stream.Send(e); err != nil {
+			if err := stream.Send(light(e)); err != nil {
 				return err
 			}
 			seq = e.Seq
@@ -1164,6 +1164,56 @@ func (h *Host) Subscribe(ctx context.Context, req *inabav1.SubscribeRequest, str
 			return nil
 		}
 	}
+}
+
+// light is an event as Subscribe sends it: without a provider's raw record, which no viewer
+// reads, or an image's bytes, which a viewer fetches once with GetAttachment. On a thread with
+// pasted screenshots these are most of what opening it would carry. The log keeps them.
+func light(e *inabav1.Event) *inabav1.Event {
+	switch p := e.Payload.(type) {
+	case *inabav1.Event_ToolCall:
+		if p.ToolCall.Raw == nil {
+			return e
+		}
+		c := proto.Clone(e).(*inabav1.Event)
+		c.GetToolCall().Raw = nil
+		return c
+	case *inabav1.Event_PermissionRequest:
+		if p.PermissionRequest.Raw == nil {
+			return e
+		}
+		c := proto.Clone(e).(*inabav1.Event)
+		c.GetPermissionRequest().Raw = nil
+		return c
+	case *inabav1.Event_UserMessage:
+		if !slices.ContainsFunc(p.UserMessage.Attachments, func(a *inabav1.Attachment) bool { return len(a.Data) > 0 }) {
+			return e
+		}
+		c := proto.Clone(e).(*inabav1.Event)
+		for _, a := range c.GetUserMessage().Attachments {
+			if len(a.Data) > 0 {
+				size := uint64(len(a.Data))
+				a.Size, a.Data = &size, nil
+			}
+		}
+		return c
+	}
+	return e
+}
+
+func (h *Host) GetAttachment(_ context.Context, req *inabav1.GetAttachmentRequest) (*inabav1.Attachment, error) {
+	t, err := h.thread(req.ThreadId)
+	if err != nil {
+		return nil, err
+	}
+	if req.Seq > 0 {
+		if evs, _ := t.after(req.Seq-1, 1); len(evs) == 1 {
+			if as := evs[0].GetUserMessage().GetAttachments(); int(req.Index) < len(as) {
+				return as[req.Index], nil
+			}
+		}
+	}
+	return nil, connect.NewError(connect.CodeNotFound, "no such attachment")
 }
 
 // Trusted marks a context as a call from this machine's own administrator: the local

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect/v2"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	inabav1 "github.com/Alex4386/inaba/gen/inaba/v1"
 )
@@ -255,5 +256,57 @@ func TestHandoffTextKeepsTheNewestTurns(t *testing.T) {
 	}
 	if handoffText("short") != "short" {
 		t.Fatal("a short transcript is kept whole")
+	}
+}
+
+// Opening a thread does not carry its pasted images or the providers' raw records; the
+// log keeps them, and an image comes on its own when asked for.
+func TestSubscribeLeavesHeavyPartsToTheLog(t *testing.T) {
+	h := New(fakeProvider{})
+	t.Cleanup(h.Close)
+	ctx := Trusted(context.Background())
+	th, err := h.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "fake", Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	png := []byte("\x89PNG\r\n\x1a\nnot really")
+	if _, err := h.StartTurn(ctx, &inabav1.StartTurnRequest{ThreadId: th.Id, Text: "look", Attachments: []*inabav1.Attachment{{Name: "shot.png", MimeType: "image/png", Data: png}}}); err != nil {
+		t.Fatal(err)
+	}
+	var seq uint64
+	evs, _ := h.ListEvents(ctx, &inabav1.ListEventsRequest{ThreadId: th.Id})
+	for _, e := range evs.Events {
+		if m := e.GetUserMessage(); m != nil {
+			seq = e.Seq
+			sent := light(e).GetUserMessage().Attachments[0]
+			if len(sent.Data) != 0 || sent.GetSize() != uint64(len(png)) || sent.Name != "shot.png" {
+				t.Fatalf("the image as sent: %v", sent)
+			}
+			if len(m.Attachments[0].Data) != len(png) {
+				t.Fatal("lightening an event changed the log")
+			}
+		}
+	}
+	if seq == 0 {
+		t.Fatal("no user message in the log")
+	}
+	got, err := h.GetAttachment(ctx, &inabav1.GetAttachmentRequest{ThreadId: th.Id, Seq: seq})
+	if err != nil || string(got.Data) != string(png) {
+		t.Fatalf("GetAttachment = %v, %v", got, err)
+	}
+	for _, bad := range []*inabav1.GetAttachmentRequest{{ThreadId: th.Id, Seq: seq, Index: 1}, {ThreadId: th.Id, Seq: 0}, {ThreadId: th.Id, Seq: 99999}} {
+		if _, err := h.GetAttachment(ctx, bad); connect.CodeOf(err) != connect.CodeNotFound {
+			t.Fatalf("GetAttachment(%v) = %v", bad, err)
+		}
+	}
+
+	raw, _ := structpb.NewValue(map[string]any{"big": "record"})
+	call := &inabav1.Event{Payload: &inabav1.Event_ToolCall{ToolCall: &inabav1.ToolCall{Id: "c", Title: "t", Raw: raw}}}
+	if c := light(call).GetToolCall(); c.Raw != nil || c.Title != "t" || call.GetToolCall().Raw == nil {
+		t.Fatalf("tool call as sent %v, kept %v", c, call)
+	}
+	plain := &inabav1.Event{Payload: &inabav1.Event_TextDelta{TextDelta: &inabav1.TextDelta{Text: "x"}}}
+	if light(plain) != plain {
+		t.Fatal("an event with nothing to leave out was copied")
 	}
 }

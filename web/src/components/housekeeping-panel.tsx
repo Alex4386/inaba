@@ -43,23 +43,24 @@ export function HousekeepingPanel({ hosts }: { hosts: Host[] }) {
 function ServerSection() {
   const { t } = useI18n();
   const [state, setState] = useState<ServerHousekeeping>();
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"compact" | "tokens">();
   useEffect(() => {
     admin.getServerHousekeeping({}).then(setState, showError);
   }, []);
   const clean = (expiredTokens: boolean, compactDatabase: boolean) => {
-    setBusy(true);
+    setBusy(compactDatabase ? "compact" : "tokens");
     admin
       .cleanUpServer({ expiredTokens, compactDatabase })
       .then((next) => (setState(next), toast.success(t("housekeeping.done"))), showError)
-      .finally(() => setBusy(false));
+      .finally(() => setBusy(undefined));
   };
   return (
     <section className="grid gap-2">
       <h3 className="text-sm font-medium">{t("housekeeping.server")}</h3>
       <Card>
         <Row title={t("housekeeping.database")} description={state ? bytes(state.databaseBytes) : "…"}>
-          <Button size="sm" variant="outline" disabled={busy || !state} onClick={() => clean(false, true)}>
+          <Button size="sm" variant="outline" disabled={!!busy || !state} onClick={() => clean(false, true)}>
+            {busy === "compact" && <Spinner data-icon="inline-start" />}
             {t("housekeeping.compact")}
           </Button>
         </Row>
@@ -67,7 +68,8 @@ function ServerSection() {
           title={t("housekeeping.expired")}
           description={state ? t("housekeeping.expiredHelp", { expired: String(state.expiredTokens), active: String(state.activeSignIns) }) : "…"}
         >
-          <Button size="sm" variant="outline" disabled={busy || !state?.expiredTokens} onClick={() => clean(true, false)}>
+          <Button size="sm" variant="outline" disabled={!!busy || !state?.expiredTokens} onClick={() => clean(true, false)}>
+            {busy === "tokens" && <Spinner data-icon="inline-start" />}
             {t("housekeeping.deleteExpired")}
           </Button>
         </Row>
@@ -83,7 +85,8 @@ function HostSection({ hosts }: { hosts: Host[] }) {
   const client = useMemo(() => (hostId ? housekeepingOf(hostId) : undefined), [hostId]);
   const [state, setState] = useState<Housekeeping>();
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  // What is being cleaned; the confirm dialogs show their own spinner.
+  const [busy, setBusy] = useState<"compact" | "other">();
   const [asking, setAsking] = useState<"worktrees" | "snapshots">();
   const [discard, setDiscard] = useState(false);
 
@@ -98,8 +101,8 @@ function HostSection({ hosts }: { hosts: Host[] }) {
 
   const clean = (req: { leftoverWorktrees?: boolean; discardChanges?: boolean; leftoverSnapshots?: boolean; compactDatabase?: boolean }) => {
     if (!client) return;
-    setBusy(true);
-    client
+    setBusy(req.compactDatabase ? "compact" : "other");
+    return client
       .cleanUp(req)
       .then((res) => {
         setState(res.housekeeping);
@@ -107,7 +110,7 @@ function HostSection({ hosts }: { hosts: Host[] }) {
         if (res.kept.length > 0) toast.warning(t("housekeeping.kept"), { description: res.kept.join("\n"), duration: 15000 });
         else toast.success(t("housekeeping.done"));
       }, showError)
-      .finally(() => setBusy(false));
+      .finally(() => setBusy(undefined));
   };
 
   const leftover = state?.worktrees.filter((w) => !w.threadId) ?? [];
@@ -133,12 +136,13 @@ function HostSection({ hosts }: { hosts: Host[] }) {
         <>
           <Card>
             <Row title={t("housekeeping.database")} description={bytes(state.databaseBytes)}>
-              <Button size="sm" variant="outline" disabled={busy} onClick={() => clean({ compactDatabase: true })}>
+              <Button size="sm" variant="outline" disabled={!!busy} onClick={() => void clean({ compactDatabase: true })}>
+                {busy === "compact" && <Spinner data-icon="inline-start" />}
                 {t("housekeeping.compact")}
               </Button>
             </Row>
             <Row title={t("housekeeping.worktrees")} description={t("housekeeping.worktreesHelp", { count: String(state.worktrees.length), leftover: String(leftover.length) })}>
-              <Button size="sm" variant="outline" disabled={busy || leftover.length === 0} onClick={() => (setDiscard(false), setAsking("worktrees"))}>
+              <Button size="sm" variant="outline" disabled={!!busy || leftover.length === 0} onClick={() => (setDiscard(false), setAsking("worktrees"))}>
                 {t("housekeeping.removeWorktrees")}
               </Button>
             </Row>
@@ -164,7 +168,7 @@ function HostSection({ hosts }: { hosts: Host[] }) {
               </div>
             ))}
             <Row title={t("housekeeping.snapshots")} description={t("housekeeping.snapshotsHelp", { count: String(state.snapshots.reduce((n, s) => n + s.refs, 0)), leftover: String(leftoverSnapshots) })}>
-              <Button size="sm" variant="outline" disabled={busy || leftoverSnapshots === 0} onClick={() => setAsking("snapshots")}>
+              <Button size="sm" variant="outline" disabled={!!busy || leftoverSnapshots === 0} onClick={() => setAsking("snapshots")}>
                 {t("housekeeping.removeSnapshots")}
               </Button>
             </Row>

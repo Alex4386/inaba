@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import type { HostLink } from "@/api";
 import { ProjectIcon, threadName, threadState } from "@/components/project-tree";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { HostAvatar, hostSubtitle } from "@/components/host-icon";
 import { defaultFilter } from "cmdk";
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -61,6 +62,9 @@ export function CommandPalette({
   const [threads, setThreads] = useState<Thread[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [listing, setListing] = useState<ListDirectoryResponse>();
+  // A folder being read, and a project being added.
+  const [reading, setReading] = useState(false);
+  const [adding, setAdding] = useState(false);
   const open = page !== undefined;
 
   useEffect(() => {
@@ -75,8 +79,13 @@ export function CommandPalette({
 
   const browse = useCallback(
     (path: string) => {
+      if (!link) return;
       setSearch("");
-      link?.projects.listDirectory({ path }).then(setListing, showError);
+      setReading(true);
+      link.projects
+        .listDirectory({ path })
+        .then(setListing, showError)
+        .finally(() => setReading(false));
     },
     [link],
   );
@@ -88,7 +97,11 @@ export function CommandPalette({
   useEffect(() => {
     if (page === "folder") {
       const { path, filter } = startAt.current;
-      link?.projects.listDirectory({ path }).then((r) => (setListing(r), setSearch(filter)), showError);
+      setReading(true);
+      link?.projects
+        .listDirectory({ path })
+        .then((r) => (setListing(r), setSearch(filter)), showError)
+        .finally(() => setReading(false));
     } else setListing(undefined);
     startAt.current = { path: "", filter: "" };
   }, [page, link]);
@@ -155,13 +168,16 @@ export function CommandPalette({
     action();
   };
   const addProject = async (cwd: string) => {
-    if (!link) return;
+    if (!link || adding) return;
+    setAdding(true);
     try {
       const project = await link.projects.createProject({ cwd });
       toast.success(t("project.added", { name: project.name }));
       run(() => onNewThread(project));
     } catch (e) {
       showError(e);
+    } finally {
+      setAdding(false);
     }
   };
 
@@ -187,6 +203,7 @@ export function CommandPalette({
           <div className="flex-1">
             <CommandInput ref={input} value={search} onValueChange={type} placeholder={page === "folder" ? t("palette.folderPlaceholder") : t("search.placeholder")} />
           </div>
+          {page === "folder" && reading && <Spinner className="text-muted-foreground mr-3" />}
         </div>
         {/* On the folder page only its folders scroll, so the rows under them never cover any. */}
         <CommandList className={page === "folder" ? "max-h-none overflow-visible" : "max-h-[min(60vh,28rem)]"}>
@@ -222,8 +239,8 @@ export function CommandPalette({
                   <span className="font-medium">{t("thread.newIn", { name: here.name })}</span>
                 </CommandItem>
               ) : (
-                <CommandItem forceMount value={PATH_ROW} onSelect={() => void addProject(listing.path)}>
-                  <FolderPlusIcon />
+                <CommandItem forceMount value={PATH_ROW} disabled={adding} onSelect={() => void addProject(listing.path)}>
+                  {adding ? <Spinner /> : <FolderPlusIcon />}
                   <span className="font-medium">{t("palette.useFolder")}</span>
                 </CommandItem>
               )}
@@ -238,8 +255,8 @@ export function CommandPalette({
                 </CommandItem>
               ) : (
                 exact && (
-                  <CommandItem value={`${PATH_ROW}add`} onSelect={() => void addProject(exact)}>
-                    <FolderPlusIcon />
+                  <CommandItem value={`${PATH_ROW}add`} disabled={adding} onSelect={() => void addProject(exact)}>
+                    {adding ? <Spinner /> : <FolderPlusIcon />}
                     {t("palette.addPath")}
                   </CommandItem>
                 )

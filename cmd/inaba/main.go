@@ -47,7 +47,7 @@ func main() {
 	f.StringVar(&configPath, "config", "", "JSON or YAML settings file read last, over the others found (default: $INABA_CONFIG; see the README)")
 	f.String("data", "", "SQLite file that stores this host's projects and threads; its folder also holds worktrees and the sign-in (default: see the README)")
 	f.String("socket", "", "control socket the host listens on and the other commands talk to (default: see the README)")
-	root.AddCommand(loginCommand(), logoutCommand(), connectCommand(), projectCommand(), sessionCommand(), housekeepingCommand(), automationCommand(), moduleCommand(), mcpCommand(), mcpBridgeCommand(), updateCommand(), restartCommand())
+	root.AddCommand(loginCommand(), logoutCommand(), connectCommand(), openCommand(), projectCommand(), sessionCommand(), housekeepingCommand(), automationCommand(), moduleCommand(), mcpCommand(), mcpBridgeCommand(), updateCommand(), restartCommand())
 	if err := root.Execute(); err != nil {
 		slog.Error(err.Error())
 		os.Exit(1)

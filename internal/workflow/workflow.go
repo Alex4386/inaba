@@ -15,6 +15,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	inabav1 "github.com/Alex4386/inaba/gen/inaba/v1"
 )
@@ -77,11 +81,64 @@ func Agents(dir string) []*inabav1.WorkflowAgent {
 		}
 	}
 	for _, a := range agents {
-		if !a.Done && validID(a.Id) {
-			a.Activity = latestActivity(filepath.Join(dir, "agent-"+a.Id+".jsonl"))
+		if !validID(a.Id) {
+			continue
+		}
+		path := filepath.Join(dir, "agent-"+a.Id+".jsonl")
+		a.StartedAt = startedAt(path)
+		if a.Done {
+			a.EndedAt = lastWrite(path)
+		} else {
+			a.Activity = latestActivity(path)
 		}
 	}
 	return agents
+}
+
+// Stop marks the agents that never finished as stopped, at their last write, for a workflow
+// no longer watched; the others are returned as they are.
+func Stop(dir string, agents []*inabav1.WorkflowAgent) []*inabav1.WorkflowAgent {
+	out := make([]*inabav1.WorkflowAgent, len(agents))
+	for i, a := range agents {
+		out[i] = a
+		if a.Done || a.Stopped {
+			continue
+		}
+		c := proto.Clone(a).(*inabav1.WorkflowAgent)
+		c.Stopped, c.Activity = true, ""
+		if validID(a.Id) {
+			c.EndedAt = lastWrite(filepath.Join(dir, "agent-"+a.Id+".jsonl"))
+		}
+		out[i] = c
+	}
+	return out
+}
+
+// startedAt is when an agent began: the time of its transcript's first entry.
+func startedAt(path string) *timestamppb.Timestamp {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	// The first entry is the task, which can be long, but is one line.
+	line, _ := bufio.NewReaderSize(f, 64<<10).ReadBytes('\n')
+	var e struct {
+		Timestamp time.Time `json:"timestamp"`
+	}
+	if json.Unmarshal(line, &e) != nil || e.Timestamp.IsZero() {
+		return nil
+	}
+	return timestamppb.New(e.Timestamp)
+}
+
+// lastWrite is when an agent's transcript last changed, which for a finished agent is when it finished.
+func lastWrite(path string) *timestamppb.Timestamp {
+	st, err := os.Stat(path)
+	if err != nil {
+		return nil
+	}
+	return timestamppb.New(st.ModTime())
 }
 
 // validID keeps an agent id from naming a file outside the folder.

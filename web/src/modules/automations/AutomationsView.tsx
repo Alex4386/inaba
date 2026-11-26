@@ -20,6 +20,7 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { showError } from "@/lib/errors";
@@ -43,6 +44,9 @@ export function AutomationsView({ link, onOpenThread }: { link: HostLink; onOpen
   const [notifiers, setNotifiers] = useState<Notifier[]>([]);
   const [addingNotifier, setAddingNotifier] = useState(false);
   const [removingNotifier, setRemovingNotifier] = useState<Notifier>();
+  // The automation being run, or the notifier being tried, by id.
+  const [running, setRunning] = useState<string>();
+  const [testing, setTesting] = useState<string>();
   const showHook = (id: string, value: string) =>
     setSecret({
       help: t("auto.secretHelp"),
@@ -53,7 +57,7 @@ export function AutomationsView({ link, onOpenThread }: { link: HostLink; onOpen
     });
 
   const refresh = useCallback(() => {
-    link.automations.listAutomations({}).then((r) => setList(r.automations), showError);
+    link.automations.listAutomations({}).then((r) => setList(r.automations), (e) => (showError(e), setList((l) => l ?? [])));
     link.threads.listThreads({}).then((r) => setThreads(r.threads), showError);
     link.automations.listNotifiers({}).then((r) => setNotifiers(r.notifiers), showError);
   }, [link]);
@@ -82,12 +86,35 @@ export function AutomationsView({ link, onOpenThread }: { link: HostLink; onOpen
     }
     return link.automations.updateAutomation(a).then(refresh);
   };
-  const runNow = (a: Automation) =>
-    link.automations.runAutomation({ id: a.id }).then((run) => {
-      if (run.error) toast.error(run.error);
-      else toast.success(t("auto.ran"), { action: { label: t("auto.openThread"), onClick: () => onOpenThread(run.threadId) } });
+  const runNow = (a: Automation) => {
+    setRunning(a.id);
+    link.automations
+      .runAutomation({ id: a.id })
+      .then((run) => {
+        if (run.error) toast.error(run.error);
+        else toast.success(t("auto.ran"), { action: { label: t("auto.openThread"), onClick: () => onOpenThread(run.threadId) } });
+        refresh();
+      }, showError)
+      .finally(() => setRunning(undefined));
+  };
+  const setEnabled = (a: Automation, enabled: boolean) => {
+    setList((now) => now?.map((x) => (x.id === a.id ? { ...x, enabled } : x)));
+    save({ ...a, enabled }).catch((e) => {
+      showError(e);
       refresh();
-    }, showError);
+    });
+  };
+  const test = (n: Notifier) => {
+    setTesting(n.id);
+    link.automations
+      .testNotifier({ id: n.id })
+      .then((d) => {
+        if (d.error) toast.error(d.error);
+        else toast.success(t("notify.delivered", { status: String(d.status) }));
+        refresh();
+      }, showError)
+      .finally(() => setTesting(undefined));
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -101,7 +128,9 @@ export function AutomationsView({ link, onOpenThread }: { link: HostLink; onOpen
         </Button>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {list?.length === 0 ? (
+        {!list ? (
+          <Spinner className="text-muted-foreground mx-auto my-8" />
+        ) : list.length === 0 ? (
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -116,7 +145,7 @@ export function AutomationsView({ link, onOpenThread }: { link: HostLink; onOpen
           </Empty>
         ) : (
           <ul className="mx-auto grid max-w-3xl gap-3 p-4">
-            {list?.map((a) => {
+            {list.map((a) => {
               const last = a.runs[0];
               const target = a.threadId ? threads.find((th) => th.id === a.threadId) : undefined;
               return (
@@ -134,10 +163,10 @@ export function AutomationsView({ link, onOpenThread }: { link: HostLink; onOpen
                       checked={a.enabled}
                       aria-label={t("auto.enabled")}
                       title={t("auto.enabled")}
-                      onCheckedChange={(enabled) => save({ ...a, enabled }).catch(showError)}
+                      onCheckedChange={(enabled) => setEnabled(a, enabled)}
                     />
-                    <Button size="icon-sm" variant="ghost" aria-label={t("auto.runNow")} title={t("auto.runNow")} onClick={() => void runNow(a)}>
-                      <PlayIcon />
+                    <Button size="icon-sm" variant="ghost" aria-label={t("auto.runNow")} title={t("auto.runNow")} disabled={running !== undefined} onClick={() => runNow(a)}>
+                      {running === a.id ? <Spinner /> : <PlayIcon />}
                     </Button>
                     <DropdownMenu>
                       <DropdownMenuTrigger render={<Button size="icon-sm" variant="ghost" />}>
@@ -226,8 +255,8 @@ export function AutomationsView({ link, onOpenThread }: { link: HostLink; onOpen
                       <code className="min-w-0 truncate text-xs" title={n.url}>
                         {n.url}
                       </code>
-                      <Button className="ml-auto" size="xs" variant="ghost" onClick={() => link.automations.testNotifier({ id: n.id }).then((d) => (d.error ? toast.error(d.error) : toast.success(t("notify.delivered", { status: String(d.status) })), refresh()), showError)}>
-                        <SendIcon data-icon="inline-start" />
+                      <Button className="ml-auto" size="xs" variant="ghost" disabled={testing !== undefined} onClick={() => test(n)}>
+                        {testing === n.id ? <Spinner data-icon="inline-start" /> : <SendIcon data-icon="inline-start" />}
                         {t("notify.test")}
                       </Button>
                       <Button size="icon-xs" variant="ghost" aria-label={t("notify.delete")} title={t("notify.delete")} onClick={() => setRemovingNotifier(n)}>
@@ -341,6 +370,7 @@ function AutomationDialog({
   const [webhook, setWebhook] = useState(false);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!automation) return;
@@ -379,7 +409,7 @@ function AutomationDialog({
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!automation) return;
+    if (!automation || busy) return;
     const schedule =
       trigger === "every"
         ? { when: { case: "everyMinutes" as const, value: Number(every) } }
@@ -398,11 +428,14 @@ function AutomationDialog({
       threadId: target === "thread" ? threadId : "",
       newThread: target === "new" ? { provider, projectId, worktree, options: chosen } : undefined,
     });
+    setBusy(true);
     try {
       await onSave(next);
       onClose();
     } catch (e) {
       showError(e);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -535,7 +568,10 @@ function AutomationDialog({
             </span>
           </Label>
           <DialogFooter>
-            <Button type="submit">{automation?.id ? t("common.save") : t("common.create")}</Button>
+            <Button type="submit" disabled={busy}>
+              {busy && <Spinner data-icon="inline-start" />}
+              {automation?.id ? t("common.save") : t("common.create")}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -551,6 +587,7 @@ function NotifierDialog({ open, onClose, onCreate }: { open: boolean; onClose: (
   const [url, setUrl] = useState("");
   const [events, setEvents] = useState<string[]>([...notifierEvents]);
   const [automationsOnly, setAutomationsOnly] = useState(false);
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!open) return;
     setUrl("");
@@ -559,12 +596,16 @@ function NotifierDialog({ open, onClose, onCreate }: { open: boolean; onClose: (
   }, [open]);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (busy) return;
+    setBusy(true);
     try {
       // All three is the same as none named, which also takes events added later.
       await onCreate({ url, events: events.length === notifierEvents.length ? [] : events, automationsOnly });
       onClose();
     } catch (e) {
       showError(e);
+    } finally {
+      setBusy(false);
     }
   };
   return (
@@ -592,7 +633,8 @@ function NotifierDialog({ open, onClose, onCreate }: { open: boolean; onClose: (
             {t("notify.automationsOnly")}
           </Label>
           <DialogFooter>
-            <Button type="submit" disabled={events.length === 0}>
+            <Button type="submit" disabled={events.length === 0 || busy}>
+              {busy && <Spinner data-icon="inline-start" />}
               {t("common.create")}
             </Button>
           </DialogFooter>

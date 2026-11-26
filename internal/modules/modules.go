@@ -20,11 +20,12 @@ import (
 	"github.com/Alex4386/inaba/internal/modules/files"
 	"github.com/Alex4386/inaba/internal/modules/mcp"
 	"github.com/Alex4386/inaba/internal/modules/sideshell"
+	"github.com/Alex4386/inaba/internal/modules/terminal"
 	"github.com/Alex4386/inaba/pkg/module"
 )
 
 // Builtin is every module this binary carries.
-var Builtin = []module.Module{files.Module, sideshell.Module, automation.Module, mcp.Module, browser.Module, agenttools.Module}
+var Builtin = []module.Module{files.Module, sideshell.Module, terminal.Module, automation.Module, mcp.Module, browser.Module, agenttools.Module}
 
 // How long a module gets to start or stop.
 const lifecycleTimeout = 30 * time.Second

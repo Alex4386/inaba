@@ -19,7 +19,7 @@ import { showError } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
 
 /** One project's own settings: its name, how it is shown, and what its new threads start with. */
-function ProjectDetail({ hostId, project, onChanged, onBack }: { hostId: string; project: Project; onChanged: () => void; onBack: () => void }) {
+function ProjectDetail({ hostId, project, onChanged, onBack }: { hostId: string; project: Project; onChanged: () => unknown; onBack: () => void }) {
   const { t } = useI18n();
   const projects = useMemo(() => onHost(hostId, ProjectService), [hostId]);
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -29,8 +29,18 @@ function ProjectDetail({ hostId, project, onChanged, onBack }: { hostId: string;
   useEffect(() => {
     onHost(hostId, ThreadService).listProviders({}).then((r) => setProviders(r.providers), showError);
   }, [hostId]);
-  const defaults = project.newThread ?? create(NewThreadDefaultsSchema, {});
-  const update = (change: { name?: string; icon?: string; pinned?: boolean; newThread?: typeof defaults }) => projects.updateProject({ projectId: project.id, ...change }).then(onChanged, showError);
+  const [saving, setSaving] = useState<"name" | "icon" | "other">();
+  // What was just chosen, shown until the host's copy is read back, so a control does not snap back meanwhile.
+  const [pending, setPending] = useState<{ pinned?: boolean; newThread?: NonNullable<Project["newThread"]> }>({});
+  const defaults = pending.newThread ?? project.newThread ?? create(NewThreadDefaultsSchema, {});
+  const update = (change: { name?: string; icon?: string; pinned?: boolean; newThread?: typeof defaults }) => {
+    setSaving(change.name !== undefined ? "name" : change.icon !== undefined ? "icon" : "other");
+    setPending({ pinned: change.pinned, newThread: change.newThread });
+    return projects
+      .updateProject({ projectId: project.id, ...change })
+      .then(onChanged, showError)
+      .finally(() => (setSaving(undefined), setPending({})));
+  };
   const setDefaults = (change: Partial<typeof defaults>) => update({ newThread: create(NewThreadDefaultsSchema, { ...defaults, ...change }) });
   const provider = providers.find((p) => p.id === defaults.provider);
   const pick = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -51,7 +61,8 @@ function ProjectDetail({ hostId, project, onChanged, onBack }: { hostId: string;
             }}
           >
             <Input className="w-48" value={name} onChange={(e) => setName(e.target.value)} maxLength={64} required />
-            <Button type="submit" variant="outline" disabled={!name.trim() || name === project.name}>
+            <Button type="submit" variant="outline" disabled={!name.trim() || name === project.name || saving === "name"}>
+              {saving === "name" && <Spinner data-icon="inline-start" />}
               {t("providers.save")}
             </Button>
           </form>
@@ -60,19 +71,19 @@ function ProjectDetail({ hostId, project, onChanged, onBack }: { hostId: string;
           <div className="flex items-center gap-2">
             <ProjectIcon project={project} className="size-8 text-sm" />
             <input ref={file} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => void pick(e)} />
-            <Button variant="outline" onClick={() => file.current?.click()}>
-              <ImageIcon data-icon="inline-start" />
+            <Button variant="outline" disabled={saving === "icon"} onClick={() => file.current?.click()}>
+              {saving === "icon" ? <Spinner data-icon="inline-start" /> : <ImageIcon data-icon="inline-start" />}
               {t("projectSettings.chooseFile")}
             </Button>
             {project.icon && (
-              <Button variant="ghost" onClick={() => void update({ icon: "" })}>
+              <Button variant="ghost" disabled={saving === "icon"} onClick={() => void update({ icon: "" })}>
                 {t("projectSettings.automatic")}
               </Button>
             )}
           </div>
         </Row>
         <Row title={t("projectSettings.pin")} description={t("projectSettings.pinHelp")}>
-          <Switch checked={project.pinned} aria-label={t("projectSettings.pin")} onCheckedChange={(pinned) => void update({ pinned })} />
+          <Switch checked={pending.pinned ?? project.pinned} aria-label={t("projectSettings.pin")} onCheckedChange={(pinned) => void update({ pinned })} />
         </Row>
         <Row title={t("projectSettings.folder")} description={project.cwd}>
           <Button variant="outline" onClick={() => navigator.clipboard.writeText(project.cwd).then(() => toast.success(t("common.copied")), showError)}>
@@ -144,11 +155,13 @@ const archiveDays = [0, 1, 3, 7, 14, 30, 90];
 function ArchivePolicy({ hostId }: { hostId: string }) {
   const { t } = useI18n();
   const client = useMemo(() => onHost(hostId, HousekeepingService), [hostId]);
-  const [days, setDays] = useState<number>();
+  // null when it could not be read.
+  const [days, setDays] = useState<number | null>();
   useEffect(() => {
-    client.getArchivePolicy({}).then((p) => setDays(p.afterDays), showError);
+    client.getArchivePolicy({}).then((p) => setDays(p.afterDays), (e) => (showError(e), setDays(null)));
   }, [client]);
-  if (days === undefined) return null;
+  if (days === undefined) return <Spinner />;
+  if (days === null) return null;
   return (
     <Card>
       <Row title={t("archivePolicy.title")} description={t("archivePolicy.help")}>
@@ -176,7 +189,7 @@ export function ProjectSettings({ hostId, open, onOpen, onName }: { hostId: stri
   const project = projects?.find((p) => p.id === open);
   useEffect(() => onName(project?.name), [project?.name, onName]);
   if (!projects) return <Spinner />;
-  if (project) return <ProjectDetail key={project.id} hostId={hostId} project={project} onChanged={() => void load()} onBack={() => setOpen(undefined)} />;
+  if (project) return <ProjectDetail key={project.id} hostId={hostId} project={project} onChanged={load} onBack={() => setOpen(undefined)} />;
   return (
     <div className="grid gap-3">
       <ArchivePolicy hostId={hostId} />

@@ -1,5 +1,5 @@
 import { Code, ConnectError } from "@connectrpc/connect";
-import { KeyRoundIcon, SearchIcon, ServerOffIcon } from "lucide-react";
+import { KeyRoundIcon, SearchIcon, ServerOffIcon, SquareTerminalIcon } from "lucide-react";
 import { signInWithPasskey } from "@/components/profile-panel";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useRoute } from "wouter";
@@ -20,30 +20,37 @@ import { Logo } from "@/components/logo";
 import { Welcome } from "@/components/onboarding";
 import { Alert, AlertDescription } from "@/components/reui/alert";
 import { AutomationsView } from "./modules/automations/AutomationsView";
+import { HostTerminalPage, TerminalsPage } from "./components/terminals";
 import { AdminNav, AdminPage, type AdminSection } from "@/components/admin-dialog";
 import { SettingsDialog, type SettingsSection } from "@/components/settings-dialog";
 import { ProjectTree } from "@/components/project-tree";
+import { SidebarResizeRail } from "@/components/sidebar-resize-rail";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger } from "@/components/ui/sidebar";
+import { Spinner } from "@/components/ui/spinner";
+import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/user-menu";
 import { errorText, showError } from "@/lib/errors";
 import { disablePush, syncPush } from "@/lib/push";
 import { bindingOf, formatBinding, matches, useKeybindings } from "@/lib/keybindings";
 import { useI18n } from "@/lib/i18n";
+import { toast } from "sonner";
 
 export function App() {
   const [config, setConfig] = useState<GetConfigResponse>();
   // undefined while checking, null when signed out.
   const [user, setUser] = useState<User | null>();
-
-  useEffect(() => {
-    auth.getConfig({}).then(setConfig, showError);
+  const [bootError, setBootError] = useState("");
+  const boot = useCallback(() => {
+    setBootError("");
+    auth.getConfig({}).then(setConfig, (e) => setBootError(errorText(e)));
     auth.whoAmI({}).then(setUser, () => setUser(null));
   }, []);
+  useEffect(boot, [boot]);
 
+  if (bootError) return <BootError error={bootError} onRetry={boot} />;
   if (!config || user === undefined) return null;
   // A machine's sign-in link: the code waits through signing in, which may leave the page.
   if (location.pathname === "/ui/device") {
@@ -79,14 +86,32 @@ export function App() {
   return <Workspace config={config} user={user} onUser={setUser} onSignedOut={() => setUser(null)} />;
 }
 
+/** The server could not be reached on load: say so, with a way to try again, not a blank page. */
+function BootError({ error, onRetry }: { error: string; onRetry: () => void }) {
+  const { t } = useI18n();
+  return (
+    <main className="bg-muted grid min-h-svh place-items-center p-4">
+      <div className="grid w-full max-w-sm gap-4">
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+        <Button onClick={onRetry}>{t("common.retry")}</Button>
+      </div>
+    </main>
+  );
+}
+
 function SignIn({ config, onSignedIn }: { config: GetConfigResponse; onSignedIn: (user: User) => void }) {
   const { t } = useI18n();
   const [error, setError] = useState("");
   // Set once the password checked out for an account that also asks for an app's code.
   const [needCode, setNeedCode] = useState(false);
+  const [busy, setBusy] = useState<"password" | "passkey">();
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (busy) return;
     const form = new FormData(event.currentTarget);
+    setBusy("password");
     try {
       onSignedIn(await auth.login({ username: String(form.get("username")), password: String(form.get("password")), totpCode: String(form.get("totp") ?? "") }));
     } catch (e) {
@@ -96,17 +121,23 @@ function SignIn({ config, onSignedIn }: { config: GetConfigResponse; onSignedIn:
         return;
       }
       setError(errorText(e));
+    } finally {
+      setBusy(undefined);
     }
   };
   // An SSO sign-in that did not finish comes back here with a fixed code saying why.
   const ssoError = ({ expired: "signIn.ssoExpired", provider: "signIn.ssoProvider", refused: "signIn.ssoRefused", session: "signIn.ssoSession" } as const)[
     new URLSearchParams(location.search).get("sso_error") as "expired"
   ];
-  const passkey = () =>
-    signInWithPasskey().then(onSignedIn, (e) => {
-      // Closing the browser's own prompt is a choice, not a failure.
-      if (!(e instanceof DOMException && e.name === "NotAllowedError")) setError(errorText(e));
-    });
+  const passkey = () => {
+    setBusy("passkey");
+    return signInWithPasskey()
+      .then(onSignedIn, (e) => {
+        // Closing the browser's own prompt is a choice, not a failure.
+        if (!(e instanceof DOMException && e.name === "NotAllowedError")) setError(errorText(e));
+      })
+      .finally(() => setBusy(undefined));
+  };
   return (
     <AuthCard onSubmit={submit}>
       {config.needsOnboarding && (
@@ -137,10 +168,13 @@ function SignIn({ config, onSignedIn }: { config: GetConfigResponse; onSignedIn:
           <AlertDescription>{error || t(ssoError!)}</AlertDescription>
         </Alert>
       )}
-      <Button type="submit">{t("signIn.submit")}</Button>
+      <Button type="submit" disabled={!!busy}>
+        {busy === "password" && <Spinner data-icon="inline-start" />}
+        {t("signIn.submit")}
+      </Button>
       {!needCode && typeof PublicKeyCredential !== "undefined" && "parseRequestOptionsFromJSON" in PublicKeyCredential && (
-        <Button type="button" variant="outline" onClick={() => void passkey()}>
-          <KeyRoundIcon data-icon="inline-start" />
+        <Button type="button" variant="outline" disabled={!!busy} onClick={() => void passkey()}>
+          {busy === "passkey" ? <Spinner data-icon="inline-start" /> : <KeyRoundIcon data-icon="inline-start" />}
           {t("signIn.passkey")}
         </Button>
       )}
@@ -175,14 +209,19 @@ function AuthCard({ children, onSubmit }: { children: ReactNode; onSubmit: (even
 function Onboarding({ onDone }: { onDone: (user: User) => void }) {
   const { t } = useI18n();
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   const token = new URLSearchParams(location.hash.slice(1)).get("token") ?? "";
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (busy) return;
     const form = new FormData(event.currentTarget);
+    setBusy(true);
     try {
       onDone(await auth.onboard({ token, username: String(form.get("username")), password: String(form.get("password")) }));
     } catch (e) {
       setError(errorText(e));
+    } finally {
+      setBusy(false);
     }
   };
   return (
@@ -206,7 +245,10 @@ function Onboarding({ onDone }: { onDone: (user: User) => void }) {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-          <Button type="submit">{t("onboarding.submit")}</Button>
+          <Button type="submit" disabled={busy}>
+            {busy && <Spinner data-icon="inline-start" />}
+            {t("onboarding.submit")}
+          </Button>
         </>
       )}
     </AuthCard>
@@ -226,12 +268,15 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
   const [onAutomations, automationsAt] = useRoute<{ host: string }>("/hosts/:host/automations");
   // Every project, and every thread of one: pages for what the sidebar keeps short.
   const [onProjects, projectsAt] = useRoute<{ host: string }>("/hosts/:host/projects");
+  // The host's terminals, apart from its projects and threads.
+  const [onTerminals, terminalsAt] = useRoute<{ host: string }>("/hosts/:host/terminals");
+  const [, onTerminal] = useRoute<{ host: string; terminal: string }>("/hosts/:host/terminals/:terminal");
   const [, onProjectThreads] = useRoute<{ host: string; project: string }>("/hosts/:host/projects/:project/threads");
   const [, onHost] = useRoute<{ host: string }>("/hosts/:host");
   const [onAdmin, adminAt] = useRoute<{ section?: string; item?: string; tab?: string }>("/admin/:section?/:item?/:tab?");
   const [onInvite, inviteAt] = useRoute<{ token: string }>("/invite/:token");
   // The host in the address, else the one used last, like a workspace switcher reopens on.
-  const hostId = onThread?.host ?? onProject?.host ?? automationsAt?.host ?? projectsAt?.host ?? onProjectThreads?.host ?? onHost?.host ?? localStorage.getItem(HOST_KEY) ?? undefined;
+  const hostId = onThread?.host ?? onProject?.host ?? automationsAt?.host ?? projectsAt?.host ?? terminalsAt?.host ?? onTerminal?.host ?? onProjectThreads?.host ?? onHost?.host ?? localStorage.getItem(HOST_KEY) ?? undefined;
   const threadId = onThread?.thread;
   const automating = onAutomations;
   const administering = onAdmin ? ((adminAt?.section || "overview") as AdminSection) : undefined;
@@ -322,8 +367,8 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
     if (!shownHost) return;
     // A host looked into from the admin panel is not the one to reopen on.
     if (hostList?.some((h) => h.id === shownHost)) localStorage.setItem(HOST_KEY, shownHost);
-    if (!onThread && !onProject && !onAutomations && !onProjects && !onProjectThreads && !onHost && !onAdmin && !onInvite) navigate(`/hosts/${shownHost}`, { replace: true });
-  }, [shownHost, hostList, onThread, onProject, onAutomations, onProjects, onProjectThreads, onHost, onAdmin, onInvite, navigate]);
+    if (!onThread && !onProject && !onAutomations && !onProjects && !onTerminals && !onTerminal && !onProjectThreads && !onHost && !onAdmin && !onInvite) navigate(`/hosts/${shownHost}`, { replace: true });
+  }, [shownHost, hostList, onThread, onProject, onAutomations, onProjects, onTerminals, onTerminal, onProjectThreads, onHost, onAdmin, onInvite, navigate]);
   const home = (h = shownHost) => navigate(h ? `/hosts/${h}` : "/");
   const openThread = (id: string) => navigate(`/hosts/${shownHost}/threads/${id}`);
   const openProject = (project: Project) => {
@@ -378,9 +423,18 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
                 <kbd className="text-muted-foreground ml-auto font-sans text-xs">{formatBinding(bindingOf("palette"))}</kbd>
               </SidebarMenuButton>
             </SidebarMenuItem>
+            {link && canOn(host, Permission.THREADS_ANYWHERE) && modulesOn.has("terminal") && (
+              <SidebarMenuItem>
+                <SidebarMenuButton tooltip={t("terminals.title")} isActive={onTerminals || Boolean(onTerminal)} onClick={() => navigate(`/hosts/${shownHost}/terminals`)}>
+                  <SquareTerminalIcon />
+                  <span>{t("terminals.title")}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
           </SidebarMenu>
         </SidebarHeader>
         <SidebarContent>{link && <ProjectTree
+              key={activeId}
               link={link}
               selected={threadId}
               openProject={draft?.id}
@@ -404,15 +458,17 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
               canOn(host, Permission.AUTOMATIONS) && link && modulesOn.has("automations")
                 ? () => navigate(`/hosts/${shownHost}/automations`)
                 : undefined
-            } onAdmin={user.admin ? () => navigate("/admin/overview") : undefined} onSignOut={() =>
+            } onAdmin={user.admin ? () => navigate("/admin/overview") : undefined} onSignOut={() => {
+              const pending = toast.loading(t("user.signOut"));
               // Whoever signs in next on this browser must not get this account's notifications.
               disablePush()
                 .catch(() => {})
                 .then(() => auth.logout({}))
                 .then(onSignedOut, onSignedOut)
-            } />
+                .finally(() => toast.dismiss(pending));
+            }} />
         </SidebarFooter>
-        <SidebarRail />
+        <SidebarResizeRail />
       </Sidebar>
       <SidebarInset className="min-h-0 min-w-0">
         {administering ? (
@@ -435,6 +491,10 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
             onOpen={(p) => navigate(`/hosts/${shownHost}/projects/${p.id}/threads`)}
             onAddProject={canOn(host, Permission.MANAGE_PROJECTS) ? () => setPalette("folder") : undefined}
           />
+        ) : link && onTerminals ? (
+          <TerminalsPage link={link} onOpen={(id) => navigate(`/hosts/${shownHost}/terminals/${id}`)} />
+        ) : link && onTerminal ? (
+          <HostTerminalPage key={onTerminal.terminal} link={link} id={onTerminal.terminal} onBack={() => navigate(`/hosts/${shownHost}/terminals`)} />
         ) : link && onProjectThreads ? (
           <ProjectThreadsPage
             key={onProjectThreads.project}

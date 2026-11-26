@@ -2664,6 +2664,133 @@ paths:
                   description: The id of the host, from GET /v1/hosts.
                   schema:
                     type: string
+    /v1/terminals:
+        get:
+            tags:
+                - HostTerminalService
+            operationId: HostTerminalService_ListHostTerminals
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListHostTerminalsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - HostTerminalService
+            description: Starts a terminal; an empty folder is the home folder.
+            operationId: HostTerminalService_OpenHostTerminal
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/OpenHostTerminalRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/HostTerminal'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/terminals/{id}:
+        delete:
+            tags:
+                - HostTerminalService
+            description: Ends a terminal and its process.
+            operationId: HostTerminalService_CloseHostTerminal
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CloseHostTerminalResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/terminals/{id}/input:
+        post:
+            tags:
+                - HostTerminalService
+            operationId: HostTerminalService_WriteHostTerminal
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/WriteHostTerminalRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/WriteHostTerminalResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/terminals/{id}/size:
+        post:
+            tags:
+                - HostTerminalService
+            operationId: HostTerminalService_ResizeHostTerminal
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ResizeHostTerminalRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ResizeHostTerminalResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/hosts/{host_id}/threads:
         get:
             tags:
@@ -2953,6 +3080,53 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ListEventsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/hosts/{host_id}/threads/{thread_id}/events/{seq}/attachments/{index}:
+        get:
+            tags:
+                - ThreadService
+            description: |-
+                A file attached to one of the thread's messages, by the message's event and the
+                 file's place among its attachments. Subscribe leaves images' bytes out; this is
+                 where they come from.
+            operationId: ThreadService_GetAttachment
+            parameters:
+                - name: host_id
+                  in: path
+                  required: true
+                  description: The id of the host, from GET /v1/hosts.
+                  schema:
+                    type: string
+                - name: thread_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: seq
+                  in: path
+                  description: The user message's event.
+                  required: true
+                  schema:
+                    type: string
+                - name: index
+                  in: path
+                  description: Which of its attachments, from 0.
+                  required: true
+                  schema:
+                    type: integer
+                    format: uint32
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Attachment'
                 default:
                     description: Default error response
                     content:
@@ -4926,6 +5100,9 @@ components:
         CloseBrowserResponse:
             type: object
             properties: {}
+        CloseHostTerminalResponse:
+            type: object
+            properties: {}
         CloseShellRequest:
             type: object
             properties:
@@ -5571,6 +5748,20 @@ components:
                 role:
                     type: string
                     description: '"member" may do everything on the host itself; "manager" also looks after its members and invites.'
+        HostTerminal:
+            type: object
+            properties:
+                id:
+                    type: string
+                cwd:
+                    type: string
+                    description: The folder it started in.
+                started_at:
+                    type: string
+                    format: date-time
+                exited:
+                    type: boolean
+                    description: Its shell has exited; it stays listed, with its last output, until closed.
         Housekeeping:
             type: object
             properties:
@@ -5725,6 +5916,14 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/HostMember'
+        ListHostTerminalsResponse:
+            type: object
+            properties:
+                terminals:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/HostTerminal'
+                    description: Oldest first.
         ListHostsResponse:
             type: object
             properties:
@@ -6059,6 +6258,18 @@ components:
             properties:
                 thread_id:
                     type: string
+        OpenHostTerminalRequest:
+            type: object
+            properties:
+                cwd:
+                    type: string
+                cols:
+                    type: integer
+                    description: The viewer's terminal size, so the first screen is drawn for it. Zero means 80 by 24.
+                    format: uint32
+                rows:
+                    type: integer
+                    format: uint32
         OptionsChanged:
             type: object
             properties:
@@ -6423,6 +6634,20 @@ components:
                     type: string
                     description: What to call the device, such as "Chrome on macOS"; at most 64 characters.
         RemoveHostMemberResponse:
+            type: object
+            properties: {}
+        ResizeHostTerminalRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                cols:
+                    type: integer
+                    format: uint32
+                rows:
+                    type: integer
+                    format: uint32
+        ResizeHostTerminalResponse:
             type: object
             properties: {}
         ResizeRequest:
@@ -7364,6 +7589,16 @@ components:
                 result:
                     type: string
                     description: What it returned, cut short, once done.
+                started_at:
+                    type: string
+                    description: When it started, and when it finished or was stopped; the latter unset while it runs.
+                    format: date-time
+                ended_at:
+                    type: string
+                    format: date-time
+                stopped:
+                    type: boolean
+                    description: 'It never finished: its session closed, or it wrote nothing for a long while.'
             description: One agent of a background workflow, such as Claude Code's ultracode runs.
         WorkflowStep:
             type: object
@@ -7416,6 +7651,17 @@ components:
             properties:
                 version:
                     type: string
+        WriteHostTerminalRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                data:
+                    type: string
+                    format: bytes
+        WriteHostTerminalResponse:
+            type: object
+            properties: {}
         WriteRequest:
             type: object
             properties:
@@ -7479,6 +7725,11 @@ tags:
          thread working in a folder of its own, such as one outside any project, answers
          at its own address.
     - name: HostService
+    - name: HostTerminalService
+      description: |-
+        Login shells on the host, each in the folder it was opened in. One runs until it is
+         closed, its shell exits, or the host stops; leaving its page does not end it. They
+         need the threads-anywhere permission, as a shell reaches any folder.
     - name: HousekeepingService
       description: |-
         Upkeep of a host: what inaba leaves on its disk, and clearing what is no longer

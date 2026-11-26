@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestDirOnlyFromAWorkflowFolder(t *testing.T) {
@@ -47,7 +48,7 @@ func TestAgents(t *testing.T) {
 not json
 {"type":"result","agentId":"a1","result":{"summary":"two\n  names differ"}}
 `)
-	write(t, dir, "agent-a2.jsonl", `{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"README.md"}}]}}
+	write(t, dir, "agent-a2.jsonl", `{"type":"assistant","timestamp":"2026-11-26T14:37:05.5Z","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"README.md"}}]}}
 {"type":"user","message":{"content":[{"type":"tool_result"}]}}
 {"type":"assistant","message":{"content":[{"type":"text","text":"hm"},{"type":"tool_use","name":"Bash","input":{"command":"go   test ./..."}}]}}
 {"type":"user","message":{"content":"tool output"}}
@@ -64,6 +65,18 @@ not json
 	}
 	if a := agents[2]; a.Activity != "" {
 		t.Errorf("an agent id naming another folder was read: %v", a)
+	}
+	if got := agents[1].GetStartedAt().AsTime(); !got.Equal(time.Date(2026, 11, 26, 14, 37, 5, 5e8, time.UTC)) || agents[1].EndedAt != nil {
+		t.Errorf("running agent's times = %v, %v", got, agents[1].EndedAt)
+	}
+
+	// Once nothing watches the workflow, the unfinished agent is stopped and the finished one left as it was.
+	stopped := Stop(dir, agents)
+	if a := stopped[1]; !a.Stopped || a.Activity != "" || a.EndedAt == nil {
+		t.Errorf("stopped agent = %v", a)
+	}
+	if stopped[0] != agents[0] || agents[1].Stopped {
+		t.Error("Stop changed a finished agent or the agents it was given")
 	}
 	if Agents(filepath.Join(dir, "missing")) != nil {
 		t.Error("a folder without a journal has agents")

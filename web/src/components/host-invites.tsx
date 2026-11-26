@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import type { Host, PendingHostInvite } from "@/gen/inaba/v1/server_pb";
 import { showError } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
@@ -74,7 +75,7 @@ export function HostInvites({ host }: { host: Host }) {
         cancel={t("providers.cancel")}
         confirm={t("invites.revoke")}
         destructive
-        onConfirm={() => revoking && void revoke(revoking)}
+        onConfirm={() => revoking && revoke(revoking)}
       />
     </div>
   );
@@ -87,6 +88,7 @@ function InviteCreateDialog({ host, open, onClose, onCreated }: { host: Host; op
   const openShared = host.shared && !host.restricted;
   const [role, setRole] = useState<Role>(openShared ? "manager" : "member");
   const [link, setLink] = useState("");
+  const [busy, setBusy] = useState(false);
   const close = () => {
     setLink("");
     setRole(openShared ? "manager" : "member");
@@ -94,11 +96,16 @@ function InviteCreateDialog({ host, open, onClose, onCreated }: { host: Host; op
   };
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (busy) return;
     const note = String(new FormData(event.currentTarget).get("note") ?? "").trim();
-    hostsApi.createHostInvite({ hostId: host.id, role, note }).then((r) => {
-      setLink(`${location.origin}/ui/invite/${r.token}`);
-      onCreated();
-    }, showError);
+    setBusy(true);
+    hostsApi
+      .createHostInvite({ hostId: host.id, role, note })
+      .then((r) => {
+        setLink(`${location.origin}/ui/invite/${r.token}`);
+        onCreated();
+      }, showError)
+      .finally(() => setBusy(false));
   };
   return (
     <Dialog open={open} onOpenChange={(next) => !next && close()}>
@@ -133,7 +140,10 @@ function InviteCreateDialog({ host, open, onClose, onCreated }: { host: Host; op
               <Input id="invite-note" name="note" maxLength={200} placeholder={t("invites.notePlaceholder")} />
             </Field>
             <DialogFooter>
-              <Button type="submit">{t("common.create")}</Button>
+              <Button type="submit" disabled={busy}>
+                {busy && <Spinner data-icon="inline-start" />}
+                {t("common.create")}
+              </Button>
             </DialogFooter>
           </form>
         )}

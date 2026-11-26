@@ -1,8 +1,9 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Terminal } from "@xterm/xterm";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { HostLink } from "./api";
+import { Spinner } from "@/components/ui/spinner";
 import { useI18n } from "@/lib/i18n";
 import { codeFontStack, useCodeFont } from "@/lib/settings";
 import { cn } from "@/lib/utils";
@@ -23,11 +24,19 @@ export function isClipboardKey(e: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaK
   return key === "v" || (key === "c" && (mac || hasSelection));
 }
 
+/** How a terminal reaches its process on the host; keep it stable across renders, as a new one attaches again. */
+export type TerminalIO = {
+  attach: (size: { cols: number; rows: number }, signal: AbortSignal) => AsyncIterable<{ data: Uint8Array; cols: number; rows: number }>;
+  write: (data: Uint8Array) => Promise<unknown>;
+  resize: (size: { cols: number; rows: number }) => Promise<unknown>;
+};
+
 /**
- * A thread's terminal, or with shell set, the shell of that id beside its conversation. The thread's
- * driver sizes it to their screen and types into it; anyone else watches it at the driver's size.
+ * A thread's terminal, or with shell set, the shell of that id beside its conversation; or with io set, any
+ * other terminal on the host. The thread's driver sizes it to their screen and types into it; anyone else
+ * watches it at the driver's size.
  */
-export function TerminalView({ link, threadId, shell, driving = true, onExit }: { link: HostLink; threadId: string; shell?: string; driving?: boolean; onExit: () => void }) {
+export function TerminalView({ link, threadId = "", shell, io, driving = true, onExit }: { link: HostLink; threadId?: string; shell?: string; io?: TerminalIO; driving?: boolean; onExit: () => void }) {
   const el = useRef<HTMLDivElement>(null);
   const { t } = useI18n();
   // The latest callback and wording, read when the process exits rather than when the terminal was made.
@@ -35,6 +44,10 @@ export function TerminalView({ link, threadId, shell, driving = true, onExit }: 
   exit.current = onExit;
   const exitedText = useRef("");
   exitedText.current = t("thread.exited");
+  const notSentText = useRef("");
+  notSentText.current = t("thread.inputNotSent");
+  // Output is flowing; until then, or after a break, a spinner says it is still connecting.
+  const [attached, setAttached] = useState(false);
   const direct = link.direct;
   // The code font, changed in settings while the terminal runs: it redraws in place, without attaching again.
   const font = useCodeFont();
@@ -69,15 +82,26 @@ export function TerminalView({ link, threadId, shell, driving = true, onExit }: 
 
     // Keystrokes are separate calls; chaining them keeps them in the order typed.
     let queue = Promise.resolve();
+    // When input last failed, so a burst of lost keystrokes leaves one marker rather than one each.
+    let failed = 0;
     const enqueue = (call: () => Promise<unknown>) => {
       queue = queue.then(call).then(
         () => {},
-        () => {},
+        () => {
+          if (Date.now() - failed < 2_000) return;
+          failed = Date.now();
+          term.write(`\r\n\x1b[2m[${notSentText.current}]\x1b[0m\r\n`);
+        },
       );
     };
-    term.onData((data) => enqueue(() => (shell !== undefined ? link.shell.writeShell({ threadId, shellId: shell, data: encoder.encode(data) }) : link.terminal.write({ threadId, data: encoder.encode(data) }))));
+    const to: TerminalIO = io ?? {
+      attach: (size, signal) => (shell !== undefined ? link.shell.attachShell({ threadId, shellId: shell, ...size }, { signal }) : link.terminal.attach({ threadId, ...size }, { signal })),
+      write: (data) => (shell !== undefined ? link.shell.writeShell({ threadId, shellId: shell, data }) : link.terminal.write({ threadId, data })),
+      resize: (size) => (shell !== undefined ? link.shell.resizeShell({ threadId, shellId: shell, ...size }) : link.terminal.resize({ threadId, ...size })),
+    };
+    term.onData((data) => enqueue(() => to.write(encoder.encode(data))));
     // Only the driver's size goes to the process: every viewer sending its own would fight over it.
-    if (driving) term.onResize(({ cols, rows }) => enqueue(() => (shell !== undefined ? link.shell.resizeShell({ threadId, shellId: shell, cols, rows }) : link.terminal.resize({ threadId, cols, rows }))));
+    if (driving) term.onResize((size) => enqueue(() => to.resize(size)));
     const observer = new ResizeObserver(() => driving && fit.fit());
     observer.observe(el.current!);
     if (driving) {
@@ -108,21 +132,22 @@ export function TerminalView({ link, threadId, shell, driving = true, onExit }: 
           }
           // Each attach replays the recent output, so start from a clean screen.
           term.reset();
+          setAttached(false);
           // A watcher asks for no size, leaving the driver's.
           const size = driving ? { cols: term.cols, rows: term.rows } : { cols: 0, rows: 0 };
-          for await (const chunk of shell !== undefined
-            ? link.shell.attachShell({ threadId, shellId: shell, ...size }, { signal: abort.signal })
-            : link.terminal.attach({ threadId, ...size }, { signal: abort.signal }))
-          {
+          for await (const chunk of to.attach(size, abort.signal)) {
             if (!driving && chunk.cols > 0 && chunk.rows > 0) term.resize(chunk.cols, chunk.rows);
             term.write(chunk.data);
+            setAttached(true);
           }
           if (!abort.signal.aborted) {
+            setAttached(true);
             term.write(`\r\n\x1b[2m[${exitedText.current}]\x1b[0m\r\n`);
             exit.current();
           }
           return;
         } catch {
+          setAttached(false);
           await new Promise((r) => setTimeout(r, 1_000));
         }
       }
@@ -134,8 +159,13 @@ export function TerminalView({ link, threadId, shell, driving = true, onExit }: 
       live.current = undefined;
       term.dispose();
     };
-  }, [link, threadId, shell, direct, driving]);
+  }, [link, threadId, shell, io, direct, driving]);
 
   // A watcher's terminal is the driver's size, which may not fit here; it scrolls instead.
-  return <div className={cn("min-h-0 flex-1 bg-[#0b0b0d] p-2", !driving && "overflow-auto")} ref={el} title={driving ? undefined : t("drive.spectating")} />;
+  return (
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <div className={cn("min-h-0 flex-1 bg-[#0b0b0d] p-2", !driving && "overflow-auto")} ref={el} title={driving ? undefined : t("drive.spectating")} />
+      {!attached && <Spinner className="absolute inset-0 m-auto text-white/60" />}
+    </div>
+  );
 }

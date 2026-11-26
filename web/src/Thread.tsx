@@ -22,6 +22,7 @@ import {
   UsersIcon,
   ChevronRightIcon,
   CircleAlertIcon,
+  CircleStopIcon,
   CopyIcon,
   FilePenLineIcon,
   FileTextIcon,
@@ -40,14 +41,16 @@ import {
   WrenchIcon,
   FileIcon,
 } from "lucide-react";
+import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { bytes } from "@/components/metrics";
 import { useDefaultLayout } from "react-resizable-panels";
-import { createContext, type FormEvent, type ReactNode, useCallback, useContext, useEffect, useReducer, useRef, useState } from "react";
+import { createContext, type FormEvent, memo, type ReactNode, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useMarkSeen } from "@/lib/seen";
 import type { HostLink } from "./api";
 import {
   type Attachment,
+  type Event,
   type GitStatus,
   type Plan_Entry,
   type Project,
@@ -90,7 +93,7 @@ import { useI18n } from "@/lib/i18n";
 import { bindingOf, formatBinding, matches, useKeybindings } from "@/lib/keybindings";
 import { cn, pathNames } from "@/lib/utils";
 import { matchOffsets, planMarkdown, quoteMarkdown } from "@/lib/thread-text";
-import { apply, blocks, type Block, type Item, isWork, type Log, millis, type Turn } from "@/lib/thread-log";
+import { applyAll, blocks, type Block, type Item, isWork, type Log, millis, type Turn } from "@/lib/thread-log";
 
 
 export function ThreadView({
@@ -229,6 +232,8 @@ export function ThreadView({
   // Every provider the host offers, for moving the thread to another between turns.
   const [providers, setProviders] = useState<Provider[]>([]);
   const [confirming, setConfirming] = useState(false);
+  // Set while the thread moves between its chat and its terminal, which can take a while to start.
+  const [switching, setSwitching] = useState(false);
   // The side chat shown beside the conversation, and whether /btw opened it as an aside.
   // shortcut: kept in this browser, not the shared layout, so watchers do not see it; add it to the layout if they should.
   const [side, setSide] = useState<{ id: string; aside: boolean }>();
@@ -238,8 +243,11 @@ export function ThreadView({
   const [exited, setExited] = useState(false);
   const direct = link.direct;
 
-  const refresh = useCallback(() => link.threads.getThread({ threadId }).then(setThread, showError), [link, threadId]);
+  // Why the thread could not be read, while none is shown yet.
+  const [loadError, setLoadError] = useState<string>();
+  const refresh = useCallback(() => link.threads.getThread({ threadId }).then(setThread, (e) => (showError(e), setLoadError(errorText(e)))), [link, threadId]);
   useEffect(() => {
+    setLoadError(undefined);
     void refresh();
   }, [refresh]);
   // Opening the thread marks it read; the conversation marks newer events as they arrive.
@@ -340,7 +348,17 @@ export function ThreadView({
     [link, threadId],
   );
 
-  if (!thread) return null;
+  if (!thread)
+    return loadError ? (
+      <div className="m-auto grid justify-items-center gap-2 p-4 text-center">
+        <p className="text-destructive text-sm">{loadError}</p>
+        <Button size="sm" variant="outline" onClick={() => (setLoadError(undefined), void refresh())}>
+          {t("common.retry")}
+        </Button>
+      </div>
+    ) : (
+      <Spinner className="text-muted-foreground m-auto" />
+    );
   const terminal = thread.mode === ThreadMode.TERMINAL;
   const offered: Record<Surface, boolean> = { changes: Boolean(git?.repository), files: modules.has("files"), browser: modules.has("browser"), shell: modules.has("shell") };
   const pane = (tab: TabId) => {
@@ -416,14 +434,18 @@ export function ThreadView({
   const busy = thread.status !== ThreadStatus.IDLE;
   // An agent can move between its structured view and its own terminal; a plain terminal cannot.
   const canSwitch = provider?.structured && provider.terminal;
-  const setMode = (mode: ThreadMode) =>
-    link.threads
+  const setMode = (mode: ThreadMode) => {
+    if (switching) return;
+    setSwitching(true);
+    return link.threads
       .setMode({ threadId, mode })
       .then(() => {
         setExited(false);
         setTerminalRun((n) => n + 1);
       }, showError)
-      .then(refresh);
+      .then(refresh)
+      .finally(() => setSwitching(false));
+  };
 
   const sideChat = side && <SideChat key={side.id} link={link} threadId={side.id} aside={side.aside} providers={providers} mentions={modules.has("files")} stealth={stealth} onOpen={onOpen} onSide={(id, aside) => setSide({ id, aside })} onClose={() => setSide(undefined)} />;
   const main = (
@@ -471,7 +493,7 @@ export function ThreadView({
               <span className="text-muted-foreground">/</span>
             </>
           )}
-          {thread.status === ThreadStatus.RUNNING ? (
+          {thread.status === ThreadStatus.RUNNING || switching ? (
             <Spinner className="text-muted-foreground shrink-0" />
           ) : threadFailed(thread) ? (
             <CircleAlertIcon className="text-destructive size-4 shrink-0" />
@@ -506,7 +528,7 @@ export function ThreadView({
               );
             })}
             {terminal && exited && (
-              <Button size="sm" variant="outline" disabled={!driving} onClick={() => void setMode(ThreadMode.TERMINAL)}>
+              <Button size="sm" variant="outline" disabled={!driving || switching} onClick={() => void setMode(ThreadMode.TERMINAL)}>
                 <RotateCwIcon data-icon="inline-start" />
                 <span className="hidden @xl:inline">{t("thread.restart")}</span>
               </Button>
@@ -544,7 +566,7 @@ export function ThreadView({
                   </DropdownMenuSub>
                 )}
                 {canSwitch && (
-                  <DropdownMenuItem disabled={busy || !driving} title={busy ? t("thread.busyHelp") : undefined} onClick={() => (terminal ? void setMode(ThreadMode.STRUCTURED) : setConfirming(true))}>
+                  <DropdownMenuItem disabled={busy || !driving || switching} title={busy ? t("thread.busyHelp") : undefined} onClick={() => (terminal ? void setMode(ThreadMode.STRUCTURED) : setConfirming(true))}>
                     {terminal ? <BotIcon /> : <SquareTerminalIcon />}
                     {t(terminal ? "thread.backToChat" : "thread.openInTerminal")}
                   </DropdownMenuItem>
@@ -582,7 +604,7 @@ export function ThreadView({
           description={t("thread.switchDescription")}
           cancel={t("thread.stayInChat")}
           confirm={t("thread.openInTerminal")}
-          onConfirm={() => void setMode(ThreadMode.TERMINAL)}
+          onConfirm={() => setMode(ThreadMode.TERMINAL)}
         />
         <RenameDialog
           open={renaming}
@@ -1007,12 +1029,16 @@ function Chat({
 }) {
   const { t } = useI18n();
   const threadId = thread.id;
-  const names = Object.fromEntries(providers.map((p) => [p.id, p.displayName || p.id]));
+  const names = useMemo(() => Object.fromEntries(providers.map((p) => [p.id, p.displayName || p.id])), [providers]);
   // The message the user asked to rewind to, while they confirm it.
   const [rewinding, setRewinding] = useState<Extract<Item, { type: "user" }>>();
   // What a rewind hands back to the composer.
   const [draft, setDraft] = useState<Draft>();
-  const [log, dispatch] = useReducer(apply, { items: [], lastSeq: 0n });
+  const [log, dispatch] = useReducer(applyAll, { items: [], lastSeq: 0n });
+  // Messages on their way to the host, shown at once rather than when the host has them: one
+  // with a screenshot can take a while over the relay.
+  const [sending, setSending] = useState<{ key: number; text: string; attachments: Attachment[] }[]>([]);
+  const sendKey = useRef(0);
   // The turns that changed files, for the changes panel to offer; only a change in them is news.
   const turnKey = log.items.filter((it) => it.type === "changes").map((it) => (it as TurnScope).after).join();
   useEffect(() => {
@@ -1031,13 +1057,35 @@ function Chat({
   // breaks or the link moves between the relay and the direct connection.
   useEffect(() => {
     const abort = new AbortController();
+    // A replay brings hundreds of these at once: one read of the thread at a time, and one more after it for what came meanwhile.
+    let reading = false;
+    let again = false;
+    const reread = () => {
+      if (reading) return void (again = true);
+      reading = true;
+      void refresh().finally(() => {
+        reading = false;
+        if (again) (again = false), reread();
+      });
+    };
+    // Events are applied a frame's worth at a time: one render each made a replay freeze the tab.
+    // A timer rather than a frame callback, so a hidden tab still applies them and marks the thread read.
+    let buffer: Event[] = [];
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const flush = () => {
+      timer = undefined;
+      const events = buffer;
+      buffer = [];
+      dispatch(events);
+      if (events.some((e) => threadEvents.has(e.payload.case ?? ""))) reread();
+    };
     void (async () => {
       while (!abort.signal.aborted) {
         try {
           for await (const event of link.threads.subscribe({ threadId, afterSeq: lastSeq.current }, { signal: abort.signal })) {
             lastSeq.current = event.seq;
-            dispatch(event);
-            if (threadEvents.has(event.payload.case ?? "")) void refresh();
+            buffer.push(event);
+            timer ??= setTimeout(flush, 16);
           }
         } catch {
           // Retried below.
@@ -1045,7 +1093,12 @@ function Chat({
         await new Promise((r) => setTimeout(r, 1_000));
       }
     })();
-    return () => abort.abort();
+    return () => {
+      abort.abort();
+      clearTimeout(timer);
+      // lastSeq is already past these, so the next subscription will not send them again.
+      if (buffer.length) flush();
+    };
   }, [link, threadId, direct, refresh]);
 
   // Follow new events only while the user is at the bottom; scrolled up, they are reading, so offer a jump instead.
@@ -1054,7 +1107,21 @@ function Chat({
   useEffect(() => {
     if (near.current) bottom.current?.scrollIntoView({ block: "end" });
     else setBehind(true);
-  }, [log]);
+  }, [log, sending]);
+
+  // A message shows as sending until the host has it; if it never gets there, it goes back to the composer.
+  const send = (text: string, attachments: Attachment[], interrupt: boolean) => {
+    const key = ++sendKey.current;
+    near.current = true;
+    setSending((now) => [...now, { key, text, attachments }]);
+    void link.threads
+      .startTurn({ threadId, text, attachments, interrupt })
+      .then(refresh, (e) => {
+        showError(e);
+        setDraft({ text, images: attachments.filter((a) => a.data.length > 0), restore: true });
+      })
+      .finally(() => setSending((now) => now.filter((m) => m.key !== key)));
+  };
 
   const chat = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
@@ -1168,14 +1235,21 @@ function Chat({
   };
 
   const run =(call: Promise<unknown>) => call.catch(showError).then(refresh);
-  const rewind = (restoreFiles: boolean) =>
-    rewinding &&
-    link.threads.rewind({ threadId, seq: rewinding.seq, restoreFiles }).then((res) => {
-      setRewinding(undefined);
-      setDraft({ text: res.message?.text ?? "", images: res.message?.attachments.filter((a) => a.data.length > 0) ?? [] });
-      if (restoreFiles) onStatus();
-      void refresh();
-    }, showError);
+  // Which rewind button was pressed (with files or not), while it runs.
+  const [rewindBusy, setRewindBusy] = useState<boolean>();
+  const rewind = (restoreFiles: boolean) => {
+    if (!rewinding || rewindBusy !== undefined) return;
+    setRewindBusy(restoreFiles);
+    link.threads
+      .rewind({ threadId, seq: rewinding.seq, restoreFiles })
+      .then((res) => {
+        setRewinding(undefined);
+        setDraft({ text: res.message?.text ?? "", images: res.message?.attachments.filter((a) => a.data.length > 0) ?? [] });
+        if (restoreFiles) onStatus();
+        void refresh();
+      }, showError)
+      .finally(() => setRewindBusy(undefined));
+  };
 
   // A new thread beside this one: same project, agent and settings, none of the conversation.
   // shortcut: a worktree thread's fresh one works in the project folder, not a worktree; pass a Worktree if that matters.
@@ -1187,8 +1261,18 @@ function Chat({
       title,
       options: Object.fromEntries(thread.options.map((o) => [o.id, o.value])),
     });
-  // Set while a side chat is being made, so a second /side does not make two.
-  const sideStarting = useRef(false);
+  // Set while a side chat, fork or fresh thread is being made, so a second press does not make two.
+  const starting = useRef(false);
+  // Making a thread takes a while over the relay, so it is said while it runs; a failure gives back what was typed.
+  const makeThread = (loading: string, make: () => Promise<unknown>, giveBack: () => unknown = () => {}) => {
+    if (starting.current) return void giveBack();
+    starting.current = true;
+    const made = make().catch((e) => {
+      giveBack();
+      throw e;
+    });
+    toast.promise(made.finally(() => (starting.current = false)), { loading, error: errorText });
+  };
   // The composer's own commands, which the agent never sees.
   const command = (name: "side" | "btw" | "clear" | "model" | "compact", arg: string) => {
     const text = arg.trim();
@@ -1198,7 +1282,6 @@ function Chat({
     switch (name) {
       case "side":
       case "btw": {
-        if (sideStarting.current) return giveBack();
         // Forked through the last turn that ended, so asking aside works while the agent is still on the current one.
         let seq: bigint | undefined;
         let asked: bigint | undefined;
@@ -1210,11 +1293,9 @@ function Chat({
           toast.error(t("side.notYet"));
           return giveBack();
         }
-        sideStarting.current = true;
         const title = t(name === "btw" ? "side.asideName" : "side.name", { text: text.slice(0, 40) || threadName(thread) });
-        void link.threads
-          .forkThread({ threadId, seq, title })
-          .then(async (side) => {
+        return makeThread(t("side.starting"), () =>
+          link.threads.forkThread({ threadId, seq, title }).then(async (side) => {
             if (text) {
               try {
                 await link.threads.startTurn({ threadId: side.id, text });
@@ -1225,18 +1306,14 @@ function Chat({
               }
             }
             onSide(side.id, name === "btw");
-          })
-          .catch((e) => {
-            showError(e);
-            giveBack();
-          })
-          .finally(() => (sideStarting.current = false));
-        return;
+          }),
+          giveBack,
+        );
       }
       case "clear":
         // shortcut: Th*o's stuff starts a fresh agent session in the same thread; the host has no such call, so this opens a new thread instead.
-        void fresh()
-          .then(async (next) => {
+        return makeThread(t("clear.starting"), () =>
+          fresh().then(async (next) => {
             if (text) {
               try {
                 await link.threads.startTurn({ threadId: next.id, text });
@@ -1247,12 +1324,9 @@ function Chat({
               }
             }
             onOpen(next.id);
-          })
-          .catch((e) => {
-            showError(e);
-            giveBack();
-          });
-        return;
+          }),
+          giveBack,
+        );
       case "model":
         // shortcut: the model picker is the composer's first popover and has no open prop; give OptionsBar one if that stops holding.
         composer.current?.querySelector<HTMLElement>("[data-slot=popover-trigger]")?.click();
@@ -1260,10 +1334,41 @@ function Chat({
       case "compact":
         // shortcut: only agents with their own /compact compact; a handoff into a summarized fresh session needs host support.
         if (!thread.commands.some((c) => c.name === "compact")) return void toast.error(t("compact.unsupported"));
-        void run(link.threads.startTurn({ threadId, text: text ? `/compact ${text}` : "/compact" }));
+        void link.threads.startTurn({ threadId, text: text ? `/compact ${text}` : "/compact" }).then(refresh, (e) => (showError(e), giveBack()));
         return;
     }
   };
+
+  // Transcript rows are memoized, so what they are handed stays the same and reaches this render's state through a ref.
+  const row = useRef({ respond: (_requestId: string, _optionId: string): unknown => undefined, fork: (_seq: bigint) => {}, changes: onTurnChanges });
+  row.current = {
+    respond: (requestId, optionId) => run(link.threads.respond({ threadId, requestId, optionId })),
+    fork: (seq) =>
+      makeThread(t("fork.working"), () =>
+        link.threads.forkThread({ threadId, seq, title: t("fork.name", { name: threadName(thread) }) }).then((fork) => {
+          toast.success(t("fork.done"));
+          onOpen(fork.id);
+        }),
+      ),
+    changes: onTurnChanges,
+  };
+  const respond = useCallback((requestId: string, optionId: string) => row.current.respond(requestId, optionId), []);
+  const fork = useCallback((seq: bigint) => row.current.fork(seq), []);
+  const changes = useCallback((c: TurnScope) => row.current.changes?.(c), []);
+  const loadAttachment = useCallback(
+    (seq: bigint, index: number) => {
+      const key = `${link.hostId}/${threadId}/${seq}/${index}`;
+      let got = attachments.get(key);
+      if (!got) {
+        got = link.threads.getAttachment({ threadId, seq, index });
+        attachments.set(key, got);
+        // A failed fetch is tried again the next time the image is shown.
+        got.catch(() => attachments.delete(key));
+      }
+      return got;
+    },
+    [link, threadId],
+  );
 
   return (
     <div ref={chat} className="contents" onPointerEnter={() => (hovered.current = true)} onPointerLeave={() => (hovered.current = false)}>
@@ -1328,7 +1433,12 @@ function Chat({
       >
         <WorkflowReader value={readWorkflowAgent}>
           <div ref={content} className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-6">
-            {log.items.length === 0 && <p className="text-muted-foreground py-16 text-center text-sm">{t("chat.empty")}</p>}
+            {log.items.length === 0 &&
+              (log.lastSeq < thread.lastSeq ? (
+                <Spinner className="text-muted-foreground mx-auto my-16" />
+              ) : (
+                <p className="text-muted-foreground py-16 text-center text-sm">{t("chat.empty")}</p>
+              ))}
             {blocks(log.items).map((block, i) =>
               "work" in block ? (
                 <WorkLog key={i} turn={block.turn} work={block.work} />
@@ -1337,18 +1447,17 @@ function Chat({
                   key={i}
                   item={block}
                   names={names}
-                  respond={locked ? undefined : (requestId, optionId) => run(link.threads.respond({ threadId, requestId, optionId }))}
-                  onChanges={onTurnChanges}
+                  respond={locked ? undefined : respond}
+                  onChanges={changes}
                   onRewind={busy || locked ? undefined : setRewinding}
-                  onFork={(seq) =>
-                    link.threads.forkThread({ threadId, seq, title: t("fork.name", { name: threadName(thread) }) }).then((fork) => {
-                      toast.success(t("fork.done"));
-                      onOpen(fork.id);
-                    }, showError)
-                  }
+                  onFork={fork}
+                  loadAttachment={loadAttachment}
                 />
               ),
             )}
+            {sending.map((m) => (
+              <SendingMessage key={m.key} text={m.text} attachments={m.attachments} />
+            ))}
             <div ref={bottom} />
           </div>
         </WorkflowReader>
@@ -1387,11 +1496,15 @@ function Chat({
           </DialogHeader>
           <DialogFooter>
             {thread.worktree && (
-              <Button variant="outline" onClick={() => void rewind(true)}>
+              <Button variant="outline" disabled={rewindBusy !== undefined} onClick={() => rewind(true)}>
+                {rewindBusy === true && <Spinner data-icon="inline-start" />}
                 {t("rewind.withFiles")}
               </Button>
             )}
-            <Button onClick={() => void rewind(false)}>{t("rewind.confirm")}</Button>
+            <Button disabled={rewindBusy !== undefined} onClick={() => rewind(false)}>
+              {rewindBusy === false && <Spinner data-icon="inline-start" />}
+              {t("rewind.confirm")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1402,23 +1515,23 @@ function Chat({
           queue={thread.queue}
           paused={thread.queuePaused}
           onEdit={(queuedId, text) => link.threads.editQueued({ threadId, queuedId, text }).then(refresh)}
-          onMove={(queuedId, toIndex) => void run(link.threads.moveQueued({ threadId, queuedId, toIndex }))}
-          onSendNow={(queuedId) => void run(link.threads.sendQueuedNow({ threadId, queuedId }))}
-          onRemove={(queuedId) => void run(link.threads.cancelQueued({ threadId, queuedId }))}
-          onResume={() => void run(link.threads.resumeQueue({ threadId }))}
+          onMove={(queuedId, toIndex) => run(link.threads.moveQueued({ threadId, queuedId, toIndex }))}
+          onSendNow={(queuedId) => run(link.threads.sendQueuedNow({ threadId, queuedId }))}
+          onRemove={(queuedId) => run(link.threads.cancelQueued({ threadId, queuedId }))}
+          onResume={() => run(link.threads.resumeQueue({ threadId }))}
         />
         <Composer
           link={link}
           thread={thread}
           busy={busy}
           draft={draft}
-          onSend={(text, attachments, interrupt) => void run(link.threads.startTurn({ threadId, text, attachments, interrupt }))}
-          onStop={(force) => void run(link.threads.interrupt({ threadId, force }))}
-          onSetOption={(optionId, value) => void run(link.threads.setOption({ threadId, optionId, value }))}
+          onSend={send}
+          onStop={(force) => run(link.threads.interrupt({ threadId, force }))}
+          onSetOption={(optionId, value) => run(link.threads.setOption({ threadId, optionId, value }))}
           mentions={mentions}
           provider={provider && { id: provider.id, name: provider.displayName || provider.id, icon: provider.icon }}
           providers={providers.filter((p) => p.structured).map((p) => ({ id: p.id, name: p.displayName || p.id, icon: p.icon }))}
-          onProvider={(id) => void run(link.threads.updateThread({ threadId, provider: id }))}
+          onProvider={(id) => run(link.threads.updateThread({ threadId, provider: id }))}
           pastPrompts={log.items.flatMap((it) => (it.type === "user" ? [it.text] : [])).reverse()}
           onCommand={command}
         />
@@ -1427,6 +1540,10 @@ function Chat({
     </div>
   );
 }
+
+// Images the event stream leaves out, by host, thread, message and place, shared by every view of them.
+// shortcut: kept for the page's life; drop entries with their thread if memory ever matters.
+const attachments = new Map<string, Promise<Attachment>>();
 
 // Events that change the thread itself, not only its transcript.
 const threadEvents = new Set([
@@ -1447,29 +1564,68 @@ const threadEvents = new Set([
 ]);
 
 
-function WorkLog({ turn, work }: { turn: Turn; work: Item[] }) {
-  const { t } = useI18n();
-  const running = turn.endedAt === undefined;
-  const seconds = Math.max(1, Math.round(((turn.endedAt ?? Date.now()) - turn.startedAt) / 1000));
-  const duration = seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
-  return (
-    // Open while the agent works, so its steps show as they happen; folded once it has answered.
-    <details className="group/work border-border/60 border-b pb-2" open={running}>
-      <summary className="text-muted-foreground flex cursor-pointer list-none items-center gap-1.5 text-sm tabular-nums [&::-webkit-details-marker]:hidden">
-        {running && <Spinner />}
-        {running ? t("chat.working") : t("chat.workedFor", { duration })}
-        {work.length > 0 && <span className="text-xs">· {t("chat.steps", { count: String(work.length) })}</span>}
-        <ChevronRightIcon className="size-3.5 transition-transform group-open/work:rotate-90" />
-        <Clock at={turn.startedAt} className="ml-auto" />
-      </summary>
-      <div className="flex flex-col gap-1 pt-2">
-        {work.map((item, i) => (
-          <ItemView key={i} item={item} respond={() => {}} inWorkLog />
-        ))}
-      </div>
-    </details>
-  );
+/** A span of time as people say it: 42s, 3m 5s, 1h 2m. */
+function formatDuration(ms: number) {
+  const seconds = Math.max(1, Math.round(ms / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
 }
+
+/** The current time, ticking each second while on; for durations that are still growing. */
+function useNow(on: boolean) {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (!on) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1_000);
+    return () => clearInterval(timer);
+  }, [on]);
+  return now;
+}
+
+/** How long a workflow agent ran, or has run so far; "" when the host did not say when it started. */
+function agentDuration(a: WorkflowAgentItem, now: number) {
+  if (!a.startedAt) return "";
+  const end = a.endedAt ? timestampMs(a.endedAt) : a.done || a.stopped ? undefined : now;
+  return end === undefined ? "" : formatDuration(end - timestampMs(a.startedAt));
+}
+
+const agentRunning = (a: WorkflowAgentItem) => !a.done && !a.stopped;
+
+/** A workflow agent's state as an icon: done, stopped before it finished, or running. */
+function AgentIcon({ agent, className }: { agent: WorkflowAgentItem; className: string }) {
+  if (agent.done) return <CheckIcon className={cn("text-success", className)} />;
+  if (agent.stopped) return <CircleStopIcon className={cn("text-muted-foreground", className)} />;
+  return <Spinner className={className} />;
+}
+
+// blocks() makes a new work list each render; the same steps in it need no new render.
+const WorkLog = memo(
+  function WorkLog({ turn, work }: { turn: Turn; work: Item[] }) {
+    const { t } = useI18n();
+    const running = turn.endedAt === undefined;
+    const duration = formatDuration((turn.endedAt ?? Date.now()) - turn.startedAt);
+    return (
+      // Open while the agent works, so its steps show as they happen; folded once it has answered.
+      <details className="group/work border-border/60 border-b pb-2" open={running}>
+        <summary className="text-muted-foreground flex cursor-pointer list-none items-center gap-1.5 text-sm tabular-nums [&::-webkit-details-marker]:hidden">
+          {running && <Spinner />}
+          {running ? t("chat.working") : t("chat.workedFor", { duration })}
+          {work.length > 0 && <span className="text-xs">· {t("chat.steps", { count: String(work.length) })}</span>}
+          <ChevronRightIcon className="size-3.5 transition-transform group-open/work:rotate-90" />
+          <Clock at={turn.startedAt} className="ml-auto" />
+        </summary>
+        <div className="flex flex-col gap-1 pt-2">
+          {work.map((item, i) => (
+            <ItemView key={i} item={item} inWorkLog />
+          ))}
+        </div>
+      </details>
+    );
+  },
+  (a, b) => a.turn === b.turn && a.work.length === b.work.length && a.work.every((it, i) => it === b.work[i]),
+);
 
 /** A time of day, with the full date on hover. */
 function Clock({ at, className }: { at: number; className?: string }) {
@@ -1560,24 +1716,34 @@ function WorkflowAgents({ toolCallId, agents }: { toolCallId: string; agents: Wo
   const [open, setOpen] = useState(false);
   const [shown, setShown] = useState<string>();
   const done = agents.filter((a) => a.done).length;
-  const running = agents.length - done;
+  const running = agents.filter(agentRunning).length;
+  const stopped = agents.length - done - running;
+  const now = useNow(running > 0);
   const agent = agents.find((a) => a.id === shown);
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="mt-1 mb-2 rounded-md border">
       <CollapsibleTrigger className="hover:bg-muted/50 flex w-full items-center gap-2 px-3 py-2 text-left text-xs">
-        {running > 0 ? <Spinner className="size-3.5" /> : <CheckIcon className="text-success size-3.5" />}
+        {running > 0 ? <Spinner className="size-3.5" /> : stopped > 0 ? <CircleStopIcon className="text-muted-foreground size-3.5" /> : <CheckIcon className="text-success size-3.5" />}
         <span className="text-foreground font-medium">{t("chat.workflowAgentCount", { count: String(agents.length) })}</span>
-        <span className="min-w-0 flex-1 truncate">{running > 0 ? t("chat.workflowRunning", { running: String(running), done: String(done) }) : t("chat.workflowDone")}</span>
+        <span className="min-w-0 flex-1 truncate">
+          {running > 0
+            ? t("chat.workflowRunning", { running: String(running), done: String(done) })
+            : stopped > 0
+              ? t("chat.workflowStopped", { stopped: String(stopped), done: String(done) })
+              : t("chat.workflowDone")}
+        </span>
         <ChevronDownIcon className={cn("size-3.5 shrink-0 transition-transform", open && "rotate-180")} />
       </CollapsibleTrigger>
       <CollapsibleContent className="grid gap-0.5 border-t p-1">
         {agents.map((a) => (
           <button key={a.id} type="button" className="hover:bg-muted flex min-w-0 items-center gap-2 rounded-sm px-2 py-1 text-left text-xs" onClick={() => setShown(a.id)}>
-            {a.done ? <CheckIcon className="text-success size-3.5 shrink-0" /> : <Spinner className="size-3.5 shrink-0" />}
+            <AgentIcon agent={a} className="size-3.5 shrink-0" />
             <span className="text-foreground shrink-0">{a.label || a.id}</span>
             {a.phase && <span className="shrink-0">{a.phase}</span>}
-            {!a.done && a.activity && <span className="min-w-0 flex-1 truncate font-mono">{a.activity}</span>}
-            <ChevronRightIcon className="ml-auto size-3.5 shrink-0" />
+            {agentRunning(a) && a.activity && <span className="min-w-0 flex-1 truncate font-mono">{a.activity}</span>}
+            {a.stopped && <span className="shrink-0">{t("chat.workflowAgentStopped")}</span>}
+            <span className="ml-auto shrink-0 tabular-nums">{agentDuration(a, now)}</span>
+            <ChevronRightIcon className="size-3.5 shrink-0" />
           </button>
         ))}
       </CollapsibleContent>
@@ -1591,6 +1757,7 @@ function WorkflowAgents({ toolCallId, agents }: { toolCallId: string; agents: Wo
 /** One workflow agent's own conversation, read only, kept current while it runs. */
 function AgentTranscript({ toolCallId, agent }: { toolCallId: string; agent: WorkflowAgentItem }) {
   const { t } = useI18n();
+  const now = useNow(agentRunning(agent));
   const read = useContext(WorkflowReader);
   const [steps, setSteps] = useState<WorkflowStep[]>();
   const [error, setError] = useState<string>();
@@ -1614,10 +1781,12 @@ function AgentTranscript({ toolCallId, agent }: { toolCallId: string; agent: Wor
     <>
       <div className="grid gap-0.5 border-b px-4 py-3 pr-12">
         <SheetTitle className="flex items-center gap-2">
-          {agent.done ? <CheckIcon className="text-success size-4" /> : <Spinner className="size-4" />}
+          <AgentIcon agent={agent} className="size-4" />
           {agent.label || agent.id}
         </SheetTitle>
-        <p className="text-muted-foreground text-xs">{[agent.phase, t(agent.done ? "chat.workflowAgentDone" : "chat.workflowAgentRunning")].filter(Boolean).join(" · ")}</p>
+        <p className="text-muted-foreground text-xs tabular-nums">
+          {[agent.phase, t(agent.done ? "chat.workflowAgentDone" : agent.stopped ? "chat.workflowAgentStopped" : "chat.workflowAgentRunning"), agentDuration(agent, now)].filter(Boolean).join(" · ")}
+        </p>
       </div>
       {/* A column whose steps keep their height, so an opened tool output pushes what follows down. */}
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4 *:shrink-0">
@@ -1660,7 +1829,29 @@ const toolIcons: Record<string, ReactNode> = {
   think: <BrainIcon />,
 };
 
-function ItemView({
+/** A message of the user's still on its way to the host, dimmed, with how much it is carrying. */
+function SendingMessage({ text, attachments }: { text: string; attachments: Attachment[] }) {
+  const { t } = useI18n();
+  const size = attachments.reduce((n, a) => n + a.data.length, 0);
+  return (
+    <div className="flex max-w-[85%] flex-col items-end gap-1 self-end" aria-busy="true">
+      <div className="flex flex-col items-end gap-1 opacity-60">
+        {attachments.some((a) => a.data.length > 0) && (
+          <div className="flex flex-wrap justify-end gap-1.5">
+            {attachments.map((a, i) => a.data.length > 0 && <AttachmentImage key={i} attachment={a} className="max-h-40 max-w-60" />)}
+          </div>
+        )}
+        {text && <div className="bg-muted rounded-2xl px-3.5 py-2 wrap-anywhere whitespace-pre-wrap">{text}</div>}
+      </div>
+      <span className="text-muted-foreground flex items-center gap-1.5 text-xs tabular-nums">
+        <Spinner className="size-3" />
+        {size > 0 ? t("chat.sendingSize", { size: bytes(size) }) : t("chat.sending")}
+      </span>
+    </div>
+  );
+}
+
+const ItemView = memo(function ItemView({
   item,
   respond,
   inWorkLog,
@@ -1668,12 +1859,13 @@ function ItemView({
   onRewind,
   onFork,
   names,
+  loadAttachment,
 }: {
   /** Providers' names by id, for notes that name them. */
   names?: Record<string, string>;
   item: Item;
   /** Answers the agent's questions; without it, as for a watcher, they are shown but not answered. */
-  respond?: (requestId: string, optionId: string) => void;
+  respond?: (requestId: string, optionId: string) => unknown;
   /** A step inside a turn's work log, shown without message actions. */
   inWorkLog?: boolean;
   /** Opens the diff of a turn's changes. */
@@ -1682,8 +1874,12 @@ function ItemView({
   onRewind?: (message: Extract<Item, { type: "user" }>) => void;
   /** Starts a new thread from the conversation through this answer's turn. */
   onFork?: (seq: bigint) => void;
+  /** Fetches an image the event stream left out, by its message and place. */
+  loadAttachment?: (seq: bigint, index: number) => Promise<Attachment>;
 }) {
   const { t } = useI18n();
+  // The answer being sent, so a second press does not answer twice.
+  const [chosen, setChosen] = useState<string>();
   switch (item.type) {
     case "user":
       return (
@@ -1691,8 +1887,8 @@ function ItemView({
           {item.attachments.length > 0 && (
             <div className="flex flex-wrap justify-end gap-1.5">
               {item.attachments.map((a, i) =>
-                a.data.length > 0 ? (
-                  <SentImage key={i} attachment={a} />
+                a.mimeType.startsWith("image/") && !a.path ? (
+                  <SentImage key={i} attachment={a} load={loadAttachment && (() => loadAttachment(item.seq, i))} at={`${item.seq}/${i}`} />
                 ) : (
                   // A file the host saved for the agent (or one pointed at by path): its name, and size when known.
                   <span key={i} className="bg-muted text-muted-foreground flex max-w-60 items-center gap-1.5 rounded-lg border px-2 py-1 text-xs" title={a.path}>
@@ -1753,7 +1949,17 @@ function ItemView({
           ) : (
             <div className="flex flex-wrap gap-1.5 py-1.5">
               {item.options.map((o) => (
-                <Button key={o.id} size="sm" variant={o.kind.startsWith("allow") ? "default" : "outline"} disabled={!respond} onClick={() => respond?.(item.requestId, o.id)}>
+                <Button
+                  key={o.id}
+                  size="sm"
+                  variant={o.kind.startsWith("allow") ? "default" : "outline"}
+                  disabled={!respond || chosen !== undefined}
+                  onClick={() => {
+                    setChosen(o.id);
+                    void Promise.resolve(respond?.(item.requestId, o.id)).finally(() => setChosen(undefined));
+                  }}
+                >
+                  {chosen === o.id && <Spinner data-icon="inline-start" />}
                   {o.name}
                 </Button>
               ))}
@@ -1781,7 +1987,7 @@ function ItemView({
         </details>
       );
   }
-}
+});
 
 /** The agent's plan: its steps, each marked done, under way or waiting. */
 function PlanCard({ entries }: { entries: Plan_Entry[] }) {
@@ -1826,11 +2032,41 @@ function PlanCard({ entries }: { entries: Plan_Entry[] }) {
   );
 }
 
-/** An image the user sent, opened large on click, with a way to save it. */
-function SentImage({ attachment }: { attachment: Attachment }) {
+/**
+ * An image the user sent, opened large on click, with a way to save it. The event stream
+ * leaves its bytes out, so load fetches them; at names which image, for when to fetch again.
+ */
+function SentImage({ attachment: sent, load, at }: { attachment: Attachment; load?: () => Promise<Attachment>; at: string }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
-  const name = attachment.name || t("image.title");
+  const [loaded, setLoaded] = useState<{ at: string; attachment?: Attachment; error?: string }>();
+  const missing = sent.data.length === 0;
+  useEffect(() => {
+    if (!missing || !load) return;
+    let live = true;
+    load().then(
+      (attachment) => live && setLoaded({ at, attachment }),
+      (e) => live && setLoaded({ at, error: errorText(e) }),
+    );
+    return () => void (live = false);
+  }, [missing, at]); // eslint-disable-line react-hooks/exhaustive-deps
+  const attachment = missing ? (loaded?.at === at ? loaded.attachment : undefined) : sent;
+  const name = sent.name || t("image.title");
+  if (!attachment) {
+    if (loaded?.at === at && loaded.error)
+      return (
+        <span className="text-destructive flex max-w-60 items-center gap-1.5 rounded-lg border px-2 py-1 text-xs" title={loaded.error}>
+          <CircleAlertIcon className="size-3.5 shrink-0" />
+          <span className="truncate">{name}</span>
+        </span>
+      );
+    // The size of a shown image at most, so the conversation does not jump as it arrives.
+    return (
+      <span className="bg-muted flex size-40 items-center justify-center rounded-lg border" aria-busy="true" aria-label={name}>
+        <Spinner className="text-muted-foreground" />
+      </span>
+    );
+  }
   const download = () => {
     const url = URL.createObjectURL(new Blob([attachment.data as BlobPart], { type: attachment.mimeType }));
     const a = document.createElement("a");

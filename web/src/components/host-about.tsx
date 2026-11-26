@@ -10,6 +10,7 @@ import { Badge } from "@/components/reui/badge";
 import { Card, Row } from "@/components/section-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { type SystemInfo, SystemService } from "@/gen/inaba/v1/host_pb";
 import type { Host } from "@/gen/inaba/v1/server_pb";
 import { showError } from "@/lib/errors";
@@ -194,7 +195,14 @@ export function HostAbout({
       .restartHost({})
       .then(() => void toast.success(t("hostAbout.restarted", { name: host.name })), showError);
   const file = useRef<HTMLInputElement>(null);
-  const update = (change: { name?: string; icon?: string; image?: string }) => hostsApi.updateHost({ id: host.id, ...change }).then(onChanged, showError);
+  const [saving, setSaving] = useState<"name" | "look">();
+  const update = (change: { name?: string; icon?: string; image?: string }) => {
+    setSaving(change.name ? "name" : "look");
+    return hostsApi
+      .updateHost({ id: host.id, ...change })
+      .then(onChanged, showError)
+      .finally(() => setSaving(undefined));
+  };
   const pick = async (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     e.target.value = "";
@@ -239,7 +247,8 @@ export function HostAbout({
             }}
           >
             <Input className="w-48" value={name} onChange={(e) => setName(e.target.value)} maxLength={64} required disabled={!canRename} />
-            <Button type="submit" variant="outline" disabled={!canRename || !name.trim() || name === host.name}>
+            <Button type="submit" variant="outline" disabled={!canRename || !name.trim() || name === host.name || saving === "name"}>
+              {saving === "name" && <Spinner data-icon="inline-start" />}
               {t("providers.save")}
             </Button>
           </form>
@@ -260,6 +269,7 @@ export function HostAbout({
                   title={label}
                   aria-label={label}
                   aria-pressed={on}
+                  disabled={!!saving}
                   onClick={() => void update({ icon, image: "" })}
                   className={cn("hover:bg-muted flex size-10 items-center justify-center rounded-lg border", on && "border-primary bg-primary/5 ring-primary/20 ring-2")}
                 >
@@ -268,12 +278,12 @@ export function HostAbout({
               );
             })}
             <input ref={file} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => void pick(e)} />
-            <Button type="button" variant="outline" className="h-10" onClick={() => file.current?.click()}>
-              <ImageIcon data-icon="inline-start" />
+            <Button type="button" variant="outline" className="h-10" disabled={!!saving} onClick={() => file.current?.click()}>
+              {saving === "look" ? <Spinner data-icon="inline-start" /> : <ImageIcon data-icon="inline-start" />}
               {t(host.image ? "hostAbout.changePicture" : "hostAbout.picture")}
             </Button>
             {host.image && (
-              <Button type="button" variant="ghost" className="h-10" onClick={() => void update({ image: "" })}>
+              <Button type="button" variant="ghost" className="h-10" disabled={!!saving} onClick={() => void update({ image: "" })}>
                 <Trash2Icon data-icon="inline-start" />
                 {t("hostAbout.removePicture")}
               </Button>
@@ -302,7 +312,7 @@ export function HostAbout({
                 options={(["release", "pre-release", "nightly"] as const).map((c) => ({ value: c, label: t(`hostAbout.channel.${c}`) }))}
               />
               <Button type="button" variant="outline" disabled={!host.online || busy} onClick={() => setUpgrading(true)}>
-                <DownloadIcon data-icon="inline-start" />
+                {busy ? <Spinner data-icon="inline-start" /> : <DownloadIcon data-icon="inline-start" />}
                 {t(busy ? "hostAbout.upgrading" : "hostAbout.upgrade")}
               </Button>
             </div>
@@ -345,7 +355,7 @@ export function HostAbout({
         cancel={t("hostAbout.restartCancel")}
         confirm={t("hostAbout.restart")}
         destructive
-        onConfirm={() => void restart()}
+        onConfirm={restart}
       />
     </div>
   );

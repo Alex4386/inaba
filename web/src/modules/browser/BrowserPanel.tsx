@@ -204,11 +204,17 @@ export function BrowserPanel({
     mouse("pressed", e);
   };
 
-  const go = (request: { url?: string; action?: string; newPage?: boolean }) =>
-    link.browser.navigate({ threadId, pageId: request.newPage ? "" : pageId, url: request.url ?? "", action: request.action ?? "", newPage: request.newPage ?? false }).then((st) => {
-      setPages(st.pages);
-      if (request.newPage) setPageId(st.pages.at(-1)?.id ?? "");
-    }, showError);
+  const [navigating, setNavigating] = useState(false);
+  const go = (request: { url?: string; action?: string; newPage?: boolean }) => {
+    setNavigating(true);
+    return link.browser
+      .navigate({ threadId, pageId: request.newPage ? "" : pageId, url: request.url ?? "", action: request.action ?? "", newPage: request.newPage ?? false })
+      .then((st) => {
+        setPages(st.pages);
+        if (request.newPage) setPageId(st.pages.at(-1)?.id ?? "");
+      }, showError)
+      .finally(() => setNavigating(false));
+  };
   const submit = () => {
     // A bare address is https, except on this machine or a local network, where dev servers speak plain http.
     const local = /^(localhost|\[[0-9a-f:]+\]|\d{1,3}(\.\d{1,3}){3})(:\d+)?(\/|$)/i.test(address);
@@ -238,7 +244,7 @@ export function BrowserPanel({
           <ArrowRightIcon />
         </Button>
         <Button size="icon-sm" variant="ghost" aria-label={t("browser.reload")} title={t("browser.reload")} onClick={() => void go({ action: "reload" })}>
-          <RotateCwIcon />
+          {navigating ? <Spinner /> : <RotateCwIcon />}
         </Button>
         <form
           className="min-w-0 flex-1"

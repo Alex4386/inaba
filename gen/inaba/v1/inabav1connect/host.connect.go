@@ -89,6 +89,9 @@ const (
 	ThreadServiceForkThreadProcedure = "/inaba.v1.ThreadService/ForkThread"
 	// ThreadServiceListEventsProcedure is the procedure name of the ThreadService's ListEvents RPC.
 	ThreadServiceListEventsProcedure = "/inaba.v1.ThreadService/ListEvents"
+	// ThreadServiceGetAttachmentProcedure is the procedure name of the ThreadService's GetAttachment
+	// RPC.
+	ThreadServiceGetAttachmentProcedure = "/inaba.v1.ThreadService/GetAttachment"
 	// ThreadServiceGetWorkflowAgentProcedure is the procedure name of the ThreadService's
 	// GetWorkflowAgent RPC.
 	ThreadServiceGetWorkflowAgentProcedure = "/inaba.v1.ThreadService/GetWorkflowAgent"
@@ -334,6 +337,14 @@ var (
 			Procedure:  ThreadServiceListEventsProcedure,
 		}
 	})
+	threadServiceGetAttachmentSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType:       connect.StreamTypeUnary,
+			Schema:           v1.File_inaba_v1_host_proto.Services().ByName("ThreadService").Methods().ByName("GetAttachment"),
+			Procedure:        ThreadServiceGetAttachmentProcedure,
+			IdempotencyLevel: connect.IdempotencyNoSideEffects,
+		}
+	})
 	threadServiceGetWorkflowAgentSpec = sync.OnceValue(func() connect.Spec {
 		return connect.Spec{
 			StreamType: connect.StreamTypeUnary,
@@ -404,11 +415,19 @@ type ThreadServiceClient interface {
 	SetLayout(context.Context, *v1.SetLayoutRequest) (*v1.Thread, error)
 	ForkThread(context.Context, *v1.ForkThreadRequest) (*v1.Thread, error)
 	ListEvents(context.Context, *v1.ListEventsRequest) (*v1.ListEventsResponse, error)
+	// A file attached to one of the thread's messages, by the message's event and the
+	// file's place among its attachments. Subscribe leaves images' bytes out; this is
+	// where they come from.
+	GetAttachment(context.Context, *v1.GetAttachmentRequest) (*v1.Attachment, error)
 	// What one agent of a background workflow the thread's agent started has done so far.
 	GetWorkflowAgent(context.Context, *v1.GetWorkflowAgentRequest) (*v1.GetWorkflowAgentResponse, error)
 	// The agent's conversation again whenever it grows, until the agent is done.
 	WatchWorkflowAgent(context.Context, *v1.GetWorkflowAgentRequest) (ThreadServiceWatchWorkflowAgentClientStream, error)
 	// Sends every event after after_seq, then new ones as they happen.
+	// The events after after_seq, then each as it happens. To stay light for a thread
+	// that is opened often, it leaves out what ListEvents carries for the record: a tool
+	// call's or permission request's raw, and an attached image's data (its size is set
+	// instead; GetAttachment has it).
 	Subscribe(context.Context, *v1.SubscribeRequest) (ThreadServiceSubscribeClientStream, error)
 }
 
@@ -506,11 +525,19 @@ type ThreadServiceHandler interface {
 	SetLayout(context.Context, *v1.SetLayoutRequest) (*v1.Thread, error)
 	ForkThread(context.Context, *v1.ForkThreadRequest) (*v1.Thread, error)
 	ListEvents(context.Context, *v1.ListEventsRequest) (*v1.ListEventsResponse, error)
+	// A file attached to one of the thread's messages, by the message's event and the
+	// file's place among its attachments. Subscribe leaves images' bytes out; this is
+	// where they come from.
+	GetAttachment(context.Context, *v1.GetAttachmentRequest) (*v1.Attachment, error)
 	// What one agent of a background workflow the thread's agent started has done so far.
 	GetWorkflowAgent(context.Context, *v1.GetWorkflowAgentRequest) (*v1.GetWorkflowAgentResponse, error)
 	// The agent's conversation again whenever it grows, until the agent is done.
 	WatchWorkflowAgent(context.Context, *v1.GetWorkflowAgentRequest, ThreadServiceWatchWorkflowAgentServerStream) error
 	// Sends every event after after_seq, then new ones as they happen.
+	// The events after after_seq, then each as it happens. To stay light for a thread
+	// that is opened often, it leaves out what ListEvents carries for the record: a tool
+	// call's or permission request's raw, and an attached image's data (its size is set
+	// instead; GetAttachment has it).
 	Subscribe(context.Context, *v1.SubscribeRequest, ThreadServiceSubscribeServerStream) error
 }
 
@@ -540,6 +567,7 @@ func RegisterThreadServiceHandler(server *connect.Server, svc ThreadServiceHandl
 		connect.Method{Spec: threadServiceSetLayoutSpec(), Handler: adapter.setLayout},
 		connect.Method{Spec: threadServiceForkThreadSpec(), Handler: adapter.forkThread},
 		connect.Method{Spec: threadServiceListEventsSpec(), Handler: adapter.listEvents},
+		connect.Method{Spec: threadServiceGetAttachmentSpec(), Handler: adapter.getAttachment},
 		connect.Method{Spec: threadServiceGetWorkflowAgentSpec(), Handler: adapter.getWorkflowAgent},
 		connect.Method{Spec: threadServiceWatchWorkflowAgentSpec(), Handler: adapter.watchWorkflowAgent},
 		connect.Method{Spec: threadServiceSubscribeSpec(), Handler: adapter.subscribe},
@@ -662,6 +690,10 @@ func (UnimplementedThreadServiceHandler) ForkThread(context.Context, *v1.ForkThr
 
 func (UnimplementedThreadServiceHandler) ListEvents(context.Context, *v1.ListEventsRequest) (*v1.ListEventsResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.ThreadService.ListEvents is not implemented")
+}
+
+func (UnimplementedThreadServiceHandler) GetAttachment(context.Context, *v1.GetAttachmentRequest) (*v1.Attachment, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.ThreadService.GetAttachment is not implemented")
 }
 
 func (UnimplementedThreadServiceHandler) GetWorkflowAgent(context.Context, *v1.GetWorkflowAgentRequest) (*v1.GetWorkflowAgentResponse, error) {
@@ -843,6 +875,14 @@ func (c *threadServiceClient) ForkThread(ctx context.Context, req *v1.ForkThread
 func (c *threadServiceClient) ListEvents(ctx context.Context, req *v1.ListEventsRequest) (*v1.ListEventsResponse, error) {
 	var res v1.ListEventsResponse
 	if err := c.client.CallUnary(ctx, threadServiceListEventsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *threadServiceClient) GetAttachment(ctx context.Context, req *v1.GetAttachmentRequest) (*v1.Attachment, error) {
+	var res v1.Attachment
+	if err := c.client.CallUnary(ctx, threadServiceGetAttachmentSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -1120,6 +1160,18 @@ func (h threadServiceHandler) listEvents(ctx context.Context, _ connect.Spec, st
 		return err
 	}
 	res, err := h.svc.ListEvents(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h threadServiceHandler) getAttachment(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.GetAttachmentRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.GetAttachment(ctx, &req)
 	if err != nil {
 		return err
 	}

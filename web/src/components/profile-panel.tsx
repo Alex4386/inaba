@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import type { BeginTotpResponse, LoginSession, Passkey, User } from "@/gen/inaba/v1/server_pb";
 import { errorText, showError } from "@/lib/errors";
@@ -48,16 +49,21 @@ function browserName(agent: string) {
 function PasswordDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useI18n();
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (busy) return;
     const form = new FormData(e.currentTarget);
     if (form.get("new") !== form.get("again")) return setError(t("profile.passwordsDiffer"));
+    setBusy(true);
     try {
       await auth.changePassword({ currentPassword: String(form.get("current")), newPassword: String(form.get("new")) });
       toast.success(t("profile.passwordChanged"));
       onClose();
     } catch (err) {
       setError(errorText(err));
+    } finally {
+      setBusy(false);
     }
   };
   return (
@@ -82,7 +88,10 @@ function PasswordDialog({ open, onClose }: { open: boolean; onClose: () => void 
           </Field>
           {error && <p className="text-destructive text-sm">{error}</p>}
           <DialogFooter>
-            <Button type="submit">{t("profile.changePassword")}</Button>
+            <Button type="submit" disabled={busy}>
+              {busy && <Spinner data-icon="inline-start" />}
+              {t("profile.changePassword")}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -96,6 +105,7 @@ function TotpDialog({ user, open, onClose, onUser }: { user: User; open: boolean
   const [setup, setSetup] = useState<BeginTotpResponse>();
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
     setCode("");
     setError("");
@@ -104,12 +114,16 @@ function TotpDialog({ user, open, onClose, onUser }: { user: User; open: boolean
   }, [open, user.totp]);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (busy) return;
+    setBusy(true);
     try {
       onUser(user.totp ? await auth.disableTotp({ code }) : await auth.enableTotp({ code }));
       toast.success(t(user.totp ? "profile.totpOff" : "profile.totpOn"));
       onClose();
     } catch (err) {
       setError(errorText(err));
+    } finally {
+      setBusy(false);
     }
   };
   return (
@@ -132,7 +146,8 @@ function TotpDialog({ user, open, onClose, onUser }: { user: User; open: boolean
           </Field>
           {error && <p className="text-destructive text-sm">{error}</p>}
           <DialogFooter>
-            <Button type="submit" variant={user.totp ? "destructive" : "default"} disabled={code.length !== 6}>
+            <Button type="submit" variant={user.totp ? "destructive" : "default"} disabled={code.length !== 6 || busy}>
+              {busy && <Spinner data-icon="inline-start" />}
               {t(user.totp ? "profile.totpDisable" : "profile.totpEnable")}
             </Button>
           </DialogFooter>
@@ -153,6 +168,7 @@ export function ProfilePanel({ user, onUser }: { user: User; onUser: (user: User
   const [passkeys, setPasskeys] = useState<Passkey[]>([]);
   const [sessions, setSessions] = useState<LoginSession[]>([]);
   const [removing, setRemoving] = useState<Passkey>();
+  const [revoking, setRevoking] = useState("");
   const passkeysSupported = typeof PublicKeyCredential !== "undefined" && "parseCreationOptionsFromJSON" in PublicKeyCredential;
 
   const load = useCallback(() => {
@@ -229,6 +245,7 @@ export function ProfilePanel({ user, onUser }: { user: User; onUser: (user: User
           >
             <Input className="w-48" value={name} onChange={(e) => setName(e.target.value)} maxLength={64} placeholder={user.name} />
             <Button type="submit" variant="outline" disabled={busy || name.trim() === user.displayName}>
+              {busy && <Spinner data-icon="inline-start" />}
               {t("providers.save")}
             </Button>
           </form>
@@ -308,7 +325,19 @@ export function ProfilePanel({ user, onUser }: { user: User; onUser: (user: User
               <span className="text-muted-foreground text-xs">{t("profile.signedInAt", { when: when(s.createdAt) })}</span>
             </div>
             {!s.current && (
-              <Button size="sm" variant="ghost" onClick={() => auth.revokeSession({ id: s.id }).then(load, showError)}>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={revoking === s.id}
+                onClick={() => {
+                  setRevoking(s.id);
+                  auth
+                    .revokeSession({ id: s.id })
+                    .then(load, showError)
+                    .finally(() => setRevoking(""));
+                }}
+              >
+                {revoking === s.id && <Spinner data-icon="inline-start" />}
                 {t("profile.signOutBrowser")}
               </Button>
             )}
