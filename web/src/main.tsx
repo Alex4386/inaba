@@ -7,10 +7,11 @@ import { App } from "./App";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { I18nProvider } from "@/lib/i18n";
-import { applyCodeFont } from "@/lib/settings";
+import { applyCodeFont, applyUiFont } from "@/lib/settings";
 
 // The chosen code font applies before anything draws.
 applyCodeFont();
+applyUiFont();
 
 createRoot(document.getElementById("root")!).render(
   // The theme's dark variant is the `dark` class; "system" follows the OS setting.

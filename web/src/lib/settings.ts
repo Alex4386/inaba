@@ -63,6 +63,53 @@ export function useCodeFont(): string {
   }, codeFontStack);
 }
 
+// The font of the rest of the UI. Empty is Pretendard, which inaba carries itself.
+const UI_FONT_KEY = "inaba.uiFont";
+export const builtInUiFonts = [
+  { family: "", label: "Pretendard" },
+  { family: "Geist Variable", label: "Geist" },
+  { family: "system-ui", label: "" },
+] as const;
+const uiFallback = "system-ui, -apple-system, sans-serif";
+
+/** The chosen UI font's family: "" for Pretendard, "system-ui" for the system's own. */
+export function uiFont(): string {
+  try {
+    return localStorage.getItem(UI_FONT_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/** The CSS font stack for the UI: the chosen family first, the system's after it for anything it lacks. */
+export function uiFontStack(family = uiFont()): string {
+  if (family === "system-ui") return uiFallback;
+  return `${JSON.stringify(family || "Pretendard Variable")}, ${uiFallback}`;
+}
+
+/** Puts the UI font where styles read it, the --ui-font variable behind Tailwind's font-sans. */
+export function applyUiFont() {
+  document.documentElement.style.setProperty("--ui-font", uiFontStack());
+}
+
+export function setUiFont(family: string) {
+  try {
+    localStorage.setItem(UI_FONT_KEY, family);
+  } catch {
+    // Applies until the page reloads.
+  }
+  applyUiFont();
+  for (const listener of fontListeners) listener();
+}
+
+/** The UI font stack, following changes. */
+export function useUiFont(): string {
+  return useSyncExternalStore((listener) => {
+    fontListeners.add(listener);
+    return () => fontListeners.delete(listener);
+  }, uiFontStack);
+}
+
 // The look of this browser's UI: a preset of neutral tones, an accent color and how round corners are.
 const THEME_KEY = "inaba.theme";
 export const themePresets = ["neutral", "cool", "warm", "contrast"] as const;

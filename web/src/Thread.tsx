@@ -1615,9 +1615,10 @@ function AgentTranscript({ toolCallId, agent }: { toolCallId: string; agent: Wor
           {agent.done ? <CheckIcon className="text-success size-4" /> : <Spinner className="size-4" />}
           {agent.label || agent.id}
         </SheetTitle>
-        <p className="text-muted-foreground text-xs">{[agent.phase, t(agent.done ? "chat.workflowAgentDone" : "chat.workflowAgentRunning"), t("chat.workflowReadOnly")].filter(Boolean).join(" · ")}</p>
+        <p className="text-muted-foreground text-xs">{[agent.phase, t(agent.done ? "chat.workflowAgentDone" : "chat.workflowAgentRunning")].filter(Boolean).join(" · ")}</p>
       </div>
-      <div className="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto px-4 py-4">
+      {/* A column whose steps keep their height, so an opened tool output pushes what follows down. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4 *:shrink-0">
         {error && <p className="text-destructive text-sm">{error}</p>}
         {!steps && !error && <Spinner />}
         {steps?.map((s, i) =>

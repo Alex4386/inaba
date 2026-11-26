@@ -1,7 +1,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { BellIcon, KeyboardIcon, KeyRoundIcon, PaletteIcon, SendIcon, SlidersHorizontalIcon, Trash2Icon, UserRoundIcon } from "lucide-react";
 import { toast } from "sonner";
-import { CodeFontPicker } from "@/components/code-font-picker";
+import { CodeFontPicker, UiFontPicker } from "@/components/font-picker";
 import { ProfilePanel } from "@/components/profile-panel";
 import { type PushDevice, PushPlatform, type User } from "@/gen/inaba/v1/server_pb";
 import { useTheme } from "next-themes";
@@ -90,6 +90,9 @@ export function SettingsDialog({
                     { value: "dark", label: t("user.themeDark") },
                   ]}
                 />
+              </Row>
+              <Row title={t("uiFont.title")} description={t("uiFont.help")}>
+                <UiFontPicker />
               </Row>
               <Row title={t("codeFont.title")} description={t("codeFont.help")}>
                 <CodeFontPicker />

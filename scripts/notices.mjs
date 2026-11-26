@@ -15,7 +15,7 @@ const web = path.join(root, "web");
 const isNotice = /^(un)?licen[sc]e|^copying|^notice|^third-?party-?notices|\.license\.txt$/i;
 
 // What source maps do not show: stylesheets and fonts.
-const styles = ["@fontsource-variable/geist", "tailwindcss", "tw-animate-css", "@tailwindcss/typography", "shadcn"];
+const styles = ["pretendard", "@fontsource-variable/geist", "tailwindcss", "tw-animate-css", "@tailwindcss/typography", "shadcn"];
 
 // Code and pictures kept in this repository, and what a license asks to be said.
 const copied = [
@@ -58,7 +58,9 @@ function goModules() {
   }
   const goroot = execFileSync("go", ["env", "GOROOT"], { cwd: root, encoding: "utf8" }).trim();
   const version = execFileSync("go", ["env", "GOVERSION"], { cwd: root, encoding: "utf8" }).trim();
-  found.set("", { name: "The Go standard library and runtime", version, texts: new Set([read(path.join(goroot, "LICENSE"))]) });
+  // Homebrew keeps Go's LICENSE beside GOROOT (libexec) rather than in it.
+  const goLicense = [path.join(goroot, "LICENSE"), path.join(goroot, "..", "LICENSE")].find((f) => fs.existsSync(f));
+  found.set("", { name: "The Go standard library and runtime", version, texts: new Set([read(goLicense ?? path.join(goroot, "LICENSE"))]) });
   return [...found.values()].map((m) => ({ ...m, url: m.dir ? `https://pkg.go.dev/${m.name}` : "https://go.dev" }));
 }
 
@@ -103,6 +105,17 @@ if (protobuf) {
   const head = read(path.join(protobuf.dir, "dist/esm/wire/varint.js")).match(/^\/\/ Copyright 2008[\s\S]*?(?=\n[^/])/m);
   if (!head) throw new Error("@bufbuild/protobuf: its BSD notice is not where it was");
   protobuf.texts.add(apache).add(head[0].replace(/^\/\/ ?/gm, "").trim());
+}
+
+// Pretendard's license is copied into the comment at the head of its stylesheets.
+const pretendard = npm.find((p) => p.name === "pretendard");
+if (pretendard) {
+  const head = read(path.join(pretendard.dir, "dist/web/variable/pretendardvariable-dynamic-subset.css")).match(/^\/\*([\s\S]*?)\*\//);
+  // The comment points to the license "copied below"; the OFL's own text, from Geist's, follows it.
+  const geist = npm.find((p) => p.name === "@fontsource-variable/geist");
+  const ofl = [...(geist?.texts ?? [])].map((t) => t.match(/-+\nSIL OPEN FONT LICENSE Version[\s\S]*/)?.[0]).find(Boolean);
+  if (!head || !ofl) throw new Error("pretendard: its license is not where it was");
+  pretendard.texts.add(`${head[1].trim()}\n\n${ofl.trim()}`);
 }
 
 // Each text once, under the names it covers.
