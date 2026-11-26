@@ -26,6 +26,8 @@ const (
 	archiveEvery = time.Hour
 	// At most ten years: a longer wait is no policy.
 	maxArchiveDays = 3650
+	// The policy of a host that never set one, so finished threads do not pile up in the sidebar.
+	defaultArchiveDays = 3
 )
 
 // archiveAfter is the archive policy in days, 0 for none.
@@ -34,8 +36,11 @@ func (h *Host) archiveAfter() uint32 {
 		return 0
 	}
 	var row settingRow
-	if err := h.projects.db.Limit(1).Find(&row, "key = ?", archiveAfterKey).Error; err != nil || row.Value == "" {
+	if err := h.projects.db.Limit(1).Find(&row, "key = ?", archiveAfterKey).Error; err != nil {
 		return 0
+	}
+	if row.Value == "" {
+		return defaultArchiveDays
 	}
 	days, _ := strconv.ParseUint(row.Value, 10, 32)
 	return uint32(days)

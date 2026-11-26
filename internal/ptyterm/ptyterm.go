@@ -3,6 +3,7 @@
 package ptyterm
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -36,6 +37,9 @@ type Terminal struct {
 	changed chan struct{}
 	// The size last set, for viewers who draw at it rather than setting their own.
 	cols, rows uint16
+	// The window title the program last set, and an escape sequence for it cut off at the end of a read.
+	title   string
+	partial []byte
 }
 
 // Start runs argv in dir on a new PTY.
@@ -65,6 +69,11 @@ func (t *Terminal) read() {
 		n, err := t.pty.Read(chunk)
 		t.mu.Lock()
 		t.buf = append(t.buf, chunk[:n]...)
+		if title, ok, partial := lastTitle(append(t.partial, chunk[:n]...)); ok {
+			t.title, t.partial = title, partial
+		} else {
+			t.partial = partial
+		}
 		if over := len(t.buf) - scrollback; over > 0 {
 			t.buf = t.buf[over:]
 			t.base += int64(over)
@@ -77,6 +86,51 @@ func (t *Terminal) read() {
 			t.pty.Wait()
 			return
 		}
+	}
+}
+
+// Title is the window title the program on the terminal last set, as a shell's prompt does
+// with user@host:folder; empty until it sets one.
+func (t *Terminal) Title() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.title
+}
+
+// The escape sequences that set the window title: OSC 0 or OSC 2, ended by BEL or ST.
+var titleStarts = [][]byte{[]byte("\x1b]0;"), []byte("\x1b]2;")}
+
+// maxTitle bounds a title, and with it how much of a sequence cut off by a read is kept.
+const maxTitle = 1 << 10
+
+// lastTitle finds the last complete title sequence in data. It also returns the start of a
+// title sequence left unended at the end of data, for the next read to finish.
+func lastTitle(data []byte) (title string, ok bool, partial []byte) {
+	for {
+		start, prefix := -1, 0
+		for _, p := range titleStarts {
+			if i := bytes.Index(data, p); i >= 0 && (start < 0 || i < start) {
+				start, prefix = i, len(p)
+			}
+		}
+		if start < 0 {
+			return title, ok, nil
+		}
+		body := data[start+prefix:]
+		end, term := bytes.IndexByte(body, 0x07), 1
+		if st := bytes.Index(body, []byte("\x1b\\")); st >= 0 && (end < 0 || st < end) {
+			end, term = st, 2
+		}
+		if end < 0 {
+			if len(body) > maxTitle {
+				return title, ok, nil
+			}
+			return title, ok, append([]byte(nil), data[start:]...)
+		}
+		if end <= maxTitle {
+			title, ok = string(body[:end]), true
+		}
+		data = body[end+term:]
 	}
 }
 

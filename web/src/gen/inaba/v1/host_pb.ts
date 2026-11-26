@@ -3327,7 +3327,8 @@ export const GetArchivePolicyRequestSchema: GenMessage<GetArchivePolicyRequest> 
 
 /**
  * A thread nothing happened in for this many days is archived, unless it is pinned or
- * working; 0 never archives by itself. Archiving hides it, and can be undone.
+ * working; 0 never archives by itself. A host that never set it uses 3. Archiving hides
+ * it, and can be undone.
  *
  * @generated from message inaba.v1.ArchivePolicy
  */

@@ -359,8 +359,10 @@ export function ProjectTree({
     onUnsnooze: () => snoozes.clear(SnoozeKind.THREAD, th.id),
     onMarkUnread: th.activitySeq > 0n && !seen.unread(th) ? () => seen.markUnread(th) : undefined,
   });
-  // Projects folded shut; every other one shows its threads.
-  const [folded, setFolded] = useState<Set<string>>(new Set());
+  // Projects the user opened or folded by hand; the others show their threads only while one
+  // works or asks, or holds what is on screen, so finished work does not crowd the sidebar.
+  const [toggled, setToggled] = useState<Map<string, boolean>>(new Map());
+  const toggle = (id: string, open: boolean) => setToggled((m) => new Map(m).set(id, open));
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
   const [projects, setProjects] = useState<Project[]>();
@@ -442,8 +444,11 @@ export function ProjectTree({
           {projects?.length === 0 && <li className="text-muted-foreground px-2 py-1.5 text-sm group-data-[collapsible=icon]:hidden">{t(canManage ? "project.none" : "project.noneNoPermission")}</li>}
           {listed?.map((project) => {
             const listedThreads = threads.filter((th) => th.projectId === project.id && shown(th));
+            const open =
+              toggled.get(project.id) ??
+              (openProject === project.id || listedThreads.some((th) => th.id === selected || th.status === ThreadStatus.RUNNING || th.status === ThreadStatus.WAITING));
             return (
-              <Collapsible key={project.id} open={!folded.has(project.id)} className="group/project" render={<SidebarMenuItem />}>
+              <Collapsible key={project.id} open={open} className="group/project" render={<SidebarMenuItem />}>
                 {/* The project's row stays at the top while its threads scroll under it. */}
                 <div className="bg-sidebar sticky top-0 z-10">
                 {/* A project opens its own page first; clicked again there, it folds or unfolds its threads. */}
@@ -453,13 +458,8 @@ export function ProjectTree({
                     if (openProject !== project.id) {
                       setOpenMobile(false);
                       onNewThread(project);
-                      setFolded((f) => (f.has(project.id) ? new Set([...f].filter((x) => x !== project.id)) : f));
-                    } else
-                      setFolded((f) => {
-                        const next = new Set(f);
-                        if (!next.delete(project.id)) next.add(project.id);
-                        return next;
-                      });
+                      toggle(project.id, true);
+                    } else toggle(project.id, !open);
                   }}
                 >
                   <ProjectIcon project={project} />

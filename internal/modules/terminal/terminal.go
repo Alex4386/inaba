@@ -96,9 +96,9 @@ func (s *service) get(id string) (*entry, error) {
 	return nil, connect.NewError(connect.CodeNotFound, "no terminal "+id)
 }
 
-// view is a terminal as callers see it, with whether it has exited now.
+// view is a terminal as callers see it, with whether it has exited and its title now.
 func view(e *entry) *inabav1.HostTerminal {
-	return &inabav1.HostTerminal{Id: e.info.Id, Cwd: e.info.Cwd, StartedAt: e.info.StartedAt, Exited: e.term.Exited()}
+	return &inabav1.HostTerminal{Id: e.info.Id, Cwd: e.info.Cwd, StartedAt: e.info.StartedAt, Exited: e.term.Exited(), Title: e.term.Title()}
 }
 
 func (s *service) ListHostTerminals(ctx context.Context, _ *inabav1.ListHostTerminalsRequest) (*inabav1.ListHostTerminalsResponse, error) {

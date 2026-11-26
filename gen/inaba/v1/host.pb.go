@@ -6512,7 +6512,8 @@ func (*GetArchivePolicyRequest) Descriptor() ([]byte, []int) {
 }
 
 // A thread nothing happened in for this many days is archived, unless it is pinned or
-// working; 0 never archives by itself. Archiving hides it, and can be undone.
+// working; 0 never archives by itself. A host that never set it uses 3. Archiving hides
+// it, and can be undone.
 type ArchivePolicy struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AfterDays     uint32                 `protobuf:"varint,1,opt,name=after_days,json=afterDays,proto3" json:"after_days,omitempty"`

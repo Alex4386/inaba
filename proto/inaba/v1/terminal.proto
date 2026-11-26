@@ -49,6 +49,9 @@ message HostTerminal {
   google.protobuf.Timestamp started_at = 3;
   // Its shell has exited; it stays listed, with its last output, until closed.
   bool exited = 4;
+  // The window title its program last set, as a shell prompt does with user@host: folder,
+  // or ssh's remote shell; empty until one is set.
+  string title = 5;
 }
 
 message ListHostTerminalsRequest {}

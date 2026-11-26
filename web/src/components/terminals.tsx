@@ -1,18 +1,16 @@
 import { Code, ConnectError } from "@connectrpc/connect";
-import { ArrowLeftIcon, PlusIcon, XIcon } from "lucide-react";
+import { ChevronRightIcon, PlusIcon, SquareTerminalIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { HostLink } from "@/api";
 import { ConfirmDialog } from "@/components/dialogs";
-import { timeAgo } from "@/components/project-tree";
 import { Badge } from "@/components/reui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarGroup, SidebarGroupAction, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { HostTerminal } from "@/gen/inaba/v1/terminal_pb";
 import { errorText, showError } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import { type TerminalIO, TerminalView } from "@/Terminal";
 
 /** The host's terminals; a host without the terminal module answers Unimplemented, which reads as "off". */
@@ -62,106 +60,72 @@ function useClose(link: HostLink, onClosed: () => void) {
   return { ask: (term: HostTerminal) => (term.exited ? void close(term.id) : setAsking(term)), dialog };
 }
 
-/** Every terminal on the host, apart from projects and threads, and a way to open another. */
-export function TerminalsPage({ link, onOpen }: { link: HostLink; onOpen: (id: string) => void }) {
-  const { t, locale } = useI18n();
+/** The host's terminals in the sidebar, under a heading that folds them, each by the title its shell set. */
+export function TerminalTree({ link, selected, onOpen }: { link: HostLink; selected?: string; onOpen: (id: string) => void }) {
+  const { t } = useI18n();
+  const { setOpenMobile } = useSidebar();
   const { terminals, error, load } = useTerminals(link);
-  const [cwd, setCwd] = useState("");
+  const [open, setOpen] = useState(true);
   const [opening, setOpening] = useState(false);
-  const { ask, dialog } = useClose(link, () => void load());
-  const open = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Titles change as people work in them (cd, ssh), so the list follows, as the projects' does.
+  useEffect(() => {
+    const timer = setInterval(() => void load(), 3_000);
+    return () => clearInterval(timer);
+  }, [load]);
+  if (error === "off") return null;
+  const start = () => {
+    if (opening) return;
     setOpening(true);
     link.hostTerminals
-      .openHostTerminal({ cwd: cwd.trim() })
-      .then((term) => onOpen(term.id), showError)
+      .openHostTerminal({})
+      .then((term) => {
+        setOpenMobile(false);
+        setOpen(true);
+        void load();
+        onOpen(term.id);
+      }, showError)
       .finally(() => setOpening(false));
   };
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <Header>
-        <h1 className="text-sm font-medium">{t("terminals.title")}</h1>
-      </Header>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto grid w-full max-w-3xl grid-cols-[minmax(0,1fr)] gap-4 p-6">
-          {error === "off" ? (
-            <p className="text-muted-foreground text-sm">{t("terminals.moduleOff")}</p>
-          ) : error ? (
-            <div className="grid justify-items-start gap-2">
-              <p className="text-destructive text-sm">{error}</p>
-              <Button size="sm" variant="outline" onClick={() => void load()}>
-                {t("common.retry")}
-              </Button>
-            </div>
-          ) : !terminals ? (
-            <Spinner />
-          ) : (
-            <>
-              <form className="flex gap-2" onSubmit={open}>
-                <Input className="max-w-80 font-mono" value={cwd} onChange={(e) => setCwd(e.target.value)} placeholder={t("terminals.folder")} aria-label={t("terminals.folder")} />
-                <Button type="submit" size="sm" disabled={opening}>
-                  {opening ? <Spinner data-icon="inline-start" /> : <PlusIcon data-icon="inline-start" />}
-                  {t("terminals.new")}
-                </Button>
-              </form>
-              {terminals.length === 0 ? (
-                <p className="text-muted-foreground text-sm">{t("terminals.none")}</p>
-              ) : (
-                <div className="overflow-hidden rounded-lg border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>{t("listing.folder")}</TableHead>
-                        <TableHead>{t("terminals.started")}</TableHead>
-                        <TableHead />
-                        <TableHead className="w-0" />
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {terminals.map((term) => (
-                        <TableRow key={term.id} className="cursor-pointer" onClick={() => onOpen(term.id)}>
-                          <TableCell className="max-w-80 truncate font-mono">{term.cwd}</TableCell>
-                          <TableCell className="text-muted-foreground">{term.startedAt && timeAgo(new Date(Number(term.startedAt.seconds) * 1000), locale, t("common.justNow"))}</TableCell>
-                          <TableCell>
-                            <Badge size="sm" variant="outline">
-                              {term.exited ? t("terminals.exited") : t("terminals.running")}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              size="icon-sm"
-                              variant="ghost"
-                              aria-label={t("terminals.close")}
-                              title={t("terminals.close")}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                ask(term);
-                              }}
-                            >
-                              <XIcon />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-      {dialog}
-    </div>
+    <SidebarGroup>
+      <SidebarGroupLabel render={<button type="button" onClick={() => setOpen((o) => !o)} />} className="gap-1">
+        <ChevronRightIcon className={cn("size-3.5 transition-transform", open && "rotate-90")} />
+        {t("terminals.title")}
+      </SidebarGroupLabel>
+      <SidebarGroupAction title={t("terminals.new")} onClick={start} disabled={opening}>
+        {opening ? <Spinner /> : <PlusIcon />}
+        <span className="sr-only">{t("terminals.new")}</span>
+      </SidebarGroupAction>
+      {open && (
+        <SidebarMenu>
+          {error && <li className="text-destructive px-2 py-1 text-xs">{error}</li>}
+          {terminals?.map((term) => (
+            <SidebarMenuItem key={term.id}>
+              <SidebarMenuButton
+                tooltip={term.title || term.cwd}
+                isActive={term.id === selected}
+                onClick={() => {
+                  setOpenMobile(false);
+                  onOpen(term.id);
+                }}
+              >
+                <SquareTerminalIcon />
+                <span className={cn("truncate", term.exited && "text-muted-foreground")}>{term.title || term.cwd}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      )}
+    </SidebarGroup>
   );
 }
 
 /** One terminal filling the main area. Leaving it leaves the shell running; coming back attaches again and replays recent output. */
-export function HostTerminalPage({ link, id, onBack }: { link: HostLink; id: string; onBack: () => void }) {
+export function HostTerminalPage({ link, id, onClosed }: { link: HostLink; id: string; onClosed: () => void }) {
   const { t } = useI18n();
   const { terminals, error, load } = useTerminals(link);
   const term = terminals?.find((x) => x.id === id);
-  const { ask, dialog } = useClose(link, onBack);
+  const { ask, dialog } = useClose(link, onClosed);
   const io = useMemo<TerminalIO>(
     () => ({
       attach: (size, signal) => link.hostTerminals.attachHostTerminal({ id, ...size }, { signal }),
@@ -173,10 +137,10 @@ export function HostTerminalPage({ link, id, onBack }: { link: HostLink; id: str
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Header>
-        <Button size="icon-sm" variant="ghost" onClick={onBack} aria-label={t("terminals.back")} title={t("terminals.back")}>
-          <ArrowLeftIcon />
-        </Button>
-        <h1 className="min-w-0 truncate font-mono text-sm">{term?.cwd}</h1>
+        <SquareTerminalIcon className="text-muted-foreground size-4 shrink-0" />
+        <h1 className="min-w-0 truncate text-sm font-medium" title={term?.cwd}>
+          {term?.title || term?.cwd}
+        </h1>
         {term?.exited && (
           <Badge size="sm" variant="outline">
             {t("terminals.exited")}

@@ -4889,7 +4889,8 @@ components:
                     format: uint32
             description: |-
                 A thread nothing happened in for this many days is archived, unless it is pinned or
-                 working; 0 never archives by itself. Archiving hides it, and can be undone.
+                 working; 0 never archives by itself. A host that never set it uses 3. Archiving hides
+                 it, and can be undone.
         Attachment:
             type: object
             properties:
@@ -5762,6 +5763,11 @@ components:
                 exited:
                     type: boolean
                     description: Its shell has exited; it stays listed, with its last output, until closed.
+                title:
+                    type: string
+                    description: |-
+                        The window title its program last set, as a shell prompt does with user@host: folder,
+                         or ssh's remote shell; empty until one is set.
         Housekeeping:
             type: object
             properties:

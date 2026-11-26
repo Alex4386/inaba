@@ -960,6 +960,9 @@ func TestArchivePolicy(t *testing.T) {
 	quiet, _ := h.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "fake", Cwd: dir})
 	pinned, _ := h.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "fake", Cwd: dir})
 	h.UpdateThread(ctx, &inabav1.UpdateThreadRequest{ThreadId: pinned.Id, Pinned: proto.Bool(true)})
+	if p, _ := h.GetArchivePolicy(ctx, &inabav1.GetArchivePolicyRequest{}); p.AfterDays != defaultArchiveDays {
+		t.Fatalf("a host that never set a policy has %v", p)
+	}
 	if _, err := h.SetArchivePolicy(context.Background(), &inabav1.ArchivePolicy{AfterDays: 7}); err == nil {
 		t.Fatal("the policy was set without the hosts permission")
 	}

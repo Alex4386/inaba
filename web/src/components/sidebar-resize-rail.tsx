@@ -48,6 +48,8 @@ export function SidebarResizeRail() {
   return (
     <SidebarRail
       ref={rail}
+      // Open, the edge sizes the sidebar both ways; folded, it only opens it, as the rail's own cursor says.
+      className={open ? "cursor-col-resize!" : undefined}
       onPointerDown={(e) => {
         // A folded sidebar only opens; its width is set once it is open.
         if (!open || e.button !== 0) return;

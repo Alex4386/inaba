@@ -1045,6 +1045,10 @@ function Chat({
     onTurns?.(log.items.filter((it): it is Extract<Item, { type: "changes" }> => it.type === "changes"));
   }, [turnKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const lastSeq = useRef(0n);
+  // How far the log went when the thread was opened: the replay up to there is drawn at once, not as it streams in.
+  const opened = useRef(thread.lastSeq);
+  // How much of that replay has arrived, for the loading screen.
+  const [received, setReceived] = useState(0n);
   useMarkSeen(link.hostId, threadId, log.lastSeq);
   const readWorkflowAgent = useCallback(
     (toolCallId: string, agentId: string, signal: AbortSignal) => link.threads.watchWorkflowAgent({ threadId, toolCallId, agentId }, { signal }),
@@ -1072,6 +1076,7 @@ function Chat({
     // A timer rather than a frame callback, so a hidden tab still applies them and marks the thread read.
     let buffer: Event[] = [];
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let progress: ReturnType<typeof setTimeout> | undefined;
     const flush = () => {
       timer = undefined;
       const events = buffer;
@@ -1085,7 +1090,14 @@ function Chat({
           for await (const event of link.threads.subscribe({ threadId, afterSeq: lastSeq.current }, { signal: abort.signal })) {
             lastSeq.current = event.seq;
             buffer.push(event);
-            timer ??= setTimeout(flush, 16);
+            if (event.seq < opened.current) {
+              progress ??= setTimeout(() => ((progress = undefined), setReceived(lastSeq.current)), 100);
+              continue;
+            }
+            if (event.seq === opened.current) {
+              clearTimeout(timer);
+              flush();
+            } else timer ??= setTimeout(flush, 16);
           }
         } catch {
           // Retried below.
@@ -1096,6 +1108,7 @@ function Chat({
     return () => {
       abort.abort();
       clearTimeout(timer);
+      clearTimeout(progress);
       // lastSeq is already past these, so the next subscription will not send them again.
       if (buffer.length) flush();
     };
@@ -1125,6 +1138,16 @@ function Chat({
 
   const chat = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
+  // What grows after it is drawn (an image fetched, code highlighted, a diagram) keeps a reader at the bottom there.
+  useEffect(() => {
+    const el = content.current;
+    if (!el) return;
+    const keep = new ResizeObserver(() => {
+      if (near.current) bottom.current?.scrollIntoView({ block: "end" });
+    });
+    keep.observe(el);
+    return () => keep.disconnect();
+  }, []);
   const composer = useRef<HTMLFieldSetElement>(null);
   const findBox = useRef<HTMLInputElement>(null);
   // Cmd/Ctrl+F belongs to the conversation only while the pointer or focus is in it; elsewhere the browser's own find runs.
@@ -1435,7 +1458,11 @@ function Chat({
           <div ref={content} className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-6">
             {log.items.length === 0 &&
               (log.lastSeq < thread.lastSeq ? (
-                <Spinner className="text-muted-foreground mx-auto my-16" />
+                <div className="text-muted-foreground mx-auto my-16 flex flex-col items-center gap-2 text-sm" role="status">
+                  <Spinner className="size-6" />
+                  {t("chat.loading")}
+                  {received > 0n && <span className="text-xs tabular-nums">{Number((received * 100n) / thread.lastSeq)}%</span>}
+                </div>
               ) : (
                 <p className="text-muted-foreground py-16 text-center text-sm">{t("chat.empty")}</p>
               ))}

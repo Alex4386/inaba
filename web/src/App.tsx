@@ -1,5 +1,5 @@
 import { Code, ConnectError } from "@connectrpc/connect";
-import { KeyRoundIcon, SearchIcon, ServerOffIcon, SquareTerminalIcon } from "lucide-react";
+import { KeyRoundIcon, SearchIcon, ServerOffIcon } from "lucide-react";
 import { signInWithPasskey } from "@/components/profile-panel";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useRoute } from "wouter";
@@ -20,7 +20,7 @@ import { Logo } from "@/components/logo";
 import { Welcome } from "@/components/onboarding";
 import { Alert, AlertDescription } from "@/components/reui/alert";
 import { AutomationsView } from "./modules/automations/AutomationsView";
-import { HostTerminalPage, TerminalsPage } from "./components/terminals";
+import { HostTerminalPage, TerminalTree } from "./components/terminals";
 import { AdminNav, AdminPage, type AdminSection } from "@/components/admin-dialog";
 import { SettingsDialog, type SettingsSection } from "@/components/settings-dialog";
 import { ProjectTree } from "@/components/project-tree";
@@ -269,14 +269,13 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
   // Every project, and every thread of one: pages for what the sidebar keeps short.
   const [onProjects, projectsAt] = useRoute<{ host: string }>("/hosts/:host/projects");
   // The host's terminals, apart from its projects and threads.
-  const [onTerminals, terminalsAt] = useRoute<{ host: string }>("/hosts/:host/terminals");
   const [, onTerminal] = useRoute<{ host: string; terminal: string }>("/hosts/:host/terminals/:terminal");
   const [, onProjectThreads] = useRoute<{ host: string; project: string }>("/hosts/:host/projects/:project/threads");
   const [, onHost] = useRoute<{ host: string }>("/hosts/:host");
   const [onAdmin, adminAt] = useRoute<{ section?: string; item?: string; tab?: string }>("/admin/:section?/:item?/:tab?");
   const [onInvite, inviteAt] = useRoute<{ token: string }>("/invite/:token");
   // The host in the address, else the one used last, like a workspace switcher reopens on.
-  const hostId = onThread?.host ?? onProject?.host ?? automationsAt?.host ?? projectsAt?.host ?? terminalsAt?.host ?? onTerminal?.host ?? onProjectThreads?.host ?? onHost?.host ?? localStorage.getItem(HOST_KEY) ?? undefined;
+  const hostId = onThread?.host ?? onProject?.host ?? automationsAt?.host ?? projectsAt?.host ?? onTerminal?.host ?? onProjectThreads?.host ?? onHost?.host ?? localStorage.getItem(HOST_KEY) ?? undefined;
   const threadId = onThread?.thread;
   const automating = onAutomations;
   const administering = onAdmin ? ((adminAt?.section || "overview") as AdminSection) : undefined;
@@ -367,8 +366,8 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
     if (!shownHost) return;
     // A host looked into from the admin panel is not the one to reopen on.
     if (hostList?.some((h) => h.id === shownHost)) localStorage.setItem(HOST_KEY, shownHost);
-    if (!onThread && !onProject && !onAutomations && !onProjects && !onTerminals && !onTerminal && !onProjectThreads && !onHost && !onAdmin && !onInvite) navigate(`/hosts/${shownHost}`, { replace: true });
-  }, [shownHost, hostList, onThread, onProject, onAutomations, onProjects, onTerminals, onTerminal, onProjectThreads, onHost, onAdmin, onInvite, navigate]);
+    if (!onThread && !onProject && !onAutomations && !onProjects && !onTerminal && !onProjectThreads && !onHost && !onAdmin && !onInvite) navigate(`/hosts/${shownHost}`, { replace: true });
+  }, [shownHost, hostList, onThread, onProject, onAutomations, onProjects, onTerminal, onProjectThreads, onHost, onAdmin, onInvite, navigate]);
   const home = (h = shownHost) => navigate(h ? `/hosts/${h}` : "/");
   const openThread = (id: string) => navigate(`/hosts/${shownHost}/threads/${id}`);
   const openProject = (project: Project) => {
@@ -423,17 +422,13 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
                 <kbd className="text-muted-foreground ml-auto font-sans text-xs">{formatBinding(bindingOf("palette"))}</kbd>
               </SidebarMenuButton>
             </SidebarMenuItem>
-            {link && canOn(host, Permission.THREADS_ANYWHERE) && modulesOn.has("terminal") && (
-              <SidebarMenuItem>
-                <SidebarMenuButton tooltip={t("terminals.title")} isActive={onTerminals || Boolean(onTerminal)} onClick={() => navigate(`/hosts/${shownHost}/terminals`)}>
-                  <SquareTerminalIcon />
-                  <span>{t("terminals.title")}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            )}
           </SidebarMenu>
         </SidebarHeader>
-        <SidebarContent>{link && <ProjectTree
+        <SidebarContent>
+          {link && canOn(host, Permission.THREADS_ANYWHERE) && modulesOn.has("terminal") && (
+            <TerminalTree key={activeId} link={link} selected={onTerminal?.terminal} onOpen={(id) => navigate(`/hosts/${shownHost}/terminals/${id}`)} />
+          )}
+          {link && <ProjectTree
               key={activeId}
               link={link}
               selected={threadId}
@@ -491,10 +486,8 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
             onOpen={(p) => navigate(`/hosts/${shownHost}/projects/${p.id}/threads`)}
             onAddProject={canOn(host, Permission.MANAGE_PROJECTS) ? () => setPalette("folder") : undefined}
           />
-        ) : link && onTerminals ? (
-          <TerminalsPage link={link} onOpen={(id) => navigate(`/hosts/${shownHost}/terminals/${id}`)} />
         ) : link && onTerminal ? (
-          <HostTerminalPage key={onTerminal.terminal} link={link} id={onTerminal.terminal} onBack={() => navigate(`/hosts/${shownHost}/terminals`)} />
+          <HostTerminalPage key={onTerminal.terminal} link={link} id={onTerminal.terminal} onClosed={() => home()} />
         ) : link && onProjectThreads ? (
           <ProjectThreadsPage
             key={onProjectThreads.project}

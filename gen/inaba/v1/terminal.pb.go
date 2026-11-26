@@ -33,7 +33,10 @@ type HostTerminal struct {
 	Cwd       string                 `protobuf:"bytes,2,opt,name=cwd,proto3" json:"cwd,omitempty"`
 	StartedAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
 	// Its shell has exited; it stays listed, with its last output, until closed.
-	Exited        bool `protobuf:"varint,4,opt,name=exited,proto3" json:"exited,omitempty"`
+	Exited bool `protobuf:"varint,4,opt,name=exited,proto3" json:"exited,omitempty"`
+	// The window title its program last set, as a shell prompt does with user@host: folder,
+	// or ssh's remote shell; empty until one is set.
+	Title         string `protobuf:"bytes,5,opt,name=title,proto3" json:"title,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -94,6 +97,13 @@ func (x *HostTerminal) GetExited() bool {
 		return x.Exited
 	}
 	return false
+}
+
+func (x *HostTerminal) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
 }
 
 type ListHostTerminalsRequest struct {
@@ -567,13 +577,14 @@ var File_inaba_v1_terminal_proto protoreflect.FileDescriptor
 
 const file_inaba_v1_terminal_proto_rawDesc = "" +
 	"\n" +
-	"\x17inaba/v1/terminal.proto\x12\binaba.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x13inaba/v1/host.proto\"\x83\x01\n" +
+	"\x17inaba/v1/terminal.proto\x12\binaba.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x13inaba/v1/host.proto\"\x99\x01\n" +
 	"\fHostTerminal\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
 	"\x03cwd\x18\x02 \x01(\tR\x03cwd\x129\n" +
 	"\n" +
 	"started_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12\x16\n" +
-	"\x06exited\x18\x04 \x01(\bR\x06exited\"\x1a\n" +
+	"\x06exited\x18\x04 \x01(\bR\x06exited\x12\x14\n" +
+	"\x05title\x18\x05 \x01(\tR\x05title\"\x1a\n" +
 	"\x18ListHostTerminalsRequest\"Q\n" +
 	"\x19ListHostTerminalsResponse\x124\n" +
 	"\tterminals\x18\x01 \x03(\v2\x16.inaba.v1.HostTerminalR\tterminals\"S\n" +
