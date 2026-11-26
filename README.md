@@ -78,7 +78,7 @@ inaba connect
 
 Open the server in your browser, add a project, start a thread. That's it.
 
-New build out? `inaba update` swaps itself for it (`--channel=pre-release`, or `--channel=nightly` with the [gh CLI](https://cli.github.com) signed in). It asks first; `-y` doesn't, for your cron job.
+New build out? `inaba update` swaps itself for it (`--channel=pre-release`, or `--channel=nightly` with the [gh CLI](https://cli.github.com) signed in) and restarts the host. It asks first; `-y` doesn't, for your cron job. Edited the config by hand? `inaba restart`, or the button on the host's About page if you own it.
 
 > [!TIP]  
 > Want it to survive a reboot? systemd units are in [contrib/systemd](./contrib/systemd), and each one starts with how to install it.  

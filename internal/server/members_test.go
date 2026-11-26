@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -250,7 +251,7 @@ func TestInvitedPermissions(t *testing.T) {
 		}
 		return <-heard
 	}
-	if got := granted(alice); got != strings.Join(store.AllPermissions, ",")+","+rpc.PermHosts {
+	if got := granted(alice); got != strings.Join(store.AllPermissions, ",")+","+rpc.PermHosts+","+rpc.PermRestart {
 		t.Errorf("the owner: %q", got)
 	}
 	// A member uses the host's terminal anyway, so they are told everything about the host, and
@@ -259,7 +260,7 @@ func TestInvitedPermissions(t *testing.T) {
 	if got := granted(bob); got != member {
 		t.Errorf("someone invited in, with permissions for shared hosts: %q", got)
 	}
-	if got := granted(root); !strings.Contains(got, store.PermHousekeeping) || !strings.Contains(got, rpc.PermHosts) {
+	if got := granted(root); !strings.Contains(got, store.PermHousekeeping) || !strings.Contains(got, rpc.PermHosts) || !strings.Contains(got, rpc.PermRestart) {
 		t.Errorf("an administrator: %q", got)
 	}
 	// A manager differs only in looking after members and invites, which the host is not told of.
@@ -423,5 +424,60 @@ func TestInvitesEndWithTheirMaker(t *testing.T) {
 	}
 	if send("PATCH", "/v1/hosts/"+h.ID, alice, map[string]any{"name": "alice-mac2"}) != 200 || send("DELETE", "/v1/hosts/"+h.ID, alice, nil) != 200 {
 		t.Fatal("the owner could not rename and remove the host")
+	}
+}
+
+// Restarting a shared host is for administrators and those who may add shared hosts, like
+// removing it; everyone else who uses it is not told they may.
+func TestRestartOnSharedHost(t *testing.T) {
+	ctx := context.Background()
+	s, err := New(ctx, Config{DataPath: filepath.Join(testdir.New(t), "s.db")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler, _ := s.Handler()
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+	account := func(name string, perms []string) string {
+		u, _ := s.store.AddLocalUser(name, "pw", false, perms)
+		_, secret, _ := s.store.NewToken(store.KindAPI, u.ID, "t", 0)
+		return secret
+	}
+	keeper := account("keeper", []string{store.PermSharedHosts})
+	user := account("user", []string{store.PermHostSettings, store.PermHousekeeping})
+	h, secret, _ := s.store.AddHost("shared", "")
+
+	heard := make(chan string, 1)
+	l, err := tunnel.Dial(ctx, srv.URL, secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	go http.Serve(l, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "SystemService") || strings.Contains(r.URL.Path, "AlertService") {
+			http.NotFound(w, r)
+			return
+		}
+		heard <- r.Header.Get(rpc.PermissionsHeader)
+	}))
+	for online := false; !online; time.Sleep(10 * time.Millisecond) {
+		s.mu.Lock()
+		online = s.links[h.ID] != nil
+		s.mu.Unlock()
+	}
+	granted := func(tok string) []string {
+		t.Helper()
+		req, _ := http.NewRequest("GET", srv.URL+"/v1/hosts/"+h.ID+"/threads", nil)
+		req.Header.Set("Authorization", "Bearer "+tok)
+		if _, err := http.DefaultClient.Do(req); err != nil {
+			t.Fatal(err)
+		}
+		return strings.Split(<-heard, ",")
+	}
+	if got := granted(keeper); !slices.Contains(got, rpc.PermRestart) {
+		t.Errorf("one who may add shared hosts: %q", got)
+	}
+	if got := granted(user); slices.Contains(got, rpc.PermRestart) {
+		t.Errorf("one who only uses it, with every other permission on it: %q", got)
 	}
 }

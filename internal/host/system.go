@@ -2,8 +2,11 @@ package host
 
 import (
 	"context"
+	"log/slog"
 	"runtime"
 	"time"
+
+	"connectrpc.com/connect/v2"
 
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"
@@ -12,8 +15,28 @@ import (
 	"github.com/shirou/gopsutil/v4/mem"
 
 	inabav1 "github.com/Alex4386/inaba/gen/inaba/v1"
+	"github.com/Alex4386/inaba/internal/rpc"
 	"github.com/Alex4386/inaba/internal/version"
 )
+
+// restartDelay lets the answer to RestartHost get back before the host goes.
+const restartDelay = 500 * time.Millisecond
+
+// Restarts is closed when a restart has been asked for. Whoever runs the host then
+// shuts it down and starts it again; a host nobody watches this for does not restart.
+func (h *Host) Restarts() <-chan struct{} { return h.restart }
+
+// RestartHost answers SystemService: it asks for a restart, which comes a moment later.
+func (h *Host) RestartHost(ctx context.Context, _ *inabav1.RestartHostRequest) (*inabav1.RestartHostResponse, error) {
+	if rpc.May(ctx, rpc.PermRestart) != nil {
+		return nil, connect.NewError(connect.CodePermissionDenied, "only the host's owner or an administrator can restart it")
+	}
+	h.restarting.Do(func() {
+		slog.Info("restarting, as asked")
+		time.AfterFunc(restartDelay, func() { close(h.restart) })
+	})
+	return &inabav1.RestartHostResponse{}, nil
+}
 
 // GetSystemInfo answers SystemService: what the machine is and how busy it is. What
 // cannot be read on this system is left at zero rather than failing the rest.

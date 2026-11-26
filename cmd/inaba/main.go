@@ -47,7 +47,7 @@ func main() {
 	f.StringVar(&configPath, "config", "", "JSON or YAML settings file read last, over the others found (default: $INABA_CONFIG; see the README)")
 	f.String("data", "", "SQLite file that stores this host's projects and threads; its folder also holds worktrees and the sign-in (default: see the README)")
 	f.String("socket", "", "control socket the host listens on and the other commands talk to (default: see the README)")
-	root.AddCommand(loginCommand(), logoutCommand(), connectCommand(), projectCommand(), sessionCommand(), housekeepingCommand(), automationCommand(), moduleCommand(), mcpCommand(), mcpBridgeCommand(), updateCommand())
+	root.AddCommand(loginCommand(), logoutCommand(), connectCommand(), projectCommand(), sessionCommand(), housekeepingCommand(), automationCommand(), moduleCommand(), mcpCommand(), mcpBridgeCommand(), updateCommand(), restartCommand())
 	if err := root.Execute(); err != nil {
 		slog.Error(err.Error())
 		os.Exit(1)
@@ -166,7 +166,8 @@ func connectCommand() *cobra.Command {
 			}
 			defer os.Remove(socketPath())
 			go func() {
-				if err := control.ServeHandler(socket, h.ControlHandler()); err != nil {
+				// Closed on purpose only for a restart, which says so itself.
+				if err := control.ServeHandler(socket, h.ControlHandler()); err != nil && !errors.Is(err, net.ErrClosed) {
 					slog.Error("control socket stopped", "error", err)
 				}
 			}()
@@ -188,9 +189,22 @@ func connectCommand() *cobra.Command {
 			if serverURL != "" {
 				go keepConnected(ctx, serverURL, tokens, handler)
 			}
-			<-ctx.Done()
+			restart := false
+			select {
+			case <-ctx.Done():
+			case <-h.Restarts():
+				restart = true
+			}
 			mods.Close()
 			h.Close()
+			if restart {
+				// What the deferred calls would do, which an exec skips.
+				socket.Close()
+				os.Remove(socketPath())
+				stop()
+				slog.Info("starting again")
+				return reexec()
+			}
 			return nil
 		},
 	}

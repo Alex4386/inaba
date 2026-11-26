@@ -61,13 +61,19 @@ func (s *Server) placeOf(ctx context.Context, h *store.Host) string {
 }
 
 // grantsOn is what a caller may do on a host, told to the host on each call. An owner or an
-// administrator may do anything. A member or manager may do everything on the host itself; on
+// administrator may do anything, restarting it included. A member or manager may do everything on the host itself; on
 // someone's personal host that is all, while on a shared host the account's own permissions come too.
 func (s *Server) grantsOn(ctx context.Context, h *store.Host, u *store.User) []string {
 	granted := s.hostGrants(ctx, h, u)
 	// Hosts from before the split know host settings and housekeeping together by the old name.
 	if slices.Contains(granted, store.PermHostSettings) && slices.Contains(granted, store.PermHousekeeping) {
 		granted = append(granted, rpc.PermHosts)
+	}
+	// Restarting is for whoever may take the host away (removable): its owner, an administrator,
+	// and on a shared host those who may add shared hosts. Its members and managers work in it,
+	// and a restart would end everyone's running turns.
+	if p := s.placeOf(ctx, h); p == placeOwner || p == placeAdmin || h.Owner == "" && slices.Contains(u.Granted(), store.PermSharedHosts) {
+		granted = append(granted, rpc.PermRestart)
 	}
 	return granted
 }

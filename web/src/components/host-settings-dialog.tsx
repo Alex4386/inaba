@@ -91,7 +91,7 @@ export function HostSettingsDialog({
     >
       {(current) =>
         !host ? null : current === "about" ? (
-          <HostAbout key={host.id} host={host} connection={connection} canRename={canRename} onChanged={onHostChanged} />
+          <HostAbout key={host.id} host={host} connection={connection} canRename={canRename} canRestart={canRename} onChanged={onHostChanged} />
         ) : current === "sharing" ? (
           <HostSharing key={host.id} host={host} />
         ) : !host.online ? (

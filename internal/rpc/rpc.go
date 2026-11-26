@@ -36,6 +36,10 @@ const (
 	PermHostSettings = "host-settings"
 	// PermHousekeeping lets its holder clear what inaba leaves on a host's disk.
 	PermHousekeeping = "housekeeping"
+	// PermRestart lets its holder restart a host. The server sends it to the host's
+	// owner and administrators, and on a shared host to those who may add shared
+	// hosts; it is not one an administrator grants.
+	PermRestart = "restart"
 	// PermHosts is the old name for host settings and housekeeping together, sent too
 	// so hosts that predate the split keep working.
 	PermHosts = "hosts"

@@ -2592,6 +2592,43 @@ paths:
                   description: The id of the host, from GET /v1/hosts.
                   schema:
                     type: string
+    /v1/hosts/{host_id}/system/restart:
+        post:
+            tags:
+                - SystemService
+            description: |-
+                Restarts the host: it stops its agents and terminals, then starts again in the
+                 same process, reading its settings and binary afresh, as after inaba update. A
+                 turn that is running ends with an error, as any restart ends it. It answers
+                 first and restarts a moment later. Only the host's owner and administrators may,
+                 and on a shared host those who may add shared hosts.
+            operationId: SystemService_RestartHost
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RestartHostRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RestartHostResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+            parameters:
+                - name: host_id
+                  in: path
+                  required: true
+                  description: The id of the host, from GET /v1/hosts.
+                  schema:
+                    type: string
     /v1/hosts/{host_id}/threads:
         get:
             tags:
@@ -6345,6 +6382,12 @@ components:
                     type: string
                     description: Leave empty to cancel the request.
         RespondResponse:
+            type: object
+            properties: {}
+        RestartHostRequest:
+            type: object
+            properties: {}
+        RestartHostResponse:
             type: object
             properties: {}
         RevokeHostInviteResponse:

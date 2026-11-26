@@ -67,6 +67,10 @@ type Host struct {
 
 	mu      sync.Mutex
 	threads map[string]*thread
+
+	// restart is closed once a restart has been asked for; see Restarts.
+	restart    chan struct{}
+	restarting sync.Once
 }
 
 // ProviderInfo is how a provider is presented, from the host's config.
@@ -130,7 +134,7 @@ func (h *Host) provider(id string) (provider.Provider, ProviderInfo) {
 }
 
 func New(providers ...provider.Provider) *Host {
-	h := &Host{providers: map[string]provider.Provider{}, threads: map[string]*thread{}, offered: map[string][]*inabav1.SessionOption{}, bus: &bus{subs: map[*subscriber]struct{}{}, deleted: map[*int]func(string){}}}
+	h := &Host{restart: make(chan struct{}), providers: map[string]provider.Provider{}, threads: map[string]*thread{}, offered: map[string][]*inabav1.SessionOption{}, bus: &bus{subs: map[*subscriber]struct{}{}, deleted: map[*int]func(string){}}}
 	for _, p := range providers {
 		h.providers[p.ID()] = p
 	}

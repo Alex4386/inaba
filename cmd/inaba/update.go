@@ -4,15 +4,16 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
+	"github.com/Alex4386/inaba/internal/control"
 	"github.com/Alex4386/inaba/internal/selfupdate"
 	"github.com/Alex4386/inaba/internal/version"
 )
@@ -32,12 +33,19 @@ func updateCommand() *cobra.Command {
                signed in (gh auth login)
 
 Without --channel, it follows the channel this inaba came from. It asks before
-updating, and for a nightly also before using gh; -y says yes to both, for
-scripts and timers. A running inaba connect keeps the old one until it is
-restarted.`,
+updating, and for a nightly also before using gh. When a host is running here,
+it then offers to restart it (inaba restart), which ends running turns. -y says
+yes to all of it, for scripts and timers.`,
 		Args: cobra.NoArgs,
-		// It needs none of the host's settings, and should work even when they are broken.
-		PersistentPreRunE: func(*cobra.Command, []string) error { return nil },
+		// The settings only say where the running host is, to restart it; broken ones
+		// must not stop an update, which may be what fixes them.
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			if err := loadSettings(cmd); err != nil {
+				slog.Warn("settings not loaded, so the running host is not restarted", "error", err.Error())
+				socketFile = ""
+			}
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			now := version.String()
 			if channel == "" {
@@ -86,19 +94,26 @@ restarted.`,
 				return err
 			}
 			fmt.Printf("Updated %s: %s → %s\n", exe, now, strings.TrimPrefix(said, "inaba version "))
-			if unit := filepath.Join(userConfigDir(), "systemd", "user", "inaba.service"); runtime.GOOS == "linux" && exists(unit) {
-				fmt.Println("Restart the host to run it: systemctl --user restart inaba")
-			} else {
-				fmt.Println("Restart inaba connect to run it.")
+			// The host running here keeps the old one until it restarts.
+			if socketPath() == "" || control.Dial(socketPath()) == nil {
+				return nil
 			}
-			return nil
+			if !yes {
+				if err := confirm("The host running here still runs the old one. Restart it now? Turns that are running will end.",
+					"the host running here still runs the old one; inaba restart switches to the new one",
+					"not restarting; inaba restart switches to the new one"); err != nil {
+					fmt.Println(control.Plain(err))
+					return nil
+				}
+			}
+			return restartHost(cmd.Context())
 		},
 	}
 	f := cmd.Flags()
 	f.StringVar(&channel, "channel", "", "release, pre-release or nightly (default: the channel this inaba came from)")
 	f.BoolVar(&check, "check", false, "only say whether there is a newer build")
 	f.BoolVar(&force, "force", false, "install the build even when it is the one running")
-	f.BoolVarP(&yes, "yes", "y", false, "do not ask first: neither before updating nor, for a nightly, before using the gh CLI's GitHub sign-in")
+	f.BoolVarP(&yes, "yes", "y", false, "do not ask first: before updating, before using the gh CLI's GitHub sign-in for a nightly, or before restarting the running host")
 	return cmd
 }
 
@@ -122,16 +137,4 @@ func confirm(question, noTerminal, declined string) error {
 		return nil
 	}
 	return errors.New(declined)
-}
-
-func userConfigDir() string {
-	if d, err := os.UserConfigDir(); err == nil {
-		return d
-	}
-	return ""
-}
-
-func exists(p string) bool {
-	_, err := os.Stat(p)
-	return err == nil
 }

@@ -1263,9 +1263,22 @@ service SystemService {
   rpc GetSystemInfo(GetSystemInfoRequest) returns (SystemInfo) {
     option (google.api.http) = {get: "/v1/system"};
   }
+  // Restarts the host: it stops its agents and terminals, then starts again in the
+  // same process, reading its settings and binary afresh, as after inaba update. A
+  // turn that is running ends with an error, as any restart ends it. It answers
+  // first and restarts a moment later. Only the host's owner and administrators may,
+  // and on a shared host those who may add shared hosts.
+  rpc RestartHost(RestartHostRequest) returns (RestartHostResponse) {
+    option (google.api.http) = {
+      post: "/v1/system/restart"
+      body: "*"
+    };
+  }
 }
 
 message GetSystemInfoRequest {}
+message RestartHostRequest {}
+message RestartHostResponse {}
 
 message SystemInfo {
   string hostname = 1;

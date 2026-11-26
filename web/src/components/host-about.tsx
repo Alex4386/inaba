@@ -1,7 +1,8 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { ImageIcon, Trash2Icon } from "lucide-react";
+import { ImageIcon, RotateCwIcon, Trash2Icon } from "lucide-react";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { hosts as hostsApi, onHost } from "@/api";
+import { ConfirmDialog } from "@/components/dialogs";
 import { HostIcon, SystemIcon, hostIcons, platformName } from "@/components/host-icon";
 import { timeAgo } from "@/components/project-tree";
 import { Badge } from "@/components/reui/badge";
@@ -13,6 +14,7 @@ import type { Host } from "@/gen/inaba/v1/server_pb";
 import { showError } from "@/lib/errors";
 import { type Translate, useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const maxImage = 256 << 10;
 
@@ -144,9 +146,27 @@ function LastKnownSystem({ host }: { host: Host }) {
 }
 
 /** A host's name, how it is shown, what it runs on, and how it connects. */
-export function HostAbout({ host, connection, canRename, onChanged }: { host: Host; connection?: "direct" | "relayed"; canRename: boolean; onChanged: () => void }) {
+export function HostAbout({
+  host,
+  connection,
+  canRename,
+  canRestart,
+  onChanged,
+}: {
+  host: Host;
+  connection?: "direct" | "relayed";
+  canRename: boolean;
+  /** Whether the caller may restart it: its owner or an administrator (the server's grantsOn). */
+  canRestart: boolean;
+  onChanged: () => void;
+}) {
   const { t } = useI18n();
   const [name, setName] = useState(host.name);
+  const [restarting, setRestarting] = useState(false);
+  const restart = () =>
+    onHost(host.id, SystemService)
+      .restartHost({})
+      .then(() => void toast.success(t("hostAbout.restarted", { name: host.name })), showError);
   const file = useRef<HTMLInputElement>(null);
   const update = (change: { name?: string; icon?: string; image?: string }) => hostsApi.updateHost({ id: host.id, ...change }).then(onChanged, showError);
   const pick = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -245,7 +265,25 @@ export function HostAbout({ host, connection, canRename, onChanged }: { host: Ho
         <Row title={t("hostAbout.id")} description={t("hostAbout.idHelp")}>
           <code className="text-muted-foreground text-xs">{host.id}</code>
         </Row>
+        {canRestart && (
+          <Row title={t("hostAbout.restart")} description={t("hostAbout.restartHelp")}>
+            <Button type="button" variant="outline" disabled={!host.online} onClick={() => setRestarting(true)}>
+              <RotateCwIcon data-icon="inline-start" />
+              {t("hostAbout.restart")}
+            </Button>
+          </Row>
+        )}
       </Card>
+      <ConfirmDialog
+        open={restarting}
+        onClose={() => setRestarting(false)}
+        title={t("hostAbout.restartTitle", { name: host.name })}
+        description={t("hostAbout.restartConfirm")}
+        cancel={t("hostAbout.restartCancel")}
+        confirm={t("hostAbout.restart")}
+        destructive
+        onConfirm={() => void restart()}
+      />
     </div>
   );
 }

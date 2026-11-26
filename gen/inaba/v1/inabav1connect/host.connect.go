@@ -169,6 +169,8 @@ const (
 	// SystemServiceGetSystemInfoProcedure is the procedure name of the SystemService's GetSystemInfo
 	// RPC.
 	SystemServiceGetSystemInfoProcedure = "/inaba.v1.SystemService/GetSystemInfo"
+	// SystemServiceRestartHostProcedure is the procedure name of the SystemService's RestartHost RPC.
+	SystemServiceRestartHostProcedure = "/inaba.v1.SystemService/RestartHost"
 	// UsageServiceGetUsageSummaryProcedure is the procedure name of the UsageService's GetUsageSummary
 	// RPC.
 	UsageServiceGetUsageSummaryProcedure = "/inaba.v1.UsageService/GetUsageSummary"
@@ -2398,11 +2400,24 @@ var (
 			Procedure:  SystemServiceGetSystemInfoProcedure,
 		}
 	})
+	systemServiceRestartHostSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_inaba_v1_host_proto.Services().ByName("SystemService").Methods().ByName("RestartHost"),
+			Procedure:  SystemServiceRestartHostProcedure,
+		}
+	})
 )
 
 // SystemServiceClient is a client for the inaba.v1.SystemService service.
 type SystemServiceClient interface {
 	GetSystemInfo(context.Context, *v1.GetSystemInfoRequest) (*v1.SystemInfo, error)
+	// Restarts the host: it stops its agents and terminals, then starts again in the
+	// same process, reading its settings and binary afresh, as after inaba update. A
+	// turn that is running ends with an error, as any restart ends it. It answers
+	// first and restarts a moment later. Only the host's owner and administrators may,
+	// and on a shared host those who may add shared hosts.
+	RestartHost(context.Context, *v1.RestartHostRequest) (*v1.RestartHostResponse, error)
 }
 
 // NewSystemServiceClient constructs a client for the inaba.v1.SystemService service. Multiple
@@ -2414,6 +2429,12 @@ func NewSystemServiceClient(client *connect.Client) SystemServiceClient {
 // SystemServiceHandler is an implementation of the inaba.v1.SystemService service.
 type SystemServiceHandler interface {
 	GetSystemInfo(context.Context, *v1.GetSystemInfoRequest) (*v1.SystemInfo, error)
+	// Restarts the host: it stops its agents and terminals, then starts again in the
+	// same process, reading its settings and binary afresh, as after inaba update. A
+	// turn that is running ends with an error, as any restart ends it. It answers
+	// first and restarts a moment later. Only the host's owner and administrators may,
+	// and on a shared host those who may add shared hosts.
+	RestartHost(context.Context, *v1.RestartHostRequest) (*v1.RestartHostResponse, error)
 }
 
 // RegisterSystemServiceHandler registers svc as the inaba.v1.SystemService implementation on
@@ -2422,6 +2443,7 @@ func RegisterSystemServiceHandler(server *connect.Server, svc SystemServiceHandl
 	adapter := systemServiceHandler{svc: svc}
 	server.Register(
 		connect.Method{Spec: systemServiceGetSystemInfoSpec(), Handler: adapter.getSystemInfo},
+		connect.Method{Spec: systemServiceRestartHostSpec(), Handler: adapter.restartHost},
 	)
 }
 
@@ -2430,6 +2452,10 @@ type UnimplementedSystemServiceHandler struct{}
 
 func (UnimplementedSystemServiceHandler) GetSystemInfo(context.Context, *v1.GetSystemInfoRequest) (*v1.SystemInfo, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.SystemService.GetSystemInfo is not implemented")
+}
+
+func (UnimplementedSystemServiceHandler) RestartHost(context.Context, *v1.RestartHostRequest) (*v1.RestartHostResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.SystemService.RestartHost is not implemented")
 }
 
 type systemServiceClient struct {
@@ -2444,6 +2470,14 @@ func (c *systemServiceClient) GetSystemInfo(ctx context.Context, req *v1.GetSyst
 	return &res, nil
 }
 
+func (c *systemServiceClient) RestartHost(ctx context.Context, req *v1.RestartHostRequest) (*v1.RestartHostResponse, error) {
+	var res v1.RestartHostResponse
+	if err := c.client.CallUnary(ctx, systemServiceRestartHostSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
 type systemServiceHandler struct{ svc SystemServiceHandler }
 
 func (h systemServiceHandler) getSystemInfo(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
@@ -2452,6 +2486,18 @@ func (h systemServiceHandler) getSystemInfo(ctx context.Context, _ connect.Spec,
 		return err
 	}
 	res, err := h.svc.GetSystemInfo(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h systemServiceHandler) restartHost(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.RestartHostRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.RestartHost(ctx, &req)
 	if err != nil {
 		return err
 	}
