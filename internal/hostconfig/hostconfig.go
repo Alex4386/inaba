@@ -170,11 +170,25 @@ func (f File) build(registry []*inabav1.AcpAgent) ([]provider.Provider, map[stri
 		}
 		a := &acp.Provider{Name: id, Command: p.Command, Terminal: p.Terminal, TerminalResume: p.TerminalResume}
 		for _, k := range slices.Sorted(maps.Keys(p.Env)) {
-			a.Env = append(a.Env, k+"="+p.Env[k])
+			a.Env = append(a.Env, k+"="+expandHome(p.Env[k]))
 		}
 		providers = append(providers, a)
 	}
 	return providers, info
+}
+
+// expandHome reads a value of "~" or one starting "~/" (or "~\\" on Windows) against the
+// host's home folder, as a shell would. Agents are started without a shell, so
+// CLAUDE_CONFIG_DIR=~/.claude would otherwise be a folder named "~" in the project.
+func expandHome(v string) string {
+	if v != "~" && (len(v) < 2 || v[0] != '~' || !os.IsPathSeparator(v[1])) {
+		return v
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return v
+	}
+	return filepath.Join(home, v[1:])
 }
 
 // Service serves the providers as ProviderConfigService and applies each change to the host.

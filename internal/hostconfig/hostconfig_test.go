@@ -13,6 +13,7 @@ import (
 
 	inabav1 "github.com/Alex4386/inaba/gen/inaba/v1"
 	"github.com/Alex4386/inaba/internal/host"
+	"github.com/Alex4386/inaba/internal/provider/acp"
 	"github.com/Alex4386/inaba/internal/rpc"
 )
 
@@ -196,5 +197,26 @@ func TestLayersWriteUserFileOnly(t *testing.T) {
 	save("a", "user-a")
 	if f, _ := Load(etc, user); f.Providers["a"].Command[0] != "user-a" {
 		t.Fatalf("%+v", f)
+	}
+}
+
+// Agents start without a shell, so the host reads a leading ~ in env values itself.
+func TestEnvExpandsHome(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	f := File{Providers: map[string]Provider{"claude": {Command: []string{"agent"}, Env: map[string]string{
+		"CLAUDE_CONFIG_DIR": "~/.claude", "ALONE": "~", "OTHER_USER": "~bob/x", "MIDDLE": "a/~/b", "PLAIN": "x",
+	}}}}
+	providers, _ := f.Build()
+	var env []string
+	for _, p := range providers {
+		if a, ok := p.(*acp.Provider); ok {
+			env = a.Env
+		}
+	}
+	want := []string{"ALONE=" + home, "CLAUDE_CONFIG_DIR=" + filepath.Join(home, ".claude"), "MIDDLE=a/~/b", "OTHER_USER=~bob/x", "PLAIN=x"}
+	if !slices.Equal(env, want) {
+		t.Fatalf("env = %q, want %q", env, want)
 	}
 }
