@@ -4,6 +4,7 @@ import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef, useState } from "react";
 import type { HostLink } from "./api";
 import { Spinner } from "@/components/ui/spinner";
+import { inputLine } from "@/modules/browser/input-line";
 import { useI18n } from "@/lib/i18n";
 import { codeFontStack, terminalFontSize, useCodeFont, useTerminalFontSize } from "@/lib/settings";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,13 @@ export function isClipboardKey(e: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaK
   return key === "v" || (key === "c" && (mac || hasSelection));
 }
 
+const joined = (a: Uint8Array, b: Uint8Array) => {
+  const out = new Uint8Array(a.length + b.length);
+  out.set(a);
+  out.set(b, a.length);
+  return out;
+};
+
 /** How a terminal reaches its process on the host; keep it stable across renders, as a new one attaches again. */
 export type TerminalIO = {
   attach: (size: { cols: number; rows: number }, signal: AbortSignal) => AsyncIterable<{ data: Uint8Array; cols: number; rows: number }>;
@@ -34,9 +42,10 @@ export type TerminalIO = {
 /**
  * A thread's terminal, or with shell set, the shell of that id beside its conversation; or with io set, any
  * other terminal on the host. The thread's driver sizes it to their screen and types into it; anyone else
- * watches it at the driver's size.
+ * watches it at the driver's size. While pending, the seat may yet be this tab's: keys typed meanwhile wait, and
+ * go once it drives, or are dropped if it only watches.
  */
-export function TerminalView({ link, threadId = "", shell, io, driving = true, onExit, onTitle }: { link: HostLink; threadId?: string; shell?: string; io?: TerminalIO; driving?: boolean; onExit: () => void; onTitle?: (title: string) => void }) {
+export function TerminalView({ link, threadId = "", shell, io, driving = true, pending = false, onExit, onTitle }: { link: HostLink; threadId?: string; shell?: string; io?: TerminalIO; driving?: boolean; pending?: boolean; onExit: () => void; onTitle?: (title: string) => void }) {
   const el = useRef<HTMLDivElement>(null);
   const { t } = useI18n();
   // The latest callback and wording, read when the process exits rather than when the terminal was made.
@@ -50,22 +59,37 @@ export function TerminalView({ link, threadId = "", shell, io, driving = true, o
   notSentText.current = t("thread.inputNotSent");
   // Output is flowing; until then, or after a break, a spinner says it is still connecting.
   const [attached, setAttached] = useState(false);
-  const direct = link.direct;
+  // Read live by the attached terminal: taking or losing the seat changes it in place rather than attaching again.
+  const drivingRef = useRef(driving);
+  drivingRef.current = driving;
+  const pendingRef = useRef(pending);
+  pendingRef.current = pending;
   // The code font, changed in settings while the terminal runs: it redraws in place, without attaching again.
   const font = useCodeFont();
   const fontSize = useTerminalFontSize();
-  const live = useRef<{ term: Terminal; fit: FitAddon }>(undefined);
+  const live = useRef<{ term: Terminal; fit: FitAddon; resize: (size: { cols: number; rows: number }) => void; settle: (ours: boolean) => void }>(undefined);
   useEffect(() => {
     if (!live.current) return;
     live.current.term.options.fontFamily = font;
     live.current.term.options.fontSize = fontSize;
     if (driving) live.current.fit.fit();
   }, [font, fontSize, driving]);
+  useEffect(() => {
+    if (!live.current) return;
+    const { term, fit, resize, settle } = live.current;
+    term.options.disableStdin = !driving && !pending;
+    term.options.cursorBlink = driving;
+    if (!driving) return void (pending || settle(false));
+    // The seat is ours: the process takes this screen's size, though fitting may leave it unchanged and fire no resize.
+    fit.fit();
+    resize({ cols: term.cols, rows: term.rows });
+    settle(true);
+    term.focus();
+  }, [driving, pending]);
 
   useEffect(() => {
-    const term = new Terminal({ fontFamily: codeFontStack(), fontSize: terminalFontSize(), cursorBlink: driving, disableStdin: !driving, theme: { background: "#0b0b0d" } });
+    const term = new Terminal({ fontFamily: codeFontStack(), fontSize: terminalFontSize(), cursorBlink: drivingRef.current, disableStdin: !drivingRef.current && !pendingRef.current, theme: { background: "#0b0b0d" } });
     const fit = new FitAddon();
-    live.current = { term, fit };
     term.loadAddon(fit);
     // Links open on Cmd/Ctrl+click, as in VS Code, so a plain click can still select text; xterm underlines them on hover.
     term.loadAddon(
@@ -84,20 +108,8 @@ export function TerminalView({ link, threadId = "", shell, io, driving = true, o
     const abort = new AbortController();
     const encoder = new TextEncoder();
 
-    // Keystrokes are separate calls; chaining them keeps them in the order typed.
-    let queue = Promise.resolve();
     // When input last failed, so a burst of lost keystrokes leaves one marker rather than one each.
     let failed = 0;
-    const enqueue = (call: () => Promise<unknown>) => {
-      queue = queue.then(call).then(
-        () => {},
-        () => {
-          if (Date.now() - failed < 2_000) return;
-          failed = Date.now();
-          term.write(`\r\n\x1b[2m[${notSentText.current}]\x1b[0m\r\n`);
-        },
-      );
-    };
     const to: TerminalIO = io ?? {
       attach: (size, signal) => (shell !== undefined ? link.shell.attachShell({ threadId, shellId: shell, ...size }, { signal }) : link.terminal.attach({ threadId, ...size }, { signal })),
       write: (data) => (shell !== undefined ? link.shell.writeShell({ threadId, shellId: shell, data }) : link.terminal.write({ threadId, data })),
@@ -105,15 +117,37 @@ export function TerminalView({ link, threadId = "", shell, io, driving = true, o
     };
     // The shell sets its window title as it goes; the host hears it too, but only reports it when asked.
     term.onTitleChange((t) => title.current?.(t));
-    term.onData((data) => enqueue(() => to.write(encoder.encode(data))));
+    // Calls go one at a time, in the order made; keys typed while one is on its way go together as the next, so a
+    // slow link costs a round trip per burst rather than per key.
+    const send = inputLine<{ data: Uint8Array } | { size: { cols: number; rows: number } }>(
+      (call) =>
+        ("data" in call ? to.write(call.data) : to.resize(call.size)).catch(() => {
+          if (Date.now() - failed < 2_000) return;
+          failed = Date.now();
+          term.write(`\r\n\x1b[2m[${notSentText.current}]\x1b[0m\r\n`);
+        }),
+      (a, b) => ("data" in a && "data" in b ? { data: joined(a.data, b.data) } : "size" in a && "size" in b ? b : undefined),
+      () => true,
+    );
+    const resize = (size: { cols: number; rows: number }) => void send({ size });
+    // Keys typed before the seat is settled; sent after the size once it is ours, so they land in order.
+    let held: Uint8Array | undefined;
+    const settle = (ours: boolean) => {
+      if (ours && held) void send({ data: held });
+      held = undefined;
+    };
+    live.current = { term, fit, resize, settle };
+    term.onData((data) => {
+      const bytes = encoder.encode(data);
+      if (drivingRef.current) void send({ data: bytes });
+      else if (pendingRef.current) held = held ? joined(held, bytes) : bytes;
+    });
     // Only the driver's size goes to the process: every viewer sending its own would fight over it.
-    if (driving) term.onResize((size) => enqueue(() => to.resize(size)));
-    const observer = new ResizeObserver(() => driving && fit.fit());
+    term.onResize((size) => drivingRef.current && resize(size));
+    const observer = new ResizeObserver(() => drivingRef.current && fit.fit());
     observer.observe(el.current!);
-    if (driving) {
-      fit.fit();
-      term.focus();
-    }
+    if (drivingRef.current) fit.fit();
+    if (drivingRef.current || pendingRef.current) term.focus();
 
     // A hidden tab has no size to fit; wait until it shows, so the program starts at the width it is seen at.
     const sized = () =>
@@ -132,7 +166,7 @@ export function TerminalView({ link, threadId = "", shell, io, driving = true, o
     void (async () => {
       while (!abort.signal.aborted) {
         try {
-          if (driving) {
+          if (drivingRef.current) {
             await sized();
             fit.fit();
           }
@@ -140,9 +174,9 @@ export function TerminalView({ link, threadId = "", shell, io, driving = true, o
           term.reset();
           setAttached(false);
           // A watcher asks for no size, leaving the driver's.
-          const size = driving ? { cols: term.cols, rows: term.rows } : { cols: 0, rows: 0 };
+          const size = drivingRef.current ? { cols: term.cols, rows: term.rows } : { cols: 0, rows: 0 };
           for await (const chunk of to.attach(size, abort.signal)) {
-            if (!driving && chunk.cols > 0 && chunk.rows > 0) term.resize(chunk.cols, chunk.rows);
+            if (!drivingRef.current && chunk.cols > 0 && chunk.rows > 0) term.resize(chunk.cols, chunk.rows);
             term.write(chunk.data);
             setAttached(true);
           }
@@ -165,7 +199,8 @@ export function TerminalView({ link, threadId = "", shell, io, driving = true, o
       live.current = undefined;
       term.dispose();
     };
-  }, [link, threadId, shell, io, direct, driving]);
+    // Not on link.direct: a stream open on the relay keeps flowing, and attaching again would replay it all over the slow link.
+  }, [link, threadId, shell, io]);
 
   // A watcher's terminal is the driver's size, which may not fit here; it scrolls instead.
   return (

@@ -310,3 +310,36 @@ func TestSubscribeLeavesHeavyPartsToTheLog(t *testing.T) {
 		t.Fatal("an event with nothing to leave out was copied")
 	}
 }
+
+// A long thread opens at its last turns, and reading back goes a turn at a time, starting
+// mid-turn only in a turn too long to read whole.
+func TestTurnStartBeginsAtAUserMessage(t *testing.T) {
+	th := &thread{}
+	// Turns begin at seqs 1, 4 and 9.
+	for i := uint64(1); i <= 10; i++ {
+		e := &inabav1.Event{Seq: i, Payload: &inabav1.Event_TextDelta{TextDelta: &inabav1.TextDelta{Text: "x"}}}
+		if i == 1 || i == 4 || i == 9 {
+			e.Payload = &inabav1.Event_UserMessage{UserMessage: &inabav1.UserMessage{Text: "hi"}}
+		}
+		th.events = append(th.events, e)
+	}
+	for _, c := range []struct {
+		before uint64
+		n      int
+		want   uint64
+	}{
+		{0, 2, 8},  // the last turn, from seq 9
+		{0, 4, 3},  // seq 7 is in the turn from seq 4, within 4 more
+		{0, 3, 7},  // seq 8 is more than 3 into its turn: start there
+		{0, 1, 8},  // seq 10 is within 1 more of its turn's start
+		{0, 50, 0}, // all of it
+		{8, 3, 3},  // before seq 8: the turn from seq 4
+		{9, 1, 7},  // before the last turn, not within reach of its start
+		{1, 5, 0},  // nothing before the first event
+		{99, 2, 8}, // past the end reads as the end
+	} {
+		if got := th.turnStart(c.before, c.n); got != c.want {
+			t.Errorf("turnStart(%d, %d) = %d, want %d", c.before, c.n, got, c.want)
+		}
+	}
+}

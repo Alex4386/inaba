@@ -3120,6 +3120,13 @@ paths:
                   schema:
                     type: integer
                     format: uint32
+                - name: before_seq
+                  in: query
+                  description: |-
+                    Set, the events before this one instead, for a viewer reading further back: as many as
+                     limit asks for and back to where that turn began, light as Subscribe sends them.
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK

@@ -321,6 +321,9 @@
     }
   html {
     @apply font-sans;
+    /* Set from the visual viewport in main.tsx. */
+    --vvh: 100svh;
+    --vvt: 0px;
     }
 }
 

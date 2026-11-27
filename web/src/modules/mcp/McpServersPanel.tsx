@@ -14,9 +14,10 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { type Project, ProjectService } from "@/gen/inaba/v1/host_pb";
+import { type Project, ProjectSchema, ProjectService } from "@/gen/inaba/v1/host_pb";
 import { type McpServer, McpServerSchema, McpService } from "@/gen/inaba/v1/mcp_pb";
 import { showError } from "@/lib/errors";
+import { cached, keep } from "@/lib/host-cache";
 import { useI18n } from "@/lib/i18n";
 
 /** "KEY=value" lines, the way env files read, to a map; and back. */
@@ -40,22 +41,25 @@ export const showPairs = (pairs: Record<string, string>, sep: string) =>
 export function McpServersPanel({ hostId }: { hostId: string }) {
   const { t } = useI18n();
   const link = useMemo(() => ({ mcp: onHost(hostId, McpService), projects: onHost(hostId, ProjectService) }), [hostId]);
-  const [servers, setServers] = useState<McpServer[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
+  // Undefined until the host answers, so loading does not look like having none.
+  const [servers, setServers] = useState<McpServer[]>();
+  // The projects last read from this host, at once, for the scopes' names.
+  const [projects, setProjects] = useState<Project[] | undefined>(() => cached(hostId, "projects", ProjectSchema));
   const [editing, setEditing] = useState<McpServer>();
   const [removing, setRemoving] = useState<McpServer>();
 
   const refresh = useCallback(() => {
-    link.mcp.listMcpServers({}).then((r) => setServers(r.servers), showError);
-    link.projects.listProjects({}).then((r) => setProjects(r.projects), showError);
-  }, [link]);
+    link.mcp.listMcpServers({}).then((r) => setServers(r.servers), (e) => (showError(e), setServers((s) => s ?? [])));
+    link.projects.listProjects({}).then((r) => (keep(hostId, "projects", ProjectSchema, r.projects), setProjects(r.projects)), showError);
+  }, [link, hostId]);
   useEffect(() => {
     refresh();
   }, [refresh]);
 
   const save = (m: McpServer) => (m.id ? link.mcp.updateMcpServer(m) : link.mcp.createMcpServer(m)).then(refresh);
+  // Blank until the projects are known, rather than ids that turn into names.
   const scope = (m: McpServer) =>
-    m.projectIds.length === 0 ? t("mcp.everyThread") : m.projectIds.map((id) => projects.find((p) => p.id === id)?.name ?? id).join(", ");
+    m.projectIds.length === 0 ? t("mcp.everyThread") : projects && m.projectIds.map((id) => projects.find((p) => p.id === id)?.name ?? id).join(", ");
 
   return (
     <div className="grid gap-4">
@@ -66,7 +70,9 @@ export function McpServersPanel({ hostId }: { hostId: string }) {
           {t("mcp.add")}
         </Button>
       </div>
-      {servers.length > 0 && (
+      {!servers ? (
+        <Spinner />
+      ) : servers.length > 0 && (
         <Card>
           {servers.map((m) => (
             <div key={m.id} className="flex items-center gap-3 px-4 py-3">
@@ -83,7 +89,7 @@ export function McpServersPanel({ hostId }: { hostId: string }) {
                 aria-label={t("mcp.enabled")}
                 title={t("mcp.enabled")}
                 onCheckedChange={(enabled) => {
-                  setServers((now) => now.map((x) => (x.id === m.id ? { ...x, enabled } : x)));
+                  setServers((now) => now?.map((x) => (x.id === m.id ? { ...x, enabled } : x)));
                   save({ ...m, enabled }).catch((e) => {
                     showError(e);
                     refresh();
@@ -100,7 +106,7 @@ export function McpServersPanel({ hostId }: { hostId: string }) {
           ))}
         </Card>
       )}
-      <McpServerDialog server={editing} projects={projects} onClose={() => setEditing(undefined)} onSave={save} />
+      <McpServerDialog server={editing} projects={projects ?? []} onClose={() => setEditing(undefined)} onSave={save} />
       <ConfirmDialog
         open={removing !== undefined}
         onClose={() => setRemoving(undefined)}

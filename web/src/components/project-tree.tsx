@@ -44,13 +44,35 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SnoozeKind } from "@/gen/inaba/v1/server_pb";
-import { type Project, type Thread, ThreadMode, ThreadStatus } from "@/gen/inaba/v1/host_pb";
+import { type DescMessage, type MessageShape, equals } from "@bufbuild/protobuf";
+import { type Project, ProjectSchema, type Thread, ThreadMode, ThreadSchema, ThreadStatus } from "@/gen/inaba/v1/host_pb";
 import { errorText, showError } from "@/lib/errors";
+import { cached, keep } from "@/lib/host-cache";
+import { poll } from "@/lib/poll";
 import { notifyEnabled } from "@/lib/settings";
 import { type Translate, useI18n } from "@/lib/i18n";
 import { useSeen } from "@/lib/seen";
 import { type Muted, type SnoozePreset, type Snoozes, snoozePresets, useSnoozes } from "@/lib/snooze";
 import { cn } from "@/lib/utils";
+
+const same = <D extends DescMessage>(schema: D, a: MessageShape<D>[] | undefined, b: MessageShape<D>[]) => a?.length === b.length && a.every((x, i) => equals(schema, x, b[i]));
+
+/**
+ * Keeps a list the host sent in the host's cache, for the next view or reload to show at once, and
+ * returns a state update that keeps the list shown when nothing in it changed: a poll that finds
+ * nothing new neither draws again nor rewrites the stored copy, project pictures and all.
+ */
+export function landed<D extends DescMessage>(hostId: string, key: string, schema: D, list: MessageShape<D>[]) {
+  if (!same(schema, cached(hostId, key, schema), list)) keep(hostId, key, schema, list);
+  return (shown: MessageShape<D>[] | undefined) => (shown && same(schema, shown, list) ? shown : list);
+}
+
+/**
+ * Threads newest first, by id where they were started at the same moment: the host lists them
+ * from a map, so without this the cached list and the live one draw in different orders.
+ */
+export const newest = (threads: Thread[]) =>
+  threads.toSorted((a, b) => Number((b.createdAt?.seconds ?? 0n) - (a.createdAt?.seconds ?? 0n)) || (b.createdAt?.nanos ?? 0) - (a.createdAt?.nanos ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
 /** What to call a thread in lists and headers. */
 export function threadName(thread: Thread): string {
@@ -371,8 +393,9 @@ export function ProjectTree({
   const [listOpen, setListOpen] = useState(true);
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
-  const [projects, setProjects] = useState<Project[]>();
-  const [threads, setThreads] = useState<Thread[]>([]);
+  // What the host had last time shows until it answers.
+  const [projects, setProjects] = useState(() => cached(link.hostId, "projects", ProjectSchema));
+  const [threads, setThreads] = useState(() => cached(link.hostId, "threads", ThreadSchema) ?? []);
   const forking = useRef(false);
   // Shown at once; the refresh after the call puts back what the host really has.
   const relabel = (id: string, label: "pinned" | "archived", on: boolean) =>
@@ -394,11 +417,13 @@ export function ProjectTree({
   const snoozesRef = useRef<Snoozes>(snoozes);
   snoozesRef.current = snoozes;
 
+  // Each list shows as it lands, so the projects do not wait for the larger thread list.
   const refresh = useCallback(
     () =>
-      Promise.all([link.threads.listThreads({}), link.projects.listProjects({})]).then(
-        ([th, pr]) => {
+      Promise.allSettled([
+        link.threads.listThreads({}).then((th) => {
           // Say so when a thread the user is not looking at finishes or starts waiting on them.
+          // The cached list is not a before: what changed while the page was closed is not news.
           for (const thread of th.threads) {
             const before = statuses.current.get(thread.id);
             statuses.current.set(thread.id, thread.status);
@@ -407,18 +432,13 @@ export function ProjectTree({
             if (thread.status === ThreadStatus.WAITING) toast.info(t("notify.asks", { name: threadName(thread) }));
             else if (thread.status === ThreadStatus.IDLE && !snoozesRef.current.muted(thread.id, thread.projectId)) toast.success(t("notify.done", { name: threadName(thread) }));
           }
-          setThreads(th.threads);
-          setProjects(pr.projects);
-        },
-        () => {},
-      ),
+          setThreads(landed(link.hostId, "threads", ThreadSchema, newest(th.threads)));
+        }),
+        link.projects.listProjects({}).then((pr) => setProjects(landed(link.hostId, "projects", ProjectSchema, pr.projects))),
+      ]),
     [link, t],
   );
-  useEffect(() => {
-    void refresh();
-    const timer = setInterval(refresh, 3_000);
-    return () => clearInterval(timer);
-  }, [link, refresh]);
+  useEffect(() => poll(refresh, 3_000), [refresh]);
 
   // Archived projects and threads are left out of the sidebar; the all-projects and all-threads pages list them.
   const shown = (th: Thread) => !th.labels.archived;

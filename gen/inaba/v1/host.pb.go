@@ -4746,7 +4746,10 @@ type ListEventsRequest struct {
 	ThreadId string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
 	AfterSeq uint64                 `protobuf:"varint,2,opt,name=after_seq,json=afterSeq,proto3" json:"after_seq,omitempty"`
 	// At most this many events; 0 means the server's default.
-	Limit         uint32 `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	Limit uint32 `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	// Set, the events before this one instead, for a viewer reading further back: as many as
+	// limit asks for and back to where that turn began, light as Subscribe sends them.
+	BeforeSeq     uint64 `protobuf:"varint,4,opt,name=before_seq,json=beforeSeq,proto3" json:"before_seq,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4798,6 +4801,13 @@ func (x *ListEventsRequest) GetAfterSeq() uint64 {
 func (x *ListEventsRequest) GetLimit() uint32 {
 	if x != nil {
 		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListEventsRequest) GetBeforeSeq() uint64 {
+	if x != nil {
+		return x.BeforeSeq
 	}
 	return 0
 }
@@ -4909,9 +4919,12 @@ func (x *GetAttachmentRequest) GetIndex() uint32 {
 }
 
 type SubscribeRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
-	AfterSeq      uint64                 `protobuf:"varint,2,opt,name=after_seq,json=afterSeq,proto3" json:"after_seq,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	ThreadId string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
+	AfterSeq uint64                 `protobuf:"varint,2,opt,name=after_seq,json=afterSeq,proto3" json:"after_seq,omitempty"`
+	// With no after_seq, start this many events from the end, back to where that turn began,
+	// so a long thread opens at once; ListEvents' before_seq has what came before.
+	Tail          uint32 `protobuf:"varint,3,opt,name=tail,proto3" json:"tail,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4956,6 +4969,13 @@ func (x *SubscribeRequest) GetThreadId() string {
 func (x *SubscribeRequest) GetAfterSeq() uint64 {
 	if x != nil {
 		return x.AfterSeq
+	}
+	return 0
+}
+
+func (x *SubscribeRequest) GetTail() uint32 {
+	if x != nil {
+		return x.Tail
 	}
 	return 0
 }
@@ -9868,20 +9888,23 @@ const file_inaba_v1_host_proto_rawDesc = "" +
 	"\x06method\x18\x02 \x01(\tR\x06method\x12.\n" +
 	"\x06params\x18\x03 \x01(\v2\x16.google.protobuf.ValueR\x06params\"=\n" +
 	"\vRawResponse\x12.\n" +
-	"\x06result\x18\x01 \x01(\v2\x16.google.protobuf.ValueR\x06result\"c\n" +
+	"\x06result\x18\x01 \x01(\v2\x16.google.protobuf.ValueR\x06result\"\x82\x01\n" +
 	"\x11ListEventsRequest\x12\x1b\n" +
 	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12\x1b\n" +
 	"\tafter_seq\x18\x02 \x01(\x04R\bafterSeq\x12\x14\n" +
-	"\x05limit\x18\x03 \x01(\rR\x05limit\"=\n" +
+	"\x05limit\x18\x03 \x01(\rR\x05limit\x12\x1d\n" +
+	"\n" +
+	"before_seq\x18\x04 \x01(\x04R\tbeforeSeq\"=\n" +
 	"\x12ListEventsResponse\x12'\n" +
 	"\x06events\x18\x01 \x03(\v2\x0f.inaba.v1.EventR\x06events\"[\n" +
 	"\x14GetAttachmentRequest\x12\x1b\n" +
 	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12\x10\n" +
 	"\x03seq\x18\x02 \x01(\x04R\x03seq\x12\x14\n" +
-	"\x05index\x18\x03 \x01(\rR\x05index\"L\n" +
+	"\x05index\x18\x03 \x01(\rR\x05index\"`\n" +
 	"\x10SubscribeRequest\x12\x1b\n" +
 	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12\x1b\n" +
-	"\tafter_seq\x18\x02 \x01(\x04R\bafterSeq\"<\n" +
+	"\tafter_seq\x18\x02 \x01(\x04R\bafterSeq\x12\x12\n" +
+	"\x04tail\x18\x03 \x01(\rR\x04tail\"<\n" +
 	"\x14CreateProjectRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x10\n" +
 	"\x03cwd\x18\x02 \x01(\tR\x03cwd\"\x15\n" +

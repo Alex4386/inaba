@@ -21,8 +21,12 @@ import { cn } from "@/lib/utils";
 const TREE_KEY = "inaba.files.tree";
 
 /** A file of the thread's folder whole, through the server: saved as a download, or a picture shown with inline. */
+// The server relays a host's REST routes under /v1/hosts/{id}/, as the host's /v1/.
 const rawUrl = (link: HostLink, threadId: string, path: string, inline = false) =>
-  `/hosts/${link.hostId}/v1/threads/${threadId}/raw?${new URLSearchParams({ path, ...(inline && { inline: "1" }) })}`;
+  `/v1/hosts/${link.hostId}/threads/${threadId}/raw?${new URLSearchParams({ path, ...(inline && { inline: "1" }) })}`;
+// Pictures the host's raw route shows inline, by name; it still checks the bytes before it does.
+const RASTER = /\.(png|jpe?g|gif|webp|bmp|ico|avif)$/i;
+const loadCodeEditor = () => import("@/components/code-editor");
 // Narrower than this, the tree floats over the editor instead of sitting beside it.
 const NARROW = 480;
 
@@ -57,6 +61,8 @@ export function FilesPanel({ link, threadId, root, onClose, onDirty: onAnyDirty,
   const [overlay, setOverlay] = useState(() => localStorage.getItem(TREE_KEY) !== "hidden");
   const box = useRef<HTMLDivElement>(null);
   const strip = useRef<HTMLDivElement>(null);
+  // The editor loads while the tree does, not after the first file opened.
+  useEffect(() => void loadCodeEditor(), []);
   useEffect(() => {
     onActive?.(active);
   }, [active, onActive]);
@@ -303,7 +309,7 @@ function size(n: bigint) {
 }
 
 /** A file's content: text with line numbers, an image as itself, anything else described. */
-const CodeEditor = lazy(() => import("@/components/code-editor"));
+const CodeEditor = lazy(loadCodeEditor);
 
 function FileView({ link, threadId, path, onDirty, readOnly, onOpen, at }: { link: HostLink; threadId: string; path: string; onDirty: (path: string, dirty: boolean) => void; readOnly: boolean; /** Opens another file of the folder, from a link in a preview. */ onOpen: (path: string) => void; /** A line to show, from a search result. */ at?: Reveal }) {
   const { t } = useI18n();
@@ -322,6 +328,11 @@ function FileView({ link, threadId, path, onDirty, readOnly, onOpen, at }: { lin
   // The editor stays mounted once shown, so toggling back keeps its undo history, cursor and scroll.
   const [editorShown, setEditorShown] = useState(!kind);
   const previewing = kind !== undefined && !source;
+  // A picture by its name goes straight to the raw route, which streams it, instead of through readFile first;
+  // one that turns out not to be a picture is read as any other file. The mount time keeps a reopened one fresh.
+  const [notPicture, setNotPicture] = useState(false);
+  const pictured = !notPicture && RASTER.test(path);
+  const [opened] = useState(Date.now);
   // A search result is a line of the source, so it shows the source.
   useEffect(() => {
     if (at && kind) {
@@ -330,6 +341,7 @@ function FileView({ link, threadId, path, onDirty, readOnly, onOpen, at }: { lin
     }
   }, [at, kind]);
   const load = useCallback(() => {
+    if (pictured) return;
     setFile(undefined);
     setError("");
     setStale(false);
@@ -341,7 +353,7 @@ function FileView({ link, threadId, path, onDirty, readOnly, onOpen, at }: { lin
       },
       (e) => setError(errorText(e)),
     );
-  }, [link, threadId, path]);
+  }, [link, threadId, path, pictured]);
   useEffect(load, [load]);
   // From the host whole, as a picture can be larger than what readFile sends; the version keeps a changed one fresh.
   const image = file?.mimeType.startsWith("image/") ? `${rawUrl(link, threadId, path, true)}&v=${file.version}` : undefined;
@@ -370,6 +382,12 @@ function FileView({ link, threadId, path, onDirty, readOnly, onOpen, at }: { lin
   };
 
   if (error) return <p className="text-destructive p-4 text-sm">{error}</p>;
+  if (pictured)
+    return (
+      <div className="min-h-0 flex-1 overflow-auto">
+        <img src={`${rawUrl(link, threadId, path, true)}&v=${opened}`} alt={path} className="m-3 max-w-[calc(100%-1.5rem)] rounded-md border" onError={() => setNotPicture(true)} />
+      </div>
+    );
   if (!file) return <Spinner className="m-4" />;
   return (
     <div
@@ -422,7 +440,8 @@ function FileView({ link, threadId, path, onDirty, readOnly, onOpen, at }: { lin
           {previewing && <FilePreview kind={kind} text={draft ?? text} path={path} onOpen={onOpen} />}
           {editorShown && (
             <div className={previewing ? "hidden" : "min-h-0 flex-1"}>
-              <Suspense fallback={<Spinner className="m-4" />}>
+              {/* The text is already here: show it plain while the editor's chunk downloads. */}
+              <Suspense fallback={<pre className="h-full overflow-auto p-3 font-mono text-[13px] whitespace-pre">{draft ?? text}</pre>}>
                 <CodeEditor path={path} value={draft ?? text} readOnly={file.truncated || readOnly} onChange={setDraft} onSave={() => !readOnly && save()} reveal={at} />
               </Suspense>
             </div>
@@ -445,7 +464,8 @@ function FileView({ link, threadId, path, onDirty, readOnly, onOpen, at }: { lin
   );
 }
 
-type Found = { files: string[]; matches: GrepFilesResponse_Match[]; truncated: boolean };
+// Each half is there once its call has answered.
+type Found = { files?: string[]; matches?: GrepFilesResponse_Match[]; truncated: boolean };
 
 /** Finding files by name and lines by content, floating over the editor; it stays open to go through the results. */
 function SearchPanel({ link, threadId, focus, full, onPick, onClose }: { link: HostLink; threadId: string; /** 0 while closed; changes when the search is asked for again, to take the focus. */ focus: number; /** Covers the whole panel, as on a phone. */ full: boolean; onPick: (path: string, at?: Reveal) => void; onClose: () => void }) {
@@ -469,14 +489,20 @@ function SearchPanel({ link, threadId, focus, full, onPick, onClose }: { link: H
     setBusy(true);
     const abort = new AbortController();
     const signal = abort.signal;
-    const timer = setTimeout(
-      () =>
-        void Promise.all([link.files.searchFiles({ threadId, query }, { signal }), link.files.grepFiles({ threadId, query, caseSensitive, wholeWord, regex }, { signal })]).then(
-          ([names, lines]) => !signal.aborted && (setFound({ files: names.paths.slice(0, 5), matches: lines.matches, truncated: lines.truncated }), setBusy(false)),
-          (e) => !signal.aborted && (setFound(errorText(e)), setBusy(false)),
-        ),
-      250,
-    );
+    const timer = setTimeout(() => {
+      // Names come back at once and lines can take seconds, so each shows as it lands.
+      setFound({ truncated: false });
+      let left = 2;
+      const settle = <T,>(call: Promise<T>, take: (r: T, f: Found) => Found) =>
+        void call
+          .then(
+            (r) => !signal.aborted && setFound((f) => (typeof f === "object" ? take(r, f) : f)),
+            (e) => !signal.aborted && setFound(errorText(e)),
+          )
+          .finally(() => !signal.aborted && --left === 0 && setBusy(false));
+      settle(link.files.searchFiles({ threadId, query }, { signal }), (r, f) => ({ ...f, files: r.paths.slice(0, 5) }));
+      settle(link.files.grepFiles({ threadId, query, caseSensitive, wholeWord, regex }, { signal }), (r, f) => ({ ...f, matches: r.matches, truncated: r.truncated }));
+    }, 250);
     return () => {
       clearTimeout(timer);
       abort.abort();
@@ -485,7 +511,7 @@ function SearchPanel({ link, threadId, focus, full, onPick, onClose }: { link: H
   // The host sends them in path order, so each file's lines are together.
   const byFile = useMemo(() => {
     const files = new Map<string, GrepFilesResponse_Match[]>();
-    for (const m of typeof found === "object" ? found.matches : []) files.set(m.path, [...(files.get(m.path) ?? []), m]);
+    for (const m of typeof found === "object" ? (found.matches ?? []) : []) files.set(m.path, [...(files.get(m.path) ?? []), m]);
     return [...files];
   }, [found]);
   const toggles = [
@@ -526,8 +552,8 @@ function SearchPanel({ link, threadId, focus, full, onPick, onClose }: { link: H
       <div className="min-h-0 flex-1 overflow-y-auto py-1">
         {busy && <Spinner className="mx-3 my-2" />}
         {typeof found === "string" && <p className="text-destructive px-3 py-2 text-xs">{found}</p>}
-        {typeof found === "object" && found.files.length + found.matches.length === 0 && <p className="text-muted-foreground px-3 py-2 text-xs">{t("files.noResults")}</p>}
-        {typeof found === "object" && found.files.length > 0 && (
+        {typeof found === "object" && found.files?.length === 0 && found.matches?.length === 0 && <p className="text-muted-foreground px-3 py-2 text-xs">{t("files.noResults")}</p>}
+        {typeof found === "object" && found.files && found.files.length > 0 && (
           <>
             <h3 className="text-muted-foreground px-3 pt-1 text-xs font-medium">{t("files.fileNames")}</h3>
             {found.files.map((p) => (

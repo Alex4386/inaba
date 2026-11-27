@@ -785,6 +785,9 @@ message ListEventsRequest {
   uint64 after_seq = 2;
   // At most this many events; 0 means the server's default.
   uint32 limit = 3;
+  // Set, the events before this one instead, for a viewer reading further back: as many as
+  // limit asks for and back to where that turn began, light as Subscribe sends them.
+  uint64 before_seq = 4;
 }
 message ListEventsResponse {
   repeated Event events = 1;
@@ -800,6 +803,9 @@ message GetAttachmentRequest {
 message SubscribeRequest {
   string thread_id = 1;
   uint64 after_seq = 2;
+  // With no after_seq, start this many events from the end, back to where that turn began,
+  // so a long thread opens at once; ListEvents' before_seq has what came before.
+  uint32 tail = 3;
 }
 
 service ProjectService {

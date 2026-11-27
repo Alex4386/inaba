@@ -17,7 +17,13 @@ import { showError } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-const DiffView = lazy(() => import("@/components/diff-view"));
+const loadDiffView = () => import("@/components/diff-view");
+const DiffView = lazy(loadDiffView);
+
+/** What a status says changed, so a status read again with the same files reads the diff no more. */
+function statusSignature(status: GitStatus) {
+  return [status.branch, ...status.files.map((f) => `${f.path}\0${f.state}\0${f.additions}\0${f.deletions}`)].join("\n");
+}
 
 // How diffs are laid out is one's own taste, kept in this browser.
 const DIFF_PREFS = "inaba.diffView";
@@ -112,6 +118,14 @@ export function ChangesPanel({
   const [branches, setBranches] = useState<string[]>([]);
   const [naming, setNaming] = useState(false);
   const [opening, setOpening] = useState(false);
+  // The highlighter loads alongside the first diff instead of after it.
+  useEffect(() => void loadDiffView(), []);
+  // The box the diff scrolls in, which files far down it wait to come near before they draw.
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
+  // Bumped by refresh, which reads the diff again even when the status reads the same.
+  const [reload, setReload] = useState(0);
+  const refresh = useCallback(() => (setReload((n) => n + 1), onStatus()), [onStatus]);
+  const signature = statusSignature(status);
   // The branch list is read again whenever the current branch changes, which is when it can have grown.
   useEffect(() => {
     link.git.listBranches({ threadId }).then((r) => setBranches(r.branches), () => setBranches([]));
@@ -141,8 +155,9 @@ export function ChangesPanel({
     return () => {
       current = false;
     };
-    // The status changes whenever the files do, so it stands in for them here.
-  }, [link, threadId, status, before, after, ignoreWhitespace]);
+    // The status is read again on every turn's start and end; its files, not the object, say whether the diff changed.
+    // shortcut: an edit that keeps a file's line counts goes unseen until refresh; key on the host's index stat if that bites.
+  }, [link, threadId, signature, reload, before, after, ignoreWhitespace]);
   // One file whole, from the same two points as the diff shown, for expanding context around its hunks.
   const loadSides = useCallback(
     async (path: string) => {
@@ -153,12 +168,12 @@ export function ChangesPanel({
       // with the hunks shown; the host's one-path diff is the same text as that file's part of the whole.
       if (!r.diff || !diff?.text.includes(r.diff)) {
         toast.info(t("git.changedSince"));
-        onStatus();
+        refresh();
         throw new Error(path + " changed since the diff was read");
       }
       return r;
     },
-    [link, threadId, before, after, ignoreWhitespace, diff, onStatus, t],
+    [link, threadId, before, after, ignoreWhitespace, diff, refresh, t],
   );
   // The files in the diff shown, to fold them all at once.
   const names = [...(diff?.text ?? "").matchAll(/^diff --git a\/.+ b\/(.+)$/gm)].map((m) => m[1]);
@@ -289,7 +304,7 @@ export function ChangesPanel({
           </Button>
         )}
         </fieldset>
-        <Button size="icon-sm" variant="ghost" aria-label={t("git.refresh")} title={t("git.refresh")} onClick={() => onStatus()}>
+        <Button size="icon-sm" variant="ghost" aria-label={t("git.refresh")} title={t("git.refresh")} onClick={refresh}>
           <RefreshCwIcon />
         </Button>
         <Button size="icon-sm" variant="ghost" aria-label={t("palette.close")} title={t("palette.close")} onClick={onClose}>
@@ -365,12 +380,12 @@ export function ChangesPanel({
               {folded.size > 0 ? <ChevronsUpDownIcon /> : <ChevronsDownUpIcon />}
             </Button>
           </div>
-          <div className="min-h-0 flex-1 overflow-auto">
+          <div ref={setScroller} className="min-h-0 flex-1 overflow-auto">
             {!diff ? (
-              <Spinner className="m-3" />
+              <Pending files={turn ? [] : status.files} />
             ) : diff.text ? (
-              <Suspense fallback={<Spinner className="m-3" />}>
-                <DiffView patch={diff.text} split={prefs.split} wrap={prefs.wrap} folded={folded} onFold={fold} hideTests={prefs.hideTests} loadSides={loadSides} />
+              <Suspense fallback={<Pending files={turn ? [] : status.files} />}>
+                <DiffView patch={diff.text} split={prefs.split} wrap={prefs.wrap} folded={folded} onFold={fold} hideTests={prefs.hideTests} loadSides={loadSides} root={scroller} />
               </Suspense>
             ) : (
               <p className="text-muted-foreground px-3 py-2 text-sm">{t(!turn && status.files.length === 0 ? "git.clean" : "git.noDiff")}</p>
@@ -388,6 +403,22 @@ export function ChangesPanel({
         confirm={t("changes.restore")}
         onConfirm={restore}
       />
+    </div>
+  );
+}
+
+/** The files the status names, while their diff is on its way: on a slow link they are there long before it. */
+function Pending({ files }: { files: GitStatus["files"] }) {
+  return (
+    <div className="grid gap-2 p-2">
+      <Spinner />
+      {files.map((f) => (
+        <div key={f.path} className="flex h-9 items-center gap-2 rounded-md border px-3 text-xs">
+          <span className="text-muted-foreground w-5 shrink-0 font-mono">{f.state.trim()}</span>
+          <span className="min-w-0 flex-1 truncate font-mono">{f.path}</span>
+          <LineCounts additions={f.additions} deletions={f.deletions} />
+        </div>
+      ))}
     </div>
   );
 }

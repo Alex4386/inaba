@@ -43,7 +43,7 @@ import {
 import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { bytes } from "@/components/metrics";
 import { useDefaultLayout } from "react-resizable-panels";
-import { createContext, type FormEvent, memo, type ReactNode, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { createContext, type FormEvent, memo, type ReactNode, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useMarkSeen } from "@/lib/seen";
 import type { HostLink } from "./api";
@@ -56,9 +56,17 @@ import {
   type Provider,
   type Thread,
   type WorkflowStep,
+  GitStatusSchema,
+  ProjectSchema,
+  ProviderSchema,
   ThreadMode,
+  ThreadSchema,
   ThreadStatus,
 } from "./gen/inaba/v1/host_pb";
+import { equals } from "@bufbuild/protobuf";
+import { cached, keep } from "@/lib/host-cache";
+import { loadDraft, saveDraft } from "@/lib/drafts";
+import { needsRead, withEvents } from "@/lib/thread-meta";
 import { TerminalView } from "./Terminal";
 import { ChangesPanel, LineCounts, type TurnScope } from "@/components/changes-panel";
 
@@ -131,6 +139,10 @@ export function ThreadView({
   const [driver, setDriver] = useState<string>();
   // Not before the server has answered for this thread: a duplicated tab learns its own id only then.
   const driving = seat !== undefined && driver === CLIENT;
+  // Not yet known to drive or watch: the server has not answered, or the seat is free and about to be taken by itself.
+  // The composer takes typing meanwhile; what is sent waits for the answer.
+  // The seat is read before the driver state follows it, so the server naming this browser counts as pending too.
+  const pending = !driving && (seat === undefined || seat.driver === CLIENT || (!seat.driver && !driver && !stealth && clients?.length === 0));
   // The server settles who drives (so of two asking at once, the first wins), and the layout carries its
   // answer to everyone at once. When this browser last learned who drives, so an answer the server gave
   // before that does not undo it.
@@ -174,16 +186,28 @@ export function ThreadView({
   };
   const toggleDock = (dock: Dock) => guard(docks[dock].open ? docks[dock].tabs : [], () => updateDock(dock, (d) => ({ ...d, open: !d.open })));
   // Opens a surface in a dock: another terminal, file tree or page each time, and the one diff moved there.
-  const openSurface = (dock: Dock, surface: Surface) => setDocks((all) => placeTab(all, dock, newTabId(surface, allTabs(all))));
+  // What this browser opens, it shows: on a phone, which keeps its docks hidden, too.
+  const reveal = (dock: Dock) => setPeek((p) => (p[dock] ? p : { ...p, [dock]: true }));
+  const openSurface = (dock: Dock, surface: Surface) => {
+    reveal(dock);
+    setDocks((all) => placeTab(all, dock, newTabId(surface, allTabs(all))));
+  };
   // Takes a tab from whichever dock holds it into this one, keeping what it shows.
-  const moveTo = (dock: Dock, tab: TabId) => guard(dockOf(docks, tab) === dock ? [] : [tab], () => setDocks((all) => placeTab(all, dock, tab)));
+  const moveTo = (dock: Dock, tab: TabId) =>
+    guard(dockOf(docks, tab) === dock ? [] : [tab], () => {
+      reveal(dock);
+      setDocks((all) => placeTab(all, dock, tab));
+    });
   // A turn's changes show in the changes panel beside the conversation, opening it if the driver may.
   const showTurn = (turn: TurnScope) => {
     setDiffScope(turn.after);
     const tab = allTabs(now.current.docks).find((x) => surfaceOf(x) === "changes");
     if (tab) {
       const dock = dockOf(now.current.docks, tab);
-      if (dock && now$.current.driving) updateDock(dock, (d) => ({ ...d, open: true, active: tab }));
+      if (dock && now$.current.driving) {
+        reveal(dock);
+        updateDock(dock, (d) => ({ ...d, open: true, active: tab }));
+      }
     } else if (now$.current.driving) openSurface("right", "changes");
   };
   // The tab being dragged, so closed docks show where it can be dropped.
@@ -239,21 +263,24 @@ export function ThreadView({
     if (surfaceOf(tab) === "shell") link.shell.closeShell({ threadId, shellId: tab }).catch(() => {});
   });
   const isMobile = useIsMobile();
-  // A phone watching has no room to follow every dock the driver opens: it opens one itself, when the
-  // driver has it open, and it closes when the driver closes it.
-  const ownDocks = isMobile && !driving;
+  // A phone has no room for every open dock: it starts with them hidden and shows one when asked,
+  // opening it for everyone only when it drives and the dock is closed.
+  const ownDocks = isMobile;
   const [peek, setPeek] = useState<Record<Dock, boolean>>({ right: false, bottom: false });
   const shown = (dock: Dock) => docks[dock].open && (!ownDocks || peek[dock]);
+  const flipDock = (dock: Dock) => {
+    if (!ownDocks) return toggleDock(dock);
+    if (!docks[dock].open) toggleDock(dock);
+    setPeek((p) => ({ ...p, [dock]: !docks[dock].open || !p[dock] }));
+  };
   useEffect(() => {
     setPeek((p) => (DOCKS.some((d) => p[d] && !docks[d].open) ? { right: p.right && docks.right.open, bottom: p.bottom && docks.bottom.open } : p));
   }, [docks.right.open, docks.bottom.open]);
   // The sizes the user dragged the docks to, kept across threads and reloads.
   const rightLayout = useDefaultLayout({ id: "inaba-thread-side", panelIds: shown("right") ? ["main", "side"] : ["main"] });
   const bottomLayout = useDefaultLayout({ id: "inaba-thread-bottom", panelIds: shown("bottom") ? ["top", "bottom"] : ["top"] });
-  const [thread, setThread] = useState<Thread>();
-  const [provider, setProvider] = useState<Provider>();
   // Every provider the host offers, for moving the thread to another between turns.
-  const [providers, setProviders] = useState<Provider[]>([]);
+  const [providers, setProviders] = useState<Provider[]>(() => cached(link.hostId, "providers", ProviderSchema) ?? []);
   const [confirming, setConfirming] = useState(false);
   // Set while the thread moves between its chat and its terminal, which can take a while to start.
   const [switching, setSwitching] = useState(false);
@@ -266,44 +293,66 @@ export function ThreadView({
   const [exited, setExited] = useState(false);
   const direct = link.direct;
 
-  // Why the thread could not be read, while none is shown yet.
+  // Why the thread could not be read, and how many reads in a row failed: one shown from the sidebar's copy is
+  // read again until it is, as without that read it never takes the seat and held messages never go.
   const [loadError, setLoadError] = useState<string>();
-  const refresh = useCallback(() => link.threads.getThread({ threadId }).then(setThread, (e) => (showError(e), setLoadError(errorText(e)))), [link, threadId]);
+  const [failures, setFailures] = useState(0);
+  const { thread, fresh, take: setThread, refresh, onEvents } = useThread(link, threadId, (e) => {
+    // One toast, not one per retry.
+    if (!failures) showError(e);
+    setLoadError(errorText(e));
+    setFailures((n) => n + 1);
+  });
   useEffect(() => {
     setLoadError(undefined);
     void refresh();
   }, [refresh]);
+  useEffect(() => {
+    if (!failures || fresh) return;
+    const timer = setTimeout(() => void refresh(), Math.min(1500 * 2 ** (failures - 1), 30_000));
+    return () => clearTimeout(timer);
+  }, [failures, fresh, refresh]);
+  const retry = () => (setLoadError(undefined), setFailures(0), void refresh());
   // Opening the thread marks it read; the conversation marks newer events as they arrive.
   useMarkSeen(link.hostId, threadId, thread?.lastSeq);
-  // The thread's project, for the header's path and the file tree's first step.
+  // The thread's project, for the header's path and the file tree's first step: the sidebar's, read only when it has none.
   const projectId = thread?.projectId;
-  const [project, setProject] = useState<Project>();
+  const listed = projectId ? cached(link.hostId, "projects", ProjectSchema)?.find((p) => p.id === projectId) : undefined;
+  const [fetched, setFetched] = useState<Project>();
   useEffect(() => {
-    if (projectId) link.projects.listProjects({}).then((r) => setProject(r.projects.find((p) => p.id === projectId)), () => setProject(undefined));
-  }, [link, projectId]);
+    if (projectId && !listed) link.projects.listProjects({}).then((r) => setFetched(r.projects.find((p) => p.id === projectId)), () => setFetched(undefined));
+  }, [link, projectId, Boolean(listed)]); // eslint-disable-line react-hooks/exhaustive-deps
+  const project = listed ?? fetched;
   const projectName = project?.name;
-  const providerId = thread?.provider;
+  // Read beside the thread, not after it: the provider is found in the list by id once both are in.
   useEffect(() => {
-    if (providerId)
-      link.threads.listProviders({}).then((r) => {
-        setProviders(r.providers);
-        setProvider(r.providers.find((p) => p.id === providerId));
-      }, showError);
-  }, [link, providerId]);
+    link.threads.listProviders({}).then((r) => {
+      keep(link.hostId, "providers", ProviderSchema, r.providers);
+      setProviders(r.providers);
+    }, showError);
+  }, [link]);
+  const provider = providers.find((p) => p.id === thread?.provider);
 
   // What changed in the folder is worth another look whenever the thread comes to rest.
   const status = thread?.status;
   // A call made while the direct connection is still forming can fail once; one more try covers it.
+  // A status like the one shown is kept as it is, so the changes panel does not read the whole diff again.
   const loadGit = useCallback(
     (known?: GitStatus) => {
-      if (known) return setGit(known);
+      const set = (next?: GitStatus) => setGit((was) => (was && next && equals(GitStatusSchema, was, next) ? was : next));
+      if (known) return set(known);
       const get = () => link.git.getStatus({ threadId });
-      return get().then(setGit, () => new Promise((r) => setTimeout(r, 1500)).then(get).then(setGit, () => setGit(undefined)));
+      return get().then(set, () => new Promise((r) => setTimeout(r, 1500)).then(get).then(set, () => set(undefined)));
     },
     [link, threadId],
   );
+  // Read on opening, beside the thread; after that, each time its status changes.
+  useEffect(() => void loadGit(), [loadGit]);
+  const gitFor = useRef(status);
   useEffect(() => {
-    if (status !== undefined) void loadGit();
+    const was = gitFor.current;
+    gitFor.current = status;
+    if (was !== undefined && was !== status) void loadGit();
   }, [loadGit, status]);
 
   // The docks are the thread's, not this browser's: everyone in it sees the same screen.
@@ -312,7 +361,8 @@ export function ThreadView({
   const layout = thread?.layout;
   useEffect(() => {
     if (!layout || layout === synced.current) return;
-    synced.current = layout;
+    // The sidebar's copy shows the docks at once; who drives is taken from the host's own.
+    if (fresh) synced.current = layout;
     try {
       const { pages = {}, driver: d, ...saved } = JSON.parse(layout);
       // Only the known docks are taken, so a key this build does not know is ignored instead of dropping the layout.
@@ -320,6 +370,7 @@ export function ThreadView({
       // A layout saved when the changes panel could open twice keeps only its first; the driver sends the fix back.
       setDocks(oneChanges(shown));
       setPageOf(pages);
+      if (!fresh) return;
       if (d !== now$.current.driver) {
         learned.current = performance.now();
         // The seat came free: ask at once, so a lone watcher takes it without waiting for the next beat.
@@ -329,7 +380,7 @@ export function ThreadView({
     } catch {
       // A layout this version cannot read leaves the screen as it is.
     }
-  }, [layout]);
+  }, [layout, fresh]);
   // Only the driver changes the screen everyone sees; a watcher follows it.
   const sendLayout = (d: string | undefined) => {
     const next = JSON.stringify({ ...docks, pages: pageOf, driver: d });
@@ -338,7 +389,8 @@ export function ThreadView({
   };
   useEffect(() => {
     const next = JSON.stringify({ ...docks, pages: pageOf, driver });
-    if (next === synced.current || !thread || !driving) return;
+    // Not from what the sidebar last saw either: that layout may be old, or left out, and would undo everyone's.
+    if (next === synced.current || !fresh || !driving) return;
     // Before the thread's own layout arrives, the empty one in hand is not a change to send.
     if (!synced.current && !driver && DOCKS.every((d) => !docks[d].open) && allTabs(docks).length === 0) return;
     const timer = setTimeout(() => {
@@ -346,14 +398,15 @@ export function ThreadView({
       link.threads.setLayout({ threadId, layout: next }).catch(() => {});
     }, 200);
     return () => clearTimeout(timer);
-  }, [docks, pageOf, driver, driving, link, threadId, thread]);
+  }, [docks, pageOf, driver, driving, link, threadId, fresh]);
   // What the server says goes, unless this browser has heard newer since asking. A driver who left the
   // thread, closed the page or went quiet long enough for presence to forget them (half a minute) holds nothing.
   useEffect(() => {
     if (seat && seat.sentAt >= learned.current) setDriver(seat.driver || undefined);
   }, [seat]);
   // A free seat goes by itself only to a browser alone on the thread; with others watching, the first to ask gets it.
-  const loaded = Boolean(thread);
+  // Only once the host has said who drove last, so its layout does not undo the seat just taken.
+  const loaded = fresh;
   useEffect(() => {
     if (!stealth && loaded && seat && clients && seat.sentAt >= learned.current && !seat.driver && clients.length === 0) void grab("");
   }, [loaded, seat, clients, stealth]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -375,7 +428,7 @@ export function ThreadView({
     return loadError ? (
       <div className="m-auto grid justify-items-center gap-2 p-4 text-center">
         <p className="text-destructive text-sm">{loadError}</p>
-        <Button size="sm" variant="outline" onClick={() => (setLoadError(undefined), void refresh())}>
+        <Button size="sm" variant="outline" onClick={retry}>
           {t("common.retry")}
         </Button>
       </div>
@@ -531,7 +584,15 @@ export function ThreadView({
                 title={t("git.changes")}
                 aria-label={t("git.changes")}
                 disabled={!driving}
-                onClick={() => (changesTab ? closeTab(changesTab) : openSurface("right", "changes"))}
+                onClick={() => {
+                  const dock = changesTab && dockOf(docks, changesTab);
+                  // On a phone a hidden panel's tab is shown first, not closed unseen.
+                  if (dock && !shown(dock)) {
+                    reveal(dock);
+                    updateDock(dock, (d) => ({ ...d, open: true, active: changesTab }));
+                  } else if (changesTab) closeTab(changesTab);
+                  else openSurface("right", "changes");
+                }}
               >
                 <GitBranchIcon data-icon={isMobile ? undefined : "inline-start"} />
                 {/* On a phone only the icon, with a dot when there are changes; the panel it opens has the rest. */}
@@ -590,8 +651,8 @@ export function ThreadView({
                       <DropdownMenuCheckboxItem
                         key={dock}
                         checked={shown(dock)}
-                        disabled={ownDocks ? !docks[dock].open : !driving}
-                        onCheckedChange={() => (ownDocks ? setPeek((p) => ({ ...p, [dock]: !p[dock] })) : toggleDock(dock))}
+                        disabled={!driving && !docks[dock].open}
+                        onCheckedChange={() => flipDock(dock)}
                       >
                         {dock === "bottom" ? <PanelBottomIcon /> : <PanelRightIcon />}
                         {t(`dock.${dock}`)}
@@ -641,13 +702,22 @@ export function ThreadView({
             </DropdownMenu>
           </div>
         </header>
+        {/* The sidebar's copy is shown, but the host keeps failing to say more. */}
+        {!fresh && failures > 1 && loadError && (
+          <div className="bg-destructive/10 flex items-center gap-2 border-b px-3 py-1.5 text-sm" role="alert">
+            <p className="text-destructive min-w-0 flex-1 truncate">{loadError}</p>
+            <Button size="sm" variant="outline" onClick={retry}>
+              {t("common.retry")}
+            </Button>
+          </div>
+        )}
         {terminal ? (
           <TerminalView key={terminalRun} link={link} threadId={threadId} driving={driving} onExit={() => setExited(true)} />
         ) : (
           // A wrapper that is always there, so opening the side chat never remounts the conversation.
           <div className="flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col">
-              <Chat link={link} thread={thread} busy={busy} refresh={refresh} onStatus={loadGit} onOpen={onOpen} mentions={modules.has("files")} provider={provider} providers={providers} locked={!driving} onTurns={setTurns} onTurnChanges={showTurn} onSide={(id, aside) => setSide({ id, aside })} />
+              <Chat link={link} thread={thread} busy={busy} refresh={refresh} onStatus={loadGit} onOpen={onOpen} mentions={modules.has("files")} provider={provider} providers={providers} locked={!driving} pending={pending} onEvents={onEvents} onTurns={setTurns} onTurnChanges={showTurn} onSide={(id, aside) => setSide({ id, aside })} />
             </div>
             {sideChat && !isMobile && <div className="flex w-[min(32rem,45%)] shrink-0 flex-col border-l">{sideChat}</div>}
           </div>
@@ -739,6 +809,26 @@ export function ThreadView({
 
 // The docks beside the conversation; each has its place in the layout, and a tab can move between any of them.
 const DOCKS = ["right", "bottom"] as const;
+// Events read at a time going back; a thread opens at its last OPEN, back to where that turn began, so the newest turn shows sooner.
+const PAGE = 1000;
+const OPEN = 300;
+
+/**
+ * Keys for the conversation's blocks that stay with them as older turns are read in above, so
+ * one does not take over another's state (a step log left open). One without a mark of its own
+ * is keyed after the last block before it that has one.
+ */
+function keyed(list: Block[]): [string, Block][] {
+  let mark = "top";
+  let n = 0;
+  const used = new Set<string>();
+  return list.map((b) => {
+    const own = "work" in b ? `s${b.turn.seq}` : "seq" in b ? `s${b.seq}` : b.type === "tool" ? `t${b.id}` : b.type === "permission" ? `p${b.requestId}` : undefined;
+    // A provider reusing an id is no reason to break the list.
+    if (own && !used.has(own)) return used.add(own), (mark = own), (n = 0), [own, b];
+    return [`${mark}+${++n}`, b];
+  });
+}
 type Dock = (typeof DOCKS)[number];
 const dockMoveLabel = { right: "dock.toRight", bottom: "dock.toBottom" } as const;
 // Where a closed dock offers to take a tab dragged over the conversation.
@@ -991,7 +1081,8 @@ const presenceRpc = createClient(PresenceService, createConnectTransport({ baseU
  * presence sees the pane like any browser on the fork: whoever else opens the fork finds it there and watches.
  */
 function useSideSeat(hostId: string, threadId: string, stealth: boolean) {
-  const [driving, setDriving] = useState(false);
+  // Undefined until presence first answers.
+  const [driving, setDriving] = useState<boolean>();
   useEffect(() => {
     let live = true;
     // Read at each beat: a duplicated tab may take a new CLIENT just after start.
@@ -1018,6 +1109,65 @@ function useSideSeat(hostId: string, threadId: string, stealth: boolean) {
   return driving;
 }
 
+/**
+ * A thread as the host last said, first as the sidebar last saw it, kept current by the events its conversation
+ * streams: most say all they change, and the rest ask for one read a second later rather than one each.
+ */
+function useThread(link: HostLink, threadId: string, failed: (e: unknown) => void) {
+  const [thread, setThread] = useState(() => cached(link.hostId, "threads", ThreadSchema)?.find((t) => t.id === threadId));
+  // Whether the host has been read, not only the sidebar's copy.
+  const [fresh, setFresh] = useState(false);
+  const now = useRef(thread);
+  now.current = thread;
+  const failed$ = useRef(failed);
+  failed$.current = failed;
+  // The newest read, so an older one that lands late is dropped, and the events applied since, put back on a read
+  // that left the host before they happened.
+  const read = useRef(0n);
+  const since = useRef<Event[]>([]);
+  const take = useCallback((got: Thread) => {
+    if (got.lastSeq < read.current) return;
+    read.current = got.lastSeq;
+    since.current = since.current.filter((e) => e.seq > got.lastSeq);
+    setThread(withEvents(got, since.current));
+    setFresh(true);
+  }, []);
+  const reading = useRef(0);
+  const refresh = useCallback(() => {
+    reading.current++;
+    return link.threads
+      .getThread({ threadId })
+      .then(take, (e) => failed$.current(e))
+      .finally(() => reading.current--);
+  }, [link, threadId, take]);
+  // The newest event that asked for a read, and the timer that makes it: one read at a time, a second after.
+  const wanted = useRef(0n);
+  const soon = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(soon.current), []);
+  const onEvents = useCallback(
+    (events: Event[]) => {
+      // What the thread in hand already counts is history replayed, not news.
+      const after = now.current?.lastSeq ?? 0n;
+      const fresh = events.filter((e) => e.seq > after && e.seq > read.current);
+      if (!fresh.length) return;
+      since.current.push(...fresh);
+      setThread((t) => t && withEvents(t, fresh));
+      if (!needsRead(fresh)) return;
+      wanted.current = fresh.at(-1)!.seq;
+      const go = () => {
+        soon.current = undefined;
+        if (wanted.current <= read.current) return;
+        // A read still on its way may have left before the event; look again once it is back.
+        if (reading.current) soon.current = setTimeout(go, 1_000);
+        else void refresh();
+      };
+      soon.current ??= setTimeout(go, 1_000);
+    },
+    [refresh],
+  );
+  return { thread, fresh, take, refresh, onEvents };
+}
+
 /** A side chat (a fork of the thread made by /side or /btw), shown beside the conversation it came from. */
 function SideChat({
   link,
@@ -1042,10 +1192,9 @@ function SideChat({
 }) {
   const { t } = useI18n();
   // The fork's own seat, not the parent's: a watcher there cannot act through this pane.
-  const locked = !useSideSeat(link.hostId, threadId, stealth);
-  const [thread, setThread] = useState<Thread>();
+  const seated = useSideSeat(link.hostId, threadId, stealth);
   // A side chat deleted elsewhere closes instead of showing an error forever.
-  const refresh = useCallback(() => link.threads.getThread({ threadId }).then(setThread, (e) => (showError(e), onClose())), [link, threadId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { thread, refresh, onEvents } = useThread(link, threadId, (e) => (showError(e), onClose()));
   useEffect(() => {
     void refresh();
   }, [refresh]);
@@ -1076,7 +1225,9 @@ function SideChat({
           mentions={mentions}
           provider={providers.find((p) => p.id === thread.provider)}
           providers={providers}
-          locked={locked}
+          locked={!seated}
+          pending={seated === undefined}
+          onEvents={onEvents}
           onSide={onSide}
         />
       ) : (
@@ -1097,6 +1248,8 @@ function Chat({
   provider,
   providers,
   locked,
+  pending = false,
+  onEvents,
   onTurns,
   onTurnChanges,
   onSide,
@@ -1118,6 +1271,10 @@ function Chat({
   onSide: (threadId: string, aside: boolean) => void;
   /** Watching someone else drive: the conversation is read, and only the driver answers, sends or rewinds. */
   locked: boolean;
+  /** Not yet known whether this browser drives: the composer takes typing, and what is sent waits to be known. */
+  pending?: boolean;
+  /** Every batch of events as it is applied, for the thread to take what they say about it. */
+  onEvents?: (events: Event[]) => void;
 }) {
   const { t } = useI18n();
   const threadId = thread.id;
@@ -1126,19 +1283,29 @@ function Chat({
   const [rewinding, setRewinding] = useState<Extract<Item, { type: "user" }>>();
   // What a rewind hands back to the composer.
   const [draft, setDraft] = useState<Draft>();
-  const [log, dispatch] = useReducer(applyAll, { items: [], lastSeq: 0n });
+  // New events fold onto the log; older ones, read back on scrolling up, rebuild it from all of them.
+  const [log, dispatch] = useReducer((log: Log, a: Event[] | { all: Event[] }) => (Array.isArray(a) ? applyAll(log, a) : applyAll({ items: [], lastSeq: 0n }, a.all)), { items: [], lastSeq: 0n });
+  // Every event folded so far, oldest first, to fold again with older ones in front.
+  const folded = useRef<Event[]>([]);
+  // The first event read: a thread opens at its last turns, and 1 means nothing is left above.
+  const [first, setFirst] = useState<bigint>();
+  const firstSeq = useRef<bigint>(undefined);
   // Messages on their way to the host, shown at once rather than when the host has them: one
   // with a screenshot can take a while over the relay.
   const [sending, setSending] = useState<{ key: number; text: string; attachments: Attachment[] }[]>([]);
   const sendKey = useRef(0);
+  // Messages sent before the seat is known, waiting for it.
+  const [held, setHeld] = useState<{ key: number; text: string; attachments: Attachment[]; interrupt: boolean }[]>([]);
   // The turns that changed files, for the changes panel to offer; only a change in them is news.
   const turnKey = log.items.filter((it) => it.type === "changes").map((it) => (it as TurnScope).after).join();
   useEffect(() => {
     onTurns?.(log.items.filter((it): it is Extract<Item, { type: "changes" }> => it.type === "changes"));
   }, [turnKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const lastSeq = useRef(0n);
-  // How far the log went when the thread was opened: the replay up to there is drawn at once, not as it streams in.
+  // How far the log went when the thread was opened: the replay up to there is drawn a few times a second, not per event.
+  // A thread first shown as the sidebar last saw it learns how far it really goes when it is read.
   const opened = useRef(thread.lastSeq);
+  if (thread.lastSeq > opened.current && lastSeq.current < thread.lastSeq) opened.current = thread.lastSeq;
   // How much of that replay has arrived, for the loading screen.
   const [received, setReceived] = useState(0n);
   useMarkSeen(link.hostId, threadId, log.lastSeq);
@@ -1147,23 +1314,13 @@ function Chat({
     [link, threadId],
   );
   const bottom = useRef<HTMLDivElement>(null);
-  const direct = link.direct;
+  const events$ = useRef(onEvents);
+  events$.current = onEvents;
 
-  // Follow the event log, resuming after the last event seen whenever the stream
-  // breaks or the link moves between the relay and the direct connection.
+  // Follow the event log, resuming after the last event seen whenever the stream breaks. The link moving
+  // to the direct connection is no reason to start again: the stream keeps going where it began.
   useEffect(() => {
     const abort = new AbortController();
-    // A replay brings hundreds of these at once: one read of the thread at a time, and one more after it for what came meanwhile.
-    let reading = false;
-    let again = false;
-    const reread = () => {
-      if (reading) return void (again = true);
-      reading = true;
-      void refresh().finally(() => {
-        reading = false;
-        if (again) (again = false), reread();
-      });
-    };
     // Events are applied a frame's worth at a time: one render each made a replay freeze the tab.
     // A timer rather than a frame callback, so a hidden tab still applies them and marks the thread read.
     let buffer: Event[] = [];
@@ -1173,17 +1330,21 @@ function Chat({
       timer = undefined;
       const events = buffer;
       buffer = [];
+      folded.current.push(...events);
       dispatch(events);
-      if (events.some((e) => threadEvents.has(e.payload.case ?? ""))) reread();
+      events$.current?.(events);
     };
     void (async () => {
       while (!abort.signal.aborted) {
         try {
-          for await (const event of link.threads.subscribe({ threadId, afterSeq: lastSeq.current }, { signal: abort.signal })) {
+          for await (const event of link.threads.subscribe({ threadId, afterSeq: lastSeq.current, tail: OPEN }, { signal: abort.signal })) {
+            if (firstSeq.current === undefined) setFirst((firstSeq.current = event.seq));
             lastSeq.current = event.seq;
             buffer.push(event);
             if (event.seq < opened.current) {
               progress ??= setTimeout(() => ((progress = undefined), setReceived(lastSeq.current)), 100);
+              // Drawn as it comes over a slow link, a few times a second, so the conversation is there before all of it is.
+              timer ??= setTimeout(flush, 250);
               continue;
             }
             if (event.seq === opened.current) {
@@ -1204,17 +1365,78 @@ function Chat({
       // lastSeq is already past these, so the next subscription will not send them again.
       if (buffer.length) flush();
     };
-  }, [link, threadId, direct, refresh]);
+  }, [link, threadId]);
+
+  // Older turns, read in when the reader nears the top, keeping what they were looking at in place.
+  // One read at a time; after one fails, none for a while, so scrolling does not repeat the error.
+  const reading = useRef(false);
+  const anchor = useRef<{ height: number; top: number }>(undefined);
+  const loadOlder = () => {
+    // Found text is counted from the top: what comes in above would move it.
+    // Not while the last turns are still arriving: that read is the one the reader waits for.
+    if (reading.current || find !== undefined || firstSeq.current === undefined || firstSeq.current <= 1n || lastSeq.current < opened.current) return;
+    reading.current = true;
+    link.threads.listEvents({ threadId, beforeSeq: firstSeq.current, limit: PAGE }).then(
+      ({ events }) => {
+        reading.current = false;
+        const el = scroller.current;
+        if (el && events.length) anchor.current = { height: el.scrollHeight, top: el.scrollTop };
+        folded.current = [...events, ...folded.current];
+        setFirst((firstSeq.current = events[0]?.seq ?? 1n));
+        if (events.length) dispatch({ all: folded.current });
+      },
+      (e) => {
+        showError(e);
+        setTimeout(() => (reading.current = false), 5_000);
+      },
+    );
+  };
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const was = anchor.current;
+    anchor.current = undefined;
+    if (was) el.scrollTop = was.top + el.scrollHeight - was.height;
+    // Too little to scroll yet: read further back until there is.
+    if (log.lastSeq > 0n && el.scrollHeight <= el.clientHeight) loadOlder();
+  }, [log, first]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Follow new events only while the user is at the bottom; scrolled up, they are reading, so offer a jump instead.
   const near = useRef(true);
   const [behind, setBehind] = useState(false);
+  // Older turns read in above are not news.
+  const followed = useRef(0n);
   useEffect(() => {
+    const grew = log.lastSeq !== followed.current;
+    followed.current = log.lastSeq;
     if (near.current) bottom.current?.scrollIntoView({ block: "end" });
-    else setBehind(true);
-  }, [log, sending]);
+    else if (grew) setBehind(true);
+  }, [log, sending, held]);
 
   // A message shows as sending until the host has it; if it never gets there, it goes back to the composer.
+  // One sent before the seat is known waits for it: it goes once this browser drives, and back to the composer if it watches.
+  useEffect(() => {
+    if (pending || !held.length) return;
+    setHeld([]);
+    if (!locked) for (const m of held) send(m.text, m.attachments, m.interrupt);
+    else setDraft({ text: held.map((m) => m.text).join("\n\n"), images: held.flatMap((m) => m.attachments.filter((a) => a.data.length > 0)), restore: true });
+  }, [pending, locked, held]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Leaving before the seat is known keeps what waited for it as the thread's draft, ahead of what the composer
+  // saves as it goes, which is why it waits a moment. shortcut: held images are lost, as drafts keep only text.
+  const held$ = useRef(held);
+  held$.current = held;
+  useEffect(
+    () => () => {
+      const text = held$.current.map((m) => m.text).join("\n\n");
+      if (text) queueMicrotask(() => saveDraft(threadId, [text, loadDraft(threadId)].filter(Boolean).join("\n\n")));
+    },
+    [threadId],
+  );
+  const submit = (text: string, attachments: Attachment[], interrupt: boolean) => {
+    if (!pending) return send(text, attachments, interrupt);
+    near.current = true;
+    setHeld((now) => [...now, { key: ++sendKey.current, text, attachments, interrupt }]);
+  };
   const send = (text: string, attachments: Attachment[], interrupt: boolean) => {
     const key = ++sendKey.current;
     near.current = true;
@@ -1551,10 +1773,11 @@ function Chat({
         ref={scroller}
         data-chat-scroll
         tabIndex={-1}
-        className="min-h-0 flex-1 overflow-y-auto outline-none"
+        className="min-h-0 flex-1 overflow-y-auto outline-none [overflow-anchor:none]"
         onScroll={(e) => {
           const el = e.currentTarget;
           near.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+          if (el.scrollTop < 600) loadOlder();
           if (near.current) setBehind(false);
           setQuoting(undefined);
         }}
@@ -1562,21 +1785,27 @@ function Chat({
         <WorkflowReader value={readWorkflowAgent}>
           <div ref={content} className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-6">
             {log.items.length === 0 &&
-              (log.lastSeq < thread.lastSeq ? (
+              (log.lastSeq < thread.lastSeq || (first ?? 1n) > 1n ? (
                 <div className="text-muted-foreground mx-auto my-16 flex flex-col items-center gap-2 text-sm" role="status">
                   <Spinner className="size-6" />
                   {t("chat.loading")}
-                  {received > 0n && <span className="text-xs tabular-nums">{Number((received * 100n) / thread.lastSeq)}%</span>}
+                  {received > 0n && <span className="text-xs tabular-nums">{Number(((received - (first ?? 1n)) * 100n) / (thread.lastSeq - (first ?? 1n) + 1n))}%</span>}
                 </div>
               ) : (
                 <p className="text-muted-foreground py-16 text-center text-sm">{t("chat.empty")}</p>
               ))}
-            {blocks(log.items).map((block, i) =>
+            {(first ?? 1n) > 1n && log.items.length > 0 && (
+              <div className="text-muted-foreground flex justify-center py-2" role="status">
+                <Spinner className="size-4" />
+                <span className="sr-only">{t("chat.loading")}</span>
+              </div>
+            )}
+            {keyed(blocks(log.items)).map(([key, block]) =>
               "work" in block ? (
-                <WorkLog key={i} turn={block.turn} work={block.work} />
+                <WorkLog key={key} turn={block.turn} work={block.work} replaying={log.lastSeq < opened.current} />
               ) : (
                 <ItemView
-                  key={i}
+                  key={key}
                   item={block}
                   names={names}
                   respond={locked ? undefined : respond}
@@ -1587,7 +1816,7 @@ function Chat({
                 />
               ),
             )}
-            {sending.map((m) => (
+            {[...sending, ...held].map((m) => (
               <SendingMessage key={m.key} text={m.text} attachments={m.attachments} />
             ))}
             <div ref={bottom} />
@@ -1641,8 +1870,8 @@ function Chat({
         </DialogContent>
       </Dialog>
       <div className="mx-auto grid w-full max-w-3xl grid-cols-1 gap-2 px-4 pb-4">
-        {/* What is queued, and the composer, are the driver's to change. */}
-        <fieldset ref={composer} disabled={locked} className="contents">
+        {/* What is queued, and the composer, are the driver's to change; the composer takes typing before that is known. */}
+        <fieldset disabled={locked} className="contents">
         <QueueList
           queue={thread.queue}
           paused={thread.queuePaused}
@@ -1652,12 +1881,14 @@ function Chat({
           onRemove={(queuedId) => run(link.threads.cancelQueued({ threadId, queuedId }))}
           onResume={() => run(link.threads.resumeQueue({ threadId }))}
         />
+        </fieldset>
+        <fieldset ref={composer} disabled={locked && !pending} className="contents">
         <Composer
           link={link}
           thread={thread}
           busy={busy}
           draft={draft}
-          onSend={send}
+          onSend={submit}
           onStop={(force) => run(link.threads.interrupt({ threadId, force }))}
           onSetOption={(optionId, value) => run(link.threads.setOption({ threadId, optionId, value }))}
           mentions={mentions}
@@ -1677,23 +1908,6 @@ function Chat({
 // shortcut: kept for the page's life; drop entries with their thread if memory ever matters.
 const attachments = new Map<string, Promise<Attachment>>();
 
-// Events that change the thread itself, not only its transcript.
-const threadEvents = new Set([
-  "layoutChanged",
-  "threadTitle",
-  "userMessage",
-  "toolCall",
-  "optionsChanged",
-  "turnStarted",
-  "turnEnded",
-  "modeChanged",
-  "permissionRequest",
-  "permissionResolved",
-  "commandsChanged",
-  "usageChanged",
-  "rewound",
-  "providerChanged",
-]);
 
 
 /** A span of time as people say it: 42s, 3m 5s, 1h 2m. */
@@ -1734,17 +1948,19 @@ function AgentIcon({ agent, className }: { agent: WorkflowAgentItem; className: 
 
 // blocks() makes a new work list each render; the same steps in it need no new render.
 const WorkLog = memo(
-  function WorkLog({ turn, work }: { turn: Turn; work: Item[] }) {
+  function WorkLog({ turn, work, replaying }: { turn: Turn; work: Item[]; replaying: boolean }) {
     const { t } = useI18n();
-    const running = turn.endedAt === undefined;
+    // A turn without its end while the replay is still coming is history not read yet, not work going on.
+    const running = turn.endedAt === undefined && !replaying;
+    if (!running && turn.endedAt === undefined && !work.length) return null;
     const duration = formatDuration((turn.endedAt ?? Date.now()) - turn.startedAt);
     return (
       // Open while the agent works, so its steps show as they happen; folded once it has answered.
       <details className="group/work border-border/60 border-b pb-2" open={running}>
         <summary className="text-muted-foreground flex cursor-pointer list-none items-center gap-1.5 text-sm tabular-nums [&::-webkit-details-marker]:hidden">
           {running && <Spinner />}
-          {running ? t("chat.working") : t("chat.workedFor", { duration })}
-          {work.length > 0 && <span className="text-xs">· {t("chat.steps", { count: String(work.length) })}</span>}
+          {running ? t("chat.working") : turn.endedAt !== undefined && t("chat.workedFor", { duration })}
+          {work.length > 0 && <span className="text-xs">{turn.endedAt !== undefined || running ? "· " : ""}{t("chat.steps", { count: String(work.length) })}</span>}
           <ChevronRightIcon className="size-3.5 transition-transform group-open/work:rotate-90" />
           <Clock at={turn.startedAt} className="ml-auto" />
         </summary>
@@ -1756,7 +1972,7 @@ const WorkLog = memo(
       </details>
     );
   },
-  (a, b) => a.turn === b.turn && a.work.length === b.work.length && a.work.every((it, i) => it === b.work[i]),
+  (a, b) => a.turn === b.turn && a.replaying === b.replaying && a.work.length === b.work.length && a.work.every((it, i) => it === b.work[i]),
 );
 
 /** A time of day, with the full date on hover. */

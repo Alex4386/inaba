@@ -22,7 +22,8 @@ export type Item =
   | { type: "changes"; before: string; after: string; files: number; additions: number; deletions: number }
   // Marks where a turn began and, once it is over, when it ended. An own turn is work the agent
   // did after its turn had ended, such as reporting a background task: the log has no turn for it.
-  | { type: "turn"; startedAt: number; endedAt?: number; own?: boolean };
+  // seq is the event that began it.
+  | { type: "turn"; seq: bigint; startedAt: number; endedAt?: number; own?: boolean };
 
 export const millis = (event: Event) => (event.time ? Number(event.time.seconds) * 1000 + event.time.nanos / 1e6 : Date.now());
 
@@ -32,19 +33,21 @@ export const millis = (event: Event) => (event.time ? Number(event.time.seconds)
  * shortcut: the own turn shows as done while the agent still works, as nothing says when it stops;
  * have the host mark these turns if the agent ever reports their end.
  */
-function continueTurn(items: Item[], at: number) {
+function continueTurn(items: Item[], at: number, seq: bigint) {
   const i = items.findLastIndex((it) => it.type === "turn");
   const turn = items[i] as Extract<Item, { type: "turn" }> | undefined;
   if (turn?.endedAt === undefined) return;
   if (turn.own) items[i] = { ...turn, endedAt: at };
-  else items.push({ type: "turn", startedAt: at, endedAt: at, own: true });
+  else items.push({ type: "turn", seq, startedAt: at, endedAt: at, own: true });
 }
 
-export type Log = { items: Item[]; lastSeq: bigint };
+// partial: the log begins after the thread's first event, as a long one opens at its last turns.
+export type Log = { items: Item[]; lastSeq: bigint; partial?: boolean };
 
 /** Folds one event into the transcript. Events at or before lastSeq were already applied. */
 export function apply(log: Log, event: Event): Log {
   if (event.seq <= log.lastSeq) return log;
+  const partial = log.lastSeq === 0n ? event.seq > 1n : log.partial;
   const items = [...log.items];
   const p = event.payload;
   switch (p.case) {
@@ -55,7 +58,9 @@ export function apply(log: Log, event: Event): Log {
     case "rewound": {
       // Everything from the message rewound to onward is no longer part of the conversation.
       const i = items.findIndex((it) => it.type === "user" && it.seq === p.value.toSeq);
+      // A message not read in yet is above all that is, so none of it stands.
       if (i >= 0) items.length = i;
+      else if (partial) items.length = 0;
       // One note for rewinds in a row, and none when no conversation is left above it.
       while (items.at(-1)?.type === "note" && (items.at(-1) as { key: MessageKey }).key === "chat.rewound") items.pop();
       if (items.some((it) => it.type === "user")) items.push({ type: "note", key: "chat.rewound" });
@@ -65,7 +70,7 @@ export function apply(log: Log, event: Event): Log {
       items.push({ type: "note", key: "chat.providerChanged", values: { from: p.value.from, to: p.value.provider } });
       break;
     case "textDelta": {
-      continueTurn(items, millis(event));
+      continueTurn(items, millis(event), event.seq);
       const type = p.value.kind === TextDelta_Kind.THOUGHT ? "thought" : "assistant";
       const last = items.at(-1);
       // Consecutive chunks of the same kind are one message.
@@ -74,8 +79,10 @@ export function apply(log: Log, event: Event): Log {
       break;
     }
     case "toolCall": {
+      // A late update to a tool whose call is above where the log begins: it shows once that is read in.
+      if (partial && !p.value.title && !items.some((it) => it.type === "tool" && it.id === p.value.id)) break;
       // Late updates to a tool from an ended turn stay with it; only a new tool continues.
-      if (!items.some((it) => it.type === "tool" && it.id === p.value.id)) continueTurn(items, millis(event));
+      if (!items.some((it) => it.type === "tool" && it.id === p.value.id)) continueTurn(items, millis(event), event.seq);
       const i = items.findIndex((it) => it.type === "tool" && it.id === p.value.id);
       const old = i >= 0 ? (items[i] as Extract<Item, { type: "tool" }>) : undefined;
       // Updates carry only what changed.
@@ -102,7 +109,7 @@ export function apply(log: Log, event: Event): Log {
       break;
     }
     case "turnStarted":
-      items.push({ type: "turn", startedAt: millis(event) });
+      items.push({ type: "turn", seq: event.seq, startedAt: millis(event) });
       break;
     case "turnEnded": {
       const i = items.findLastIndex((it) => it.type === "turn");
@@ -130,7 +137,7 @@ export function apply(log: Log, event: Event): Log {
       items.push({ type: "raw", method: p.value.method, json: p.value.params ? JSON.stringify(toJson(ValueSchema, p.value.params), null, 2) : "" });
       break;
   }
-  return { items, lastSeq: event.seq };
+  return { items, lastSeq: event.seq, partial };
 }
 
 /** Folds events that arrived together, for one render for the lot rather than one each. */

@@ -136,3 +136,18 @@ func TestStartSaysWhatIsMissing(t *testing.T) {
 		t.Fatal("started a program that does not exist")
 	}
 }
+
+func TestStreamSendsInPieces(t *testing.T) {
+	term := Exited()
+	term.buf = bytes.Repeat([]byte("x"), 2*maxSend+5)
+	var got []int
+	if err := term.Stream(context.Background(), func(data []byte, _, _ uint16) error {
+		got = append(got, len(data))
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(got) != fmt.Sprint([]int{maxSend, maxSend, 5}) {
+		t.Fatalf("sent pieces of %v", got)
+	}
+}

@@ -17,7 +17,8 @@ export const admin = createClient(AdminService, serverTransport);
 export const notifications = createClient(NotificationService, serverTransport);
 
 /** A service of any host, through the server's relay: the admin panel and host settings reach hosts other than the one in use. */
-export const onHost = <T extends DescService>(hostId: string, service: T) => createClient(service, createConnectTransport({ baseUrl: `${location.origin}/hosts/${hostId}` }));
+export const onHost = <T extends DescService>(hostId: string, service: T) =>
+  createClient(service, createConnectTransport({ baseUrl: `${location.origin}/hosts/${hostId}`, useBinaryFormat: true }));
 export const housekeepingOf = (hostId: string) => onHost(hostId, HousekeepingService);
 
 // Browsers cap a data channel message; the host uses the same limit.
@@ -42,12 +43,15 @@ function channelFetch(pc: RTCPeerConnection, path: string, init: RequestInit = {
     const body =
       init.body == null ? new Uint8Array() : typeof init.body === "string" ? encoder.encode(init.body) : new Uint8Array(init.body as ArrayBuffer);
     let head = `${init.method ?? "GET"} ${path} HTTP/1.0\r\nContent-Length: ${body.length}\r\n`;
-    new Headers(init.headers).forEach((value, name) => {
+    const requestHeaders = new Headers(init.headers);
+    // fetch asks for gzip by itself and decodes it; here it is up to us.
+    requestHeaders.set("Accept-Encoding", "gzip");
+    requestHeaders.forEach((value, name) => {
       head += `${name}: ${value}\r\n`;
     });
 
     let pending = new Uint8Array();
-    let stream: ReadableStreamDefaultController<Uint8Array> | undefined;
+    let stream: ReadableStreamDefaultController<BufferSource> | undefined;
     const fail = (error: unknown) => {
       if (stream) stream.error(error);
       else reject(error);
@@ -70,14 +74,21 @@ function channelFetch(pc: RTCPeerConnection, path: string, init: RequestInit = {
       const headers = new Headers();
       for (const line of lines) headers.append(line.slice(0, line.indexOf(":")), line.slice(line.indexOf(":") + 1).trim());
       const rest = pending.subarray(end + 4);
-      const bodyStream = new ReadableStream<Uint8Array>({
+      const bodyStream = new ReadableStream<BufferSource>({
         start(controller) {
           stream = controller;
           if (rest.length) controller.enqueue(rest);
         },
         cancel: () => dc.close(),
       });
-      resolve(new Response(bodyStream, { status: Number(statusLine.split(" ")[1]), headers }));
+      let decoded: ReadableStream<BufferSource> = bodyStream;
+      if (headers.get("content-encoding")?.toLowerCase() === "gzip") {
+        decoded = bodyStream.pipeThrough(new DecompressionStream("gzip"));
+        // What follows is the decoded body, which neither header describes any more.
+        headers.delete("content-encoding");
+        headers.delete("content-length");
+      }
+      resolve(new Response(decoded, { status: Number(statusLine.split(" ")[1]), headers }));
     };
     dc.onclose = () => {
       if (stream) {
@@ -124,6 +135,8 @@ export class HostLink {
     this.prefix = `/hosts/${hostId}`;
     const transport = createConnectTransport({
       baseUrl: location.origin + this.prefix,
+      // Protobuf rather than JSON: bytes go as they are, not base64, and field names are not repeated.
+      useBinaryFormat: true,
       fetch: (input, init) => {
         const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
         return this.direct && this.pc ? channelFetch(this.pc, url.pathname.slice(this.prefix.length) + url.search, init) : fetch(input, init);
@@ -181,7 +194,7 @@ export class HostLink {
         });
       }
       // The offer itself always travels through the relay.
-      const relay = createClient(PeerService, createConnectTransport({ baseUrl: location.origin + this.prefix }));
+      const relay = createClient(PeerService, createConnectTransport({ baseUrl: location.origin + this.prefix, useBinaryFormat: true }));
       const answer = await relay.connect({ offerSdp: pc.localDescription!.sdp, iceUrls: this.iceUrls });
       await pc.setRemoteDescription({ type: "answer", sdp: answer.answerSdp });
     } catch {

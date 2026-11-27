@@ -57,7 +57,8 @@ export function BrowserPanel({
 }) {
   const { t } = useI18n();
   const [pages, setPages] = useState<BrowserPage[]>();
-  const [pageId, setPageId] = useState("");
+  // A tab already tied to its page watches it while the browser is being opened, not after.
+  const [pageId, setPageId] = useState(bound ?? "");
   const shownPage = pages?.find((p) => p.id === pageId);
   const title = shownPage && (shownPage.title || shownPage.url);
   useEffect(() => {
@@ -114,10 +115,21 @@ export function BrowserPanel({
     [link, threadId],
   );
   useEffect(() => {
-    void refresh();
-    // The agent opens and closes pages on its own; look again now and then.
-    const timer = setInterval(() => void refresh(), 3000);
-    return () => clearInterval(timer);
+    // The agent opens and closes pages on its own; look again now and then, once the last look is answered.
+    // Out of sight it still looks, more slowly, so the dock's tabs keep following the agent's pages.
+    let timer: ReturnType<typeof setTimeout>;
+    let live = true;
+    const look = () => {
+      void refresh().finally(() => {
+        const seen = !document.hidden && !!screen.current?.getClientRects().length;
+        if (live) timer = setTimeout(look, seen ? 3000 : 15000);
+      });
+    };
+    look();
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
   }, [refresh]);
 
   // The space the page is shown in, settled: a resize mid-drag would restart the picture each step.
@@ -125,9 +137,17 @@ export function BrowserPanel({
     const el = screen.current;
     if (!el) return;
     let timer: ReturnType<typeof setTimeout>;
+    // The first size is taken at once, so the picture does not wait out a drag that never happened;
+    // so is hiding (no size), to stop the picture, and the size it comes back with.
+    let first = true;
     const observer = new ResizeObserver(() => {
       clearTimeout(timer);
-      timer = setTimeout(() => setArea({ width: Math.floor(el.clientWidth), height: Math.floor(el.clientHeight) }), 300);
+      const take = () => setArea({ width: Math.floor(el.clientWidth), height: Math.floor(el.clientHeight) });
+      if (!first && el.clientWidth) timer = setTimeout(take, 300);
+      else {
+        first = !el.clientWidth;
+        take();
+      }
     });
     observer.observe(el);
     return () => {
@@ -138,7 +158,8 @@ export function BrowserPanel({
 
   // Watch the chosen page at the window size wanted, coming back after the stream breaks.
   useEffect(() => {
-    if (!pageId || !area) return;
+    // Only while the panel is shown: behind another tab it has no size, and the picture is the costly part.
+    if (!pageId || !area?.width) return;
     const size = fit ? area : desktop;
     const abort = new AbortController();
     let shown: string | undefined;

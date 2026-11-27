@@ -24,6 +24,16 @@ describe("applyAll", () => {
     expect(batched).toEqual(one);
   });
 
+  it("folds a log read from partway as the whole would, once the rest is read in", () => {
+    const rewound = create(EventSchema, { seq: 9n, time, payload: { case: "rewound", value: { toSeq: 1n } } });
+    const all = [...events, rewound];
+    // From inside the tool call: its update and a rewind above where it begins show nothing.
+    expect(applyAll(empty, all.slice(4)).items.some((it) => it.type === "tool" || it.type === "user")).toBe(false);
+    expect(applyAll(empty, all.slice(4, 8)).items.filter((it) => it.type === "assistant")).toHaveLength(1);
+    // From the start, the same update is kept with its call.
+    expect(applyAll(empty, events).items.find((it) => it.type === "tool")).toMatchObject({ status: "completed", output: "a" });
+  });
+
   it("skips what a resumed stream sends again", () => {
     const once = applyAll(empty, events);
     expect(applyAll(applyAll(empty, events.slice(0, 5)), events.slice(2))).toEqual(once);

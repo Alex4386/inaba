@@ -14,6 +14,7 @@ import {
   type GitStatus,
   type Project,
   type Provider,
+  ProviderSchema,
   ThreadMode,
 } from "./gen/inaba/v1/host_pb";
 import type { Host } from "./gen/inaba/v1/server_pb";
@@ -30,6 +31,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { attachmentProblem } from "@/lib/composer-input";
 import { showError } from "@/lib/errors";
+import { cached, keep } from "@/lib/host-cache";
 import { useI18n } from "@/lib/i18n";
 import { shortPath } from "@/lib/utils";
 
@@ -60,7 +62,8 @@ export function NewThreadView({
 }) {
   const { t } = useI18n();
   const people = usePeople();
-  const [providers, setProviders] = useState<Provider[]>([]);
+  // The list last read from the host first, so the composer is there at once on a slow link.
+  const [providers, setProviders] = useState<Provider[]>(() => cached(link.hostId, "providers", ProviderSchema) ?? []);
   // The project's defaults come first; each can still be changed here.
   const defaults = project.newThread;
   const [providerId, setProviderId] = useState(defaults?.provider ?? "");
@@ -105,13 +108,18 @@ export function NewThreadView({
   useEffect(() => {
     link.threads
       .listProviders({})
-      .then((r) => setProviders(r.providers), showError);
+      .then((r) => {
+        keep(link.hostId, "providers", ProviderSchema, r.providers);
+        setProviders(r.providers);
+      }, showError);
   }, [link]);
   // Agents first: a message box is for talking to one.
   const provider =
     providers.find((p) => p.id === providerId) ??
     providers.find((p) => p.structured) ??
     providers[0];
+  // Until the providers are in, the message box is offered as for an agent: typing need not wait, only sending does.
+  const structured = provider?.structured ?? true;
 
   // As the thread's composer adds them, checked against the same limits.
   const addFiles = async (list: FileList) => {
@@ -182,7 +190,7 @@ export function NewThreadView({
     const text = String(
       new FormData(event.currentTarget).get("text") ?? "",
     ).trim();
-    if (text || images.length > 0 || !provider?.structured) void start(text);
+    if (text || images.length > 0 || !structured) void start(text);
   };
 
   return (
@@ -244,10 +252,10 @@ export function NewThreadView({
           onDrop={(e) => {
             if (e.dataTransfer.files.length === 0) return;
             e.preventDefault();
-            if (provider?.structured && !starting) void addFiles(e.dataTransfer.files);
+            if (structured && !starting) void addFiles(e.dataTransfer.files);
           }}
         >
-          {provider?.structured && (images.length > 0 || reading > 0) && (
+          {structured && (images.length > 0 || reading > 0) && (
             <ul className="flex flex-wrap gap-1.5 px-1 pt-1" aria-label={t("composer.attachments")}>
               {images.map((image, i) => (
                 <li key={i} className="relative">
@@ -273,7 +281,7 @@ export function NewThreadView({
               ))}
             </ul>
           )}
-          {provider?.structured ? (
+          {structured ? (
             <Textarea
               name="text"
               autoFocus
@@ -340,11 +348,11 @@ export function NewThreadView({
                   onProvider={switchProvider}
                 />
               )}
-              {provider?.structured ? (
+              {structured ? (
                 <Button
                   type="submit"
                   size="icon"
-                  disabled={starting || reading > 0 || (worktree && branchInvalid)}
+                  disabled={starting || !provider || reading > 0 || (worktree && branchInvalid)}
                   aria-label={t("chat.send")}
                   title={t("chat.send")}
                 >

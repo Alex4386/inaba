@@ -5,7 +5,7 @@ import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { HostLink } from "@/api";
 import { type Automation, AutomationSchema } from "@/gen/inaba/v1/automation_pb";
-import { type Project, type Provider, type Thread, ThreadMode } from "@/gen/inaba/v1/host_pb";
+import { type Project, ProjectSchema, type Provider, ProviderSchema, type Thread, ThreadMode, ThreadSchema } from "@/gen/inaba/v1/host_pb";
 import { ConfirmDialog, Secret } from "@/components/dialogs";
 import { OptionsBar } from "@/components/options-bar";
 import { Picker } from "@/components/picker";
@@ -23,6 +23,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { showError } from "@/lib/errors";
+import { cached } from "@/lib/host-cache";
 import { type MessageKey, useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -35,7 +36,8 @@ const hookUrl = (hostId: string, id: string) => `${location.origin}/hooks/${host
 export function AutomationsView({ link, onOpenThread }: { link: HostLink; onOpenThread: (threadId: string) => void }) {
   const { t, locale } = useI18n();
   const [list, setList] = useState<Automation[]>();
-  const [threads, setThreads] = useState<Thread[]>([]);
+  // The threads last read from this host, at once, for the targets' names; the sidebar keeps them.
+  const [threads, setThreads] = useState<Thread[]>(() => cached(link.hostId, "threads", ThreadSchema) ?? []);
   const [editing, setEditing] = useState<Automation>();
   const [removing, setRemoving] = useState<Automation>();
   // A secret just made, shown once, with what it goes with.
@@ -288,8 +290,9 @@ function AutomationDialog({
   const [days, setDays] = useState<number[]>([]);
   const [once, setOnce] = useState("");
   const [webhook, setWebhook] = useState(false);
-  const [providers, setProviders] = useState<Provider[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
+  // What was last read from this host, so the pickers fill at once and are read again on opening.
+  const [providers, setProviders] = useState<Provider[]>(() => (cached(link.hostId, "providers", ProviderSchema) ?? []).filter((p) => p.structured));
+  const [projects, setProjects] = useState<Project[]>(() => cached(link.hostId, "projects", ProjectSchema) ?? []);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {

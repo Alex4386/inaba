@@ -168,6 +168,9 @@ type thread struct {
 	// closing is set, under mu, as the host closes: a turn its agent's end cuts short stays
 	// open in the log, for the next start to resume.
 	closing bool
+	// closed is set once the host has closed: what its agents still say after that is not
+	// saved, as the data may already be another host's, which a late save would set back.
+	closed bool
 
 	mu      sync.Mutex
 	meta    *inabav1.Thread
@@ -273,10 +276,12 @@ func (t *thread) emit(e *inabav1.Event) {
 		t.bus.publish(t.meta, e, t.copying)
 	}
 	t.events = append(t.events, e)
-	t.save.event(e)
-	// Streamed text changes nothing about the thread but its length, which the log gives.
-	if _, text := e.Payload.(*inabav1.Event_TextDelta); !text {
-		t.save.meta(t.meta)
+	if !t.closed {
+		t.save.event(e)
+		// Streamed text changes nothing about the thread but its length, which the log gives.
+		if _, text := e.Payload.(*inabav1.Event_TextDelta); !text {
+			t.save.meta(t.meta)
+		}
 	}
 	close(t.changed)
 	t.changed = make(chan struct{})
@@ -337,6 +342,31 @@ func (t *thread) after(seq uint64, limit int) ([]*inabav1.Event, <-chan struct{}
 		evs = evs[:limit]
 	}
 	return evs, t.changed
+}
+
+// turnStart is where reading n events back from before (0: the end) starts, as the seq to read
+// after: moved back to the user's message that began that turn, so a viewer starts at a turn,
+// unless that is more than n further back, as one long turn can be tens of thousands of events.
+func (t *thread) turnStart(before uint64, n int) uint64 {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	end := uint64(len(t.events))
+	if before > 0 {
+		end = min(end, before-1)
+	}
+	if end <= uint64(n) {
+		return 0
+	}
+	start := end - uint64(n)
+	for i := start; i+uint64(n) >= start; i-- {
+		if t.events[i].GetUserMessage() != nil {
+			return i
+		}
+		if i == 0 {
+			return 0
+		}
+	}
+	return start
 }
 
 func (t *thread) openSession(ctx context.Context) error {
@@ -536,12 +566,31 @@ func (h *Host) ListThreads(context.Context, *inabav1.ListThreadsRequest) (*inaba
 	h.mu.Unlock()
 	res := &inabav1.ListThreadsResponse{}
 	for _, t := range threads {
-		res.Threads = append(res.Threads, t.snapshot())
+		res.Threads = append(res.Threads, listed(t.snapshot()))
 	}
 	sort.Slice(res.Threads, func(i, j int) bool {
-		return res.Threads[i].CreatedAt.AsTime().After(res.Threads[j].CreatedAt.AsTime())
+		a, b := res.Threads[i].CreatedAt.AsTime(), res.Threads[j].CreatedAt.AsTime()
+		// Threads made in the same instant keep one order, not the map's, so lists do not reshuffle.
+		if a.Equal(b) {
+			return res.Threads[i].Id < res.Threads[j].Id
+		}
+		return a.After(b)
 	})
 	return res, nil
+}
+
+// listed lightens a thread's snapshot for the list, which is read again and again over what may be a slow
+// link: the parts only a thread's own screen shows are left to GetThread and its events. Commands and
+// options alone are most of a thread's size, and a queued image is up to 5 MiB.
+func listed(th *inabav1.Thread) *inabav1.Thread {
+	// The layout stays: it is small, and a thread opens with its own panels rather than the default's.
+	th.Commands, th.Options, th.Usage = nil, nil, nil
+	for _, q := range th.Queue {
+		for _, a := range q.Attachments {
+			a.Data = nil
+		}
+	}
+	return th
 }
 
 func (h *Host) GetThread(_ context.Context, req *inabav1.GetThreadRequest) (*inabav1.Thread, error) {
@@ -692,6 +741,11 @@ func (h *Host) Close() {
 	for _, t := range threads {
 		t.closeSession()
 		t.closeTerminal()
+	}
+	for _, t := range threads {
+		t.mu.Lock()
+		t.closed = true
+		t.mu.Unlock()
 	}
 }
 
@@ -1256,6 +1310,18 @@ func (h *Host) ListEvents(_ context.Context, req *inabav1.ListEventsRequest) (*i
 	if limit == 0 {
 		limit = 1000
 	}
+	if req.BeforeSeq > 0 {
+		from := t.turnStart(req.BeforeSeq, limit)
+		if from+1 >= req.BeforeSeq {
+			return &inabav1.ListEventsResponse{}, nil
+		}
+		evs, _ := t.after(from, int(req.BeforeSeq-1-from))
+		res := &inabav1.ListEventsResponse{Events: make([]*inabav1.Event, len(evs))}
+		for i, e := range evs {
+			res.Events[i] = light(e)
+		}
+		return res, nil
+	}
 	evs, _ := t.after(req.AfterSeq, limit)
 	return &inabav1.ListEventsResponse{Events: evs}, nil
 }
@@ -1266,6 +1332,9 @@ func (h *Host) Subscribe(ctx context.Context, req *inabav1.SubscribeRequest, str
 		return err
 	}
 	seq := req.AfterSeq
+	if seq == 0 && req.Tail > 0 {
+		seq = t.turnStart(0, int(req.Tail))
+	}
 	for {
 		evs, changed := t.after(seq, 0)
 		for _, e := range evs {

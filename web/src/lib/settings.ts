@@ -84,6 +84,10 @@ export const builtInCodeFonts = [
   { family: "monospace", label: "" },
 ] as const;
 const fontListeners = new Set<() => void>();
+// While the code font is still being fetched its stack ends in a spare monospace, so the stack
+// changes once it is in: Monaco and the terminal measure their cells again only when their font
+// changes, and the page draws without waiting for the font.
+let fontLoads = 0;
 
 /** The chosen code font's family: "" for JetBrains Mono, "monospace" for the system's own. */
 export function codeFont(): string {
@@ -96,16 +100,19 @@ export function codeFont(): string {
 
 /** The CSS font stack for code: the chosen family first, the bundled ones after it for anything it lacks. */
 export function codeFontStack(family = codeFont()): string {
-  if (family === "monospace") return `ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", Consolas, ${codeFallback}`;
-  return family ? `${JSON.stringify(family)}, ${codeFallback}` : codeFallback;
+  const stack = family === "monospace" ? `ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", Consolas, ${codeFallback}` : family ? `${JSON.stringify(family)}, ${codeFallback}` : codeFallback;
+  return fontLoads > 0 ? `${stack}, monospace` : stack;
 }
 
-/** Fetches the web fonts the code font needs: Monaco and the terminal measure their cells once, with what is loaded then. */
+/** Fetches the web fonts the code font needs, then tells what set it in code (Monaco, the terminal) to measure again. */
 export function loadCodeFont(): Promise<void> {
-  return document.fonts.load(`13px ${codeFontStack()}`).then(
-    () => {},
-    () => {},
-  );
+  fontLoads++;
+  const done = () => {
+    fontLoads--;
+    applyCodeFont();
+    for (const listener of fontListeners) listener();
+  };
+  return document.fonts.load(`13px ${codeFontStack()}`).then(done, done);
 }
 
 /** Puts the code font where styles read it: Tailwind's font-mono and the diff view's own variable. */
@@ -121,10 +128,8 @@ export function setCodeFont(family: string) {
   } catch {
     // Applies until the page reloads.
   }
+  void loadCodeFont();
   applyCodeFont();
-  void loadCodeFont().then(() => {
-    for (const listener of fontListeners) listener();
-  });
 }
 
 /** The code font stack, following changes, for what sets its font in code: Monaco and the terminal. */

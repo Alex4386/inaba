@@ -3,16 +3,17 @@ import { ArrowLeftIcon, BotIcon, CornerLeftUpIcon, FolderGit2Icon, FolderIcon, F
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { HostLink } from "@/api";
-import { ProjectIcon, threadName, threadState } from "@/components/project-tree";
+import { ProjectIcon, landed, threadName, threadState } from "@/components/project-tree";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { HostAvatar, hostSubtitle } from "@/components/host-icon";
 import { defaultFilter } from "cmdk";
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { type ListDirectoryResponse, type Project, type SearchHit, type Thread, ThreadMode } from "@/gen/inaba/v1/host_pb";
+import { type ListDirectoryResponse, type Project, ProjectSchema, type SearchHit, type Thread, ThreadMode, ThreadSchema } from "@/gen/inaba/v1/host_pb";
 import type { HostTerminal } from "@/gen/inaba/v1/terminal_pb";
 import type { Host } from "@/gen/inaba/v1/server_pb";
 import { showError } from "@/lib/errors";
+import { cached } from "@/lib/host-cache";
 import { useI18n } from "@/lib/i18n";
 import { shortPath } from "@/lib/utils";
 
@@ -81,10 +82,11 @@ export function CommandPalette({
     setSearch("");
     setTyped(undefined);
     if (!open || !link) return;
-    Promise.all([link.threads.listThreads({}), link.projects.listProjects({})]).then(([th, pr]) => {
-      setThreads(th.threads);
-      setProjects(pr.projects);
-    }, showError);
+    // What the sidebar last had shows at once; each list is replaced as the host answers.
+    setThreads(cached(link.hostId, "threads", ThreadSchema) ?? []);
+    setProjects(cached(link.hostId, "projects", ProjectSchema) ?? []);
+    link.threads.listThreads({}).then((r) => setThreads(landed(link.hostId, "threads", ThreadSchema, r.threads)), showError);
+    link.projects.listProjects({}).then((r) => setProjects(landed(link.hostId, "projects", ProjectSchema, r.projects)), showError);
     setTerminals([]);
     if (terminalsOn) link.hostTerminals.listHostTerminals({}).then((r) => setTerminals(r.terminals), () => {});
   }, [open, link, terminalsOn]);

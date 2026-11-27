@@ -2,9 +2,12 @@ package host
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
+	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"connectrpc.com/connect/v2"
@@ -18,6 +21,10 @@ import (
 
 // Browsers cap a data channel message well below what pion accepts; stay under it.
 const maxChannelMessage = 16 << 10
+
+// How much one channel may have queued and unsent. Every channel shares one SCTP
+// queue, so a flood on one (a terminal, a screencast) must not get far ahead of the rest.
+const maxChannelBuffered = 256 << 10
 
 // peers answers WebRTC offers. A browser opens one data channel per API call and
 // speaks plain HTTP on it, so a direct connection serves the very same handler the
@@ -83,7 +90,7 @@ func (p *peers) Connect(ctx context.Context, req *inabav1.ConnectRequest) (*inab
 				return
 			}
 			select {
-			case conns <- &channelConn{rwc: raw}:
+			case conns <- newChannelConn(raw):
 			default:
 				raw.Close()
 			}
@@ -137,11 +144,29 @@ func (channelAddr) Network() string { return "webrtc" }
 func (channelAddr) String() string  { return "datachannel" }
 
 // channelConn makes a message-based data channel look like a byte stream.
-// shortcut: writes are not slowed down for a reader that falls behind, so a fast
-// terminal can buffer in memory; watch bufferedAmount if that becomes a problem.
 type channelConn struct {
 	rwc  datachannel.ReadWriteCloserDeadliner
 	rest []byte
+	// Set when rwc can say how much it has queued; Write then waits for the reader.
+	dc        *datachannel.DataChannel
+	low       chan struct{}
+	closed    chan struct{}
+	closeOnce sync.Once
+}
+
+func newChannelConn(raw datachannel.ReadWriteCloserDeadliner) *channelConn {
+	c := &channelConn{rwc: raw, low: make(chan struct{}, 1), closed: make(chan struct{})}
+	if dc, ok := raw.(*datachannel.DataChannel); ok {
+		c.dc = dc
+		dc.SetBufferedAmountLowThreshold(maxChannelBuffered)
+		dc.OnBufferedAmountLow(func() {
+			select {
+			case c.low <- struct{}{}:
+			default:
+			}
+		})
+	}
+	return c
 }
 
 func (c *channelConn) Read(p []byte) (int, error) {
@@ -150,6 +175,10 @@ func (c *channelConn) Read(p []byte) (int, error) {
 		buf := make([]byte, 64<<10)
 		n, err := c.rwc.Read(buf)
 		if err != nil {
+			// The browser closed the channel: nothing will drain what a waiting Write queued.
+			if !errors.Is(err, os.ErrDeadlineExceeded) {
+				c.gone()
+			}
 			return 0, err
 		}
 		c.rest = buf[:n]
@@ -161,6 +190,13 @@ func (c *channelConn) Read(p []byte) (int, error) {
 
 func (c *channelConn) Write(p []byte) (int, error) {
 	for off := 0; off < len(p); off += maxChannelMessage {
+		for c.dc != nil && c.dc.BufferedAmount() > maxChannelBuffered {
+			select {
+			case <-c.low:
+			case <-c.closed:
+				return off, net.ErrClosed
+			}
+		}
 		if _, err := c.rwc.Write(p[off:min(off+maxChannelMessage, len(p))]); err != nil {
 			return off, err
 		}
@@ -168,7 +204,14 @@ func (c *channelConn) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func (c *channelConn) Close() error         { return c.rwc.Close() }
+func (c *channelConn) Close() error {
+	c.gone()
+	return c.rwc.Close()
+}
+
+// gone wakes a Write waiting for the reader: the channel will not drain any more.
+func (c *channelConn) gone() { c.closeOnce.Do(func() { close(c.closed) }) }
+
 func (c *channelConn) LocalAddr() net.Addr  { return channelAddr{} }
 func (c *channelConn) RemoteAddr() net.Addr { return channelAddr{} }
 

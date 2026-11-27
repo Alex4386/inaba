@@ -14,6 +14,9 @@ import (
 // How much output a late viewer still gets to see.
 const scrollback = 256 << 10
 
+// The most one send carries: a stream message is read only once all of it has arrived.
+const maxSend = 32 << 10
+
 // ErrExited is what writing to or resizing a terminal whose process ended gives.
 var ErrExited = errors.New("the terminal's process has exited")
 
@@ -149,7 +152,9 @@ func (t *Terminal) Stream(ctx context.Context, send func(data []byte, cols, rows
 	for {
 		t.mu.Lock()
 		off = max(off, t.base)
-		data := append([]byte(nil), t.buf[off-t.base:]...)
+		// In pieces, so a viewer draws the replay as it arrives rather than after all of it.
+		rest := t.buf[off-t.base:]
+		data := append([]byte(nil), rest[:min(len(rest), maxSend)]...)
 		done, changed := t.done, t.changed
 		cols, rows := t.cols, t.rows
 		t.mu.Unlock()

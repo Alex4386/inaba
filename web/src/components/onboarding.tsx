@@ -1,13 +1,15 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { XIcon } from "lucide-react";
 import type { HostLink } from "@/api";
-import type { Provider } from "@/gen/inaba/v1/host_pb";
+import { ProjectSchema, type Provider } from "@/gen/inaba/v1/host_pb";
 import { Card, Row } from "@/components/section-dialog";
 import { Logo } from "@/components/logo";
 import { Badge } from "@/components/reui/badge";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { cached } from "@/lib/host-cache";
 import { useI18n } from "@/lib/i18n";
+import { landed } from "@/components/project-tree";
 
 const dismissKey = (host: string) => `inaba.welcome.dismissed.${host}`;
 
@@ -53,18 +55,22 @@ export function Welcome({
     // Stops at the first project: this page is the default landing, so a host with projects
     // would otherwise pay a second 3s poll forever.
     // shortcut: deleting every project later does not bring the guide back until a remount (host switch/reload).
+    // The sidebar keeps the host's projects in the cache: once some are there, no call of its own is needed.
     let live = true;
-    const refresh = () =>
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const refresh = () => {
+      if (cached(link.hostId, "projects", ProjectSchema)?.length) return setEmpty(false);
       link.projects.listProjects({}).then((r) => {
         if (!live) return;
+        landed(link.hostId, "projects", ProjectSchema, r.projects);
         setEmpty(r.projects.length === 0);
-        if (r.projects.length > 0) clearInterval(timer);
-      }, () => {});
-    void refresh();
-    const timer = setInterval(refresh, 3_000);
+        if (r.projects.length === 0) timer = setTimeout(refresh, 3_000);
+      }, () => live && (timer = setTimeout(refresh, 3_000)));
+    };
+    refresh();
     return () => {
       live = false;
-      clearInterval(timer);
+      clearTimeout(timer);
     };
   }, [link, dismissed]);
 

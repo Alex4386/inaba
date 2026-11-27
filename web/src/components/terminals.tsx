@@ -1,6 +1,6 @@
 import { Code, ConnectError } from "@connectrpc/connect";
 import { ChevronRightIcon, MoreHorizontalIcon, PencilIcon, PlusIcon, SquareTerminalIcon, Trash2Icon, UndoIcon, XIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import type { HostLink } from "@/api";
 import { ConfirmDialog, RenameDialog } from "@/components/dialogs";
@@ -13,28 +13,57 @@ import { Spinner } from "@/components/ui/spinner";
 import type { HostTerminal } from "@/gen/inaba/v1/terminal_pb";
 import { errorText, showError } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
+import { poll } from "@/lib/poll";
 import { cn } from "@/lib/utils";
 import { type TerminalIO, TerminalView } from "@/Terminal";
 
-/** The host's terminals; a host without the terminal module answers Unimplemented, which reads as "off". */
+type Listing = { terminals?: HostTerminal[]; error: "off" | string; askedAt: number };
+type Shared = { now: Listing; subs: Set<() => void>; load: () => Promise<void>; stop?: () => void };
+// The sidebar and the open terminal's page show the same host's terminals; one poll serves both.
+const listings = new WeakMap<HostLink, Shared>();
+
+/** The host's terminals, shared by everyone showing them; a host without the terminal module answers Unimplemented, which reads as "off". */
+export function terminalListing(link: HostLink) {
+  let shared = listings.get(link);
+  if (shared) return shared;
+  const it: Shared = {
+    now: { error: "", askedAt: 0 },
+    subs: new Set(),
+    load: () => {
+      const at = performance.now();
+      return link.hostTerminals
+        .listHostTerminals({})
+        .then(
+          (r) => ({ terminals: r.terminals, error: "" }),
+          (e) => ({ terminals: it.now.terminals, error: ConnectError.from(e).code === Code.Unimplemented ? "off" : errorText(e) }),
+        )
+        .then((next) => {
+          // A slower, older answer must not undo a newer one.
+          if (at < it.now.askedAt) return;
+          it.now = { ...next, askedAt: at };
+          it.subs.forEach((f) => f());
+        });
+    },
+  };
+  listings.set(link, (shared = it));
+  return shared;
+}
+
 function useTerminals(link: HostLink) {
-  const [terminals, setTerminals] = useState<HostTerminal[]>();
-  const [error, setError] = useState<"off" | string>("");
-  const load = useCallback(
-    () =>
-      link.hostTerminals.listHostTerminals({}).then(
-        (r) => (setError(""), setTerminals(r.terminals)),
-        (e) => setError(ConnectError.from(e).code === Code.Unimplemented ? "off" : errorText(e)),
-      ),
-    [link],
+  const shared = terminalListing(link);
+  // Titles change as people work in them (cd, ssh), and names as they are set, so the list follows while anyone shows it.
+  const subscribe = useCallback(
+    (notify: () => void) => {
+      shared.subs.add(notify);
+      if (shared.subs.size === 1) shared.stop = poll(shared.load, 3_000);
+      return () => {
+        shared.subs.delete(notify);
+        if (shared.subs.size === 0) shared.stop?.();
+      };
+    },
+    [shared],
   );
-  // Titles change as people work in them (cd, ssh), and names as they are set, so the list follows.
-  useEffect(() => {
-    void load();
-    const timer = setInterval(() => void load(), 3_000);
-    return () => clearInterval(timer);
-  }, [load]);
-  return { terminals, error, load };
+  return { ...useSyncExternalStore(subscribe, () => shared.now), load: shared.load };
 }
 
 /** What a terminal is called: the name someone gave it, else the title its shell set, else its folder. */
@@ -176,6 +205,9 @@ export function HostTerminalPage({ link, id, onClosed, stealth }: { link: HostLi
   // Not before the server has answered for this terminal: a duplicated tab learns its own id only then.
   const driver = seat?.driver || undefined;
   const driving = seat !== undefined && driver === CLIENT;
+  // The seat may yet come to this tab by itself (no answer for this terminal yet, or a free one with nobody else on it), so
+  // keys typed now are held for it; someone else driving, or others watching a free seat, means this tab only watches.
+  const pending = !stealth && !driving && (!seat || seat.sentAt < openedAt || (!seat.driver && !clients?.length));
   // A free seat goes by itself only to a tab alone on the terminal; with others watching, the first to ask gets it.
   useEffect(() => {
     if (!stealth && seat && seat.sentAt >= openedAt && clients && !seat.driver && clients.length === 0) void take("");
@@ -189,11 +221,14 @@ export function HostTerminalPage({ link, id, onClosed, stealth }: { link: HostLi
         channel.close();
       }
     });
-  const { terminals, error, load } = useTerminals(link);
+  const { terminals, error, askedAt, load } = useTerminals(link);
   const term = terminals?.find((x) => x.id === id);
+  // A list from before this id was opened may not have it yet; only one asked for since says it is gone.
+  const gone = terminals !== undefined && !term && askedAt >= openedAt;
   // Live from the terminal itself, ahead of the listing; reset when another terminal opens.
   const [live, setLive] = useState<{ id: string; title: string }>();
-  const title = term && terminalName(term, (live?.id === id && live.title) || term.title);
+  const liveTitle = (live?.id === id && live.title) || undefined;
+  const title = term ? terminalName(term, liveTitle || term.title) : liveTitle;
   const { ask, dialog } = useClose(link, onClosed);
   const io = useMemo<TerminalIO>(
     () => ({
@@ -226,12 +261,11 @@ export function HostTerminalPage({ link, id, onClosed, stealth }: { link: HostLi
           )}
         </div>
       </Header>
-      {error || (terminals && !term) ? (
-        <p className="text-muted-foreground p-6 text-sm">{error === "off" ? t("terminals.moduleOff") : error || t("terminals.notFound")}</p>
-      ) : !term ? (
-        <Spinner className="m-auto" />
+      {/* The terminal attaches by its id at once; the list only names it, and says when it is gone. */}
+      {error === "off" || gone ? (
+        <p className="text-muted-foreground p-6 text-sm">{error === "off" ? t("terminals.moduleOff") : t("terminals.notFound")}</p>
       ) : (
-        <TerminalView key={id} link={link} io={io} driving={driving} onExit={() => void load()} onTitle={(t) => setLive({ id, title: t })} />
+        <TerminalView key={id} link={link} io={io} driving={driving} pending={pending} onExit={() => void load()} onTitle={(t) => setLive({ id, title: t })} />
       )}
       {dialog}
     </div>

@@ -1,10 +1,10 @@
 import { Code, ConnectError } from "@connectrpc/connect";
 import { KeyRoundIcon, LanguagesIcon, SearchIcon, ServerOffIcon, SunMoonIcon } from "lucide-react";
 import { signInWithPasskey } from "@/components/profile-panel";
-import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { HostLink, auth, hosts as hostsApi } from "./api";
-import { type GetConfigResponse, type Host, Permission, type User } from "./gen/inaba/v1/server_pb";
+import { type GetConfigResponse, type Host, HostSchema, Permission, type User } from "./gen/inaba/v1/server_pb";
 import type { Project } from "./gen/inaba/v1/host_pb";
 import { NewThreadView } from "./NewThread";
 import { ThreadView } from "./Thread";
@@ -33,6 +33,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/user-menu";
 import { errorText, showError } from "@/lib/errors";
+import { cached, cacheUser, clearCache, keep } from "@/lib/host-cache";
+import { poll } from "@/lib/poll";
 import { disablePush, syncPush } from "@/lib/push";
 import { bindingOf, formatBinding, matches, useKeybindings } from "@/lib/keybindings";
 import { type Locale, localeNames, useI18n } from "@/lib/i18n";
@@ -297,7 +299,12 @@ const HOST_KEY = "inaba.host";
 
 function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigResponse; user: User; onUser: (user: User) => void; onSignedOut: () => void }) {
   const { t } = useI18n();
-  const [hostList, setHostList] = useState<Host[]>();
+  // The hosts as this account last saw them, so the switcher and the sidebar show before the server
+  // answers; listed says the server has answered since, and only then is a host taken to be gone or offline.
+  cacheUser(user.id);
+  const hostsCache = `server.${user.id}`;
+  const [hostList, setHostList] = useState(() => cached(hostsCache, "hosts", HostSchema));
+  const [listed, setListed] = useState(false);
   // Where one is lives in the address, so it can be shared, reloaded and gone back to:
   // /hosts/:host, and under it threads/:thread, projects/:project or automations; or /admin/:section.
   const [, navigate] = useLocation();
@@ -312,8 +319,10 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
   const [, onHost] = useRoute<{ host: string }>("/hosts/:host");
   const [onAdmin, adminAt] = useRoute<{ section?: string; item?: string; tab?: string }>("/admin/:section?/:item?/:tab?");
   const [onInvite, inviteAt] = useRoute<{ token: string }>("/invite/:token");
-  // The host in the address, else the one used last, like a workspace switcher reopens on.
-  const hostId = onThread?.host ?? onProject?.host ?? automationsAt?.host ?? projectsAt?.host ?? onTerminal?.host ?? onProjectThreads?.host ?? onHost?.host ?? localStorage.getItem(HOST_KEY) ?? undefined;
+  // The host in the address, else the one used last, like a workspace switcher reopens on; that one
+  // only if it is in this account's list, as the browser may last have been used by another account.
+  const remembered = localStorage.getItem(HOST_KEY);
+  const hostId = onThread?.host ?? onProject?.host ?? automationsAt?.host ?? projectsAt?.host ?? onTerminal?.host ?? onProjectThreads?.host ?? onHost?.host ?? (hostList?.some((h) => h.id === remembered) ? remembered! : undefined);
   const threadId = onThread?.thread;
   const automating = onAutomations;
   const administering = onAdmin ? ((adminAt?.section || "overview") as AdminSection) : undefined;
@@ -371,26 +380,45 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
   // Bumped when the link switches between relay and direct, to re-render.
   const [, setLinkVersion] = useState(0);
 
-  const refreshHosts = useCallback(() => hostsApi.listHosts({}).then((r) => setHostList(r.hosts), showError), []);
-  useEffect(() => {
-    void refreshHosts();
-    const timer = setInterval(refreshHosts, 5_000);
-    return () => clearInterval(timer);
-  }, [refreshHosts]);
+  // Hosts the server has said are offline twice running, or in its first answer: a host that drops
+  // for a moment keeps its link, as making it anew restarts every stream and terminal on it.
+  const [down, setDown] = useState<Set<string>>(new Set());
+  const lastDown = useRef<Set<string>>(undefined);
+  const refreshHosts = useCallback(
+    () =>
+      hostsApi.listHosts({}).then((r) => {
+        keep(hostsCache, "hosts", HostSchema, r.hosts);
+        const now = new Set(r.hosts.filter((h) => !h.online).map((h) => h.id));
+        const was = lastDown.current;
+        lastDown.current = now;
+        setDown((d) => {
+          const next = was ? new Set([...now].filter((id) => was.has(id))) : now;
+          return next.size === d.size && [...next].every((id) => d.has(id)) ? d : next;
+        });
+        setHostList(r.hosts);
+        setListed(true);
+      }, showError),
+    [hostsCache],
+  );
+  useEffect(() => poll(refreshHosts, 5_000), [refreshHosts]);
 
   // Someone else's personal host an administrator went into from the admin panel, which their own list leaves out.
   // shortcut: its online state is as it was when looked up; reopen it to see a change.
   const [visited, setVisited] = useState<Host>();
   const listedHost = hostList?.find((h) => h.id === hostId);
   useEffect(() => {
-    if (user.admin && hostList && hostId && !listedHost && visited?.id !== hostId) hostsApi.listHosts({ all: true }).then((r) => setVisited(r.hosts.find((h) => h.id === hostId)), showError);
-  }, [user.admin, hostList, hostId, listedHost, visited?.id]);
-  const host = listedHost ?? (visited?.id === hostId ? visited : undefined) ?? (hostList?.length === 1 ? hostList[0] : undefined);
-  const activeId = host?.id;
-  const online = host?.online ?? false;
+    if (user.admin && listed && hostId && !listedHost && visited?.id !== hostId) hostsApi.listHosts({ all: true }).then((r) => setVisited(r.hosts.find((h) => h.id === hostId)), showError);
+  }, [user.admin, listed, hostId, listedHost, visited?.id]);
+  // A lone host stands in for one the address names only once the server says that one is not there.
+  const host = listedHost ?? (visited?.id === hostId ? visited : undefined) ?? (hostList?.length === 1 && (listed || !hostId) ? hostList[0] : undefined);
+  // The host in the address, or the one used last, is connected to at once rather than after the
+  // host list answers: on a slow link the sidebar and the thread start loading that much sooner.
+  const activeId = host?.id ?? (listed ? undefined : hostId);
+  // A visited host is not in this account's list, so its own flag says whether it is offline.
+  const offline = listed && host !== undefined && (down.has(host.id) || (host === visited && !host.online));
   const link = useMemo(
-    () => (activeId && online ? new HostLink(activeId, config.iceUrls, () => setLinkVersion((v) => v + 1)) : undefined),
-    [activeId, online, config.iceUrls],
+    () => (activeId && !offline ? new HostLink(activeId, config.iceUrls, () => setLinkVersion((v) => v + 1)) : undefined),
+    [activeId, offline, config.iceUrls],
   );
   useEffect(() => () => link?.close(), [link]);
   const draftKnown = Boolean(draft);
@@ -399,7 +427,7 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
     link.projects.listProjects({}).then((r) => setLooked(r.projects.find((p) => p.id === draftId)), showError);
   }, [link, draftId, draftKnown]);
   // The address names its host, so a reload or a shared link opens the same place; the host used last is remembered.
-  const shownHost = host?.id;
+  const shownHost = activeId;
   useEffect(() => {
     if (!shownHost) return;
     // A host looked into from the admin panel is not the one to reopen on.
@@ -433,7 +461,7 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
 
   return (
     <PresenceContext.Provider value={present}>
-    <SidebarProvider className="h-svh">
+    <SidebarProvider className="fixed inset-x-0 top-(--vvt) h-(--vvh) min-h-0">
       <Sidebar collapsible="icon">
         {administering ? (
           <SidebarContent>
@@ -497,6 +525,12 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
               disablePush()
                 .catch(() => {})
                 .then(() => auth.logout({}))
+                .then(clearCache, clearCache)
+                .then(() => {
+                  // Nor land on this account's thread or host.
+                  localStorage.removeItem(HOST_KEY);
+                  navigate("/", { replace: true });
+                })
                 .then(onSignedOut, onSignedOut)
                 .finally(() => toast.dismiss(pending));
             }} />
@@ -556,18 +590,18 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
               <SidebarTrigger />
             </header>
             <Welcome
-              key={host?.id}
+              key={activeId}
               link={link}
-              hostId={host?.id}
+              hostId={activeId}
               onAddProject={canOn(host, Permission.MANAGE_PROJECTS) ? () => setPalette("folder") : undefined}
               onProviders={host && mayManage(host) ? () => setHostSettings({ host, section: "providers" }) : undefined}
             >
             <Empty>
               <EmptyHeader>
-                <EmptyMedia variant="icon">{host && !online ? <ServerOffIcon /> : <Logo />}</EmptyMedia>
-                <EmptyTitle>{!hostList ? t("empty.loading") : hostList.length === 0 ? t("empty.firstHost") : !host ? t("empty.chooseHost") : !online ? t("empty.offline", { name: host.name }) : t("empty.noThread")}</EmptyTitle>
+                <EmptyMedia variant="icon">{offline ? <ServerOffIcon /> : <Logo />}</EmptyMedia>
+                <EmptyTitle>{!hostList || (!host && !listed) ? t("empty.loading") : hostList.length === 0 ? t("empty.firstHost") : !host ? t("empty.chooseHost") : offline ? t("empty.offline", { name: host.name }) : t("empty.noThread")}</EmptyTitle>
                 <EmptyDescription>
-                  {hostList?.length === 0 ? t("empty.firstHostHelp") : !host ? t("empty.chooseHostHelp") : !online ? t("empty.offlineHelp") : t("empty.noThreadHelp")}
+                  {hostList?.length === 0 ? t("empty.firstHostHelp") : !host ? t("empty.chooseHostHelp") : offline ? t("empty.offlineHelp") : t("empty.noThreadHelp")}
                 </EmptyDescription>
               </EmptyHeader>
               {hostList?.length === 0 && (

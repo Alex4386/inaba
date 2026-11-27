@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { accentLowContrast, contrastRatio, defaultTheme, luminance, parseHex, readableForeground, setThemePrefs, themePrefs } from "@/lib/settings";
+import { accentLowContrast, codeFontStack, contrastRatio, defaultTheme, loadCodeFont, luminance, parseHex, readableForeground, setThemePrefs, themePrefs } from "@/lib/settings";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -56,4 +56,17 @@ test("parseHex accepts six hex digits only", () => {
   expect(parseHex("#abc")).toBeUndefined();
   expect(parseHex("red")).toBeUndefined();
   expect(parseHex("#12345g")).toBeUndefined();
+});
+
+test("the code font stack changes once the font is in, for Monaco and the terminal to measure again", async () => {
+  stubStorage(null);
+  let loaded = () => {};
+  vi.stubGlobal("document", { fonts: { load: () => new Promise<void>((done) => (loaded = done)) }, documentElement: { style: { setProperty: () => {} } } });
+  const before = codeFontStack();
+  const loading = loadCodeFont();
+  const meanwhile = codeFontStack();
+  expect(meanwhile).not.toBe(before);
+  loaded();
+  await loading;
+  expect(codeFontStack()).toBe(before);
 });

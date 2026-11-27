@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -170,9 +171,24 @@ func TestLoginHostAndRelayedTurn(t *testing.T) {
 	ctx, info := connect.NewClientContext(ctx)
 	info.RequestHeader().Set("Authorization", "Bearer "+apiToken)
 	threads := inabav1connect.NewThreadServiceClient(connect.NewClient(connecthttp.NewTransport(plain, srv.URL+"/hosts/"+hostID)))
-	th, err := threads.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "echo", Cwd: t.TempDir()})
+	cwd := t.TempDir()
+	th, err := threads.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "echo", Cwd: cwd})
 	if err != nil {
 		t.Fatal(err)
+	}
+	// A module's own REST route goes through the same relay: the files panel's downloads and pictures.
+	if err := os.WriteFile(filepath.Join(cwd, "a.txt"), []byte("raw"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rawReq, _ := http.NewRequest("GET", srv.URL+"/v1/hosts/"+hostID+"/threads/"+th.Id+"/raw?path=a.txt", nil)
+	rawReq.Header.Set("Authorization", "Bearer "+apiToken)
+	if res, err := plain.Do(rawReq); err != nil {
+		t.Fatal(err)
+	} else if b, _ := io.ReadAll(res.Body); res.StatusCode != 200 || string(b) != "raw" {
+		res.Body.Close()
+		t.Fatalf("raw file through the relay: %d %q", res.StatusCode, b)
+	} else {
+		res.Body.Close()
 	}
 	// REST through the relay, as a script uses it.
 	if code, body := postJSON(t, plain, srv.URL+"/v1/hosts/"+hostID+"/threads/"+th.Id+"/turns", apiToken, map[string]string{"text": "hi"}); code != 200 {
