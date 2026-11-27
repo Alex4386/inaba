@@ -188,7 +188,6 @@ func connectCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("modules: %w", err)
 			}
-
 			if err := config.PrepareSocket(socketPath()); err != nil {
 				return err
 			}
@@ -221,6 +220,8 @@ func connectCommand() *cobra.Command {
 			if serverURL != "" {
 				go keepConnected(ctx, serverURL, tokens, handler)
 			}
+			// Now that agents can be started with their tools, turns a restart cut short go on.
+			h.ResumeTurns()
 			restart := false
 			select {
 			case <-ctx.Done():
@@ -271,6 +272,7 @@ func localOnly(listen string, handler http.Handler) (http.Handler, error) {
 		}
 		// With no server to say who is calling, local development gets every permission.
 		r.Header.Set(rpc.PermissionsHeader, rpc.PermProjects+","+rpc.PermThreadsAnywhere+","+rpc.PermAutomations+","+rpc.PermHostSettings+","+rpc.PermHousekeeping)
+		r.Header.Set(rpc.UserHeader, "")
 		handler.ServeHTTP(w, r)
 	})
 	return http.NewCrossOriginProtection().Handler(open), nil

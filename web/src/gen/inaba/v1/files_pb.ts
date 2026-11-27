@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file inaba/v1/files.proto.
  */
 export const file_inaba_v1_files: GenFile = /*@__PURE__*/
-  fileDesc("ChRpbmFiYS92MS9maWxlcy5wcm90bxIIaW5hYmEudjEiVwoQV3JpdGVGaWxlUmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkSDAoEcGF0aBgCIAEoCRIMCgRkYXRhGAMgASgMEhQKDGJhc2VfdmVyc2lvbhgEIAEoCSIkChFXcml0ZUZpbGVSZXNwb25zZRIPCgd2ZXJzaW9uGAEgASgJIjYKElNlYXJjaEZpbGVzUmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkSDQoFcXVlcnkYAiABKAkiJAoTU2VhcmNoRmlsZXNSZXNwb25zZRINCgVwYXRocxgBIAMoCSI0ChFMaXN0Rm9sZGVyUmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkSDAoEcGF0aBgCIAEoCSJ+ChJMaXN0Rm9sZGVyUmVzcG9uc2USMwoHZW50cmllcxgBIAMoCzIiLmluYWJhLnYxLkxpc3RGb2xkZXJSZXNwb25zZS5FbnRyeRozCgVFbnRyeRIMCgRuYW1lGAEgASgJEg4KBmZvbGRlchgCIAEoCBIMCgRzaXplGAMgASgEIjIKD1JlYWRGaWxlUmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkSDAoEcGF0aBgCIAEoCSJlChBSZWFkRmlsZVJlc3BvbnNlEgwKBGRhdGEYASABKAwSEQoJbWltZV90eXBlGAIgASgJEgwKBHNpemUYAyABKAQSEQoJdHJ1bmNhdGVkGAQgASgIEg8KB3ZlcnNpb24YBSABKAkyxwMKC0ZpbGVTZXJ2aWNlEnEKC1NlYXJjaEZpbGVzEhwuaW5hYmEudjEuU2VhcmNoRmlsZXNSZXF1ZXN0Gh0uaW5hYmEudjEuU2VhcmNoRmlsZXNSZXNwb25zZSIlgtPkkwIfEh0vdjEvdGhyZWFkcy97dGhyZWFkX2lkfS9maWxlcxJtCgpMaXN0Rm9sZGVyEhsuaW5hYmEudjEuTGlzdEZvbGRlclJlcXVlc3QaHC5pbmFiYS52MS5MaXN0Rm9sZGVyUmVzcG9uc2UiJILT5JMCHhIcL3YxL3RocmVhZHMve3RocmVhZF9pZH0vdHJlZRJnCghSZWFkRmlsZRIZLmluYWJhLnYxLlJlYWRGaWxlUmVxdWVzdBoaLmluYWJhLnYxLlJlYWRGaWxlUmVzcG9uc2UiJILT5JMCHhIcL3YxL3RocmVhZHMve3RocmVhZF9pZH0vZmlsZRJtCglXcml0ZUZpbGUSGi5pbmFiYS52MS5Xcml0ZUZpbGVSZXF1ZXN0GhsuaW5hYmEudjEuV3JpdGVGaWxlUmVzcG9uc2UiJ4LT5JMCIToBKhocL3YxL3RocmVhZHMve3RocmVhZF9pZH0vZmlsZUKLAQoMY29tLmluYWJhLnYxQgpGaWxlc1Byb3RvUAFaLmdpdGh1Yi5jb20vQWxleDQzODYvaW5hYmEvZ2VuL2luYWJhL3YxO2luYWJhdjGiAgNJWFiqAghJbmFiYS5WMcoCCEluYWJhXFYx4gIUSW5hYmFcVjFcR1BCTWV0YWRhdGHqAglJbmFiYTo6VjFiBnByb3RvMw", [file_google_api_annotations]);
+  fileDesc("ChRpbmFiYS92MS9maWxlcy5wcm90bxIIaW5hYmEudjEiVwoQV3JpdGVGaWxlUmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkSDAoEcGF0aBgCIAEoCRIMCgRkYXRhGAMgASgMEhQKDGJhc2VfdmVyc2lvbhgEIAEoCSIkChFXcml0ZUZpbGVSZXNwb25zZRIPCgd2ZXJzaW9uGAEgASgJIjYKElNlYXJjaEZpbGVzUmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkSDQoFcXVlcnkYAiABKAkiJAoTU2VhcmNoRmlsZXNSZXNwb25zZRINCgVwYXRocxgBIAMoCSJvChBHcmVwRmlsZXNSZXF1ZXN0EhEKCXRocmVhZF9pZBgBIAEoCRINCgVxdWVyeRgCIAEoCRIWCg5jYXNlX3NlbnNpdGl2ZRgDIAEoCBISCgp3aG9sZV93b3JkGAQgASgIEg0KBXJlZ2V4GAUgASgIIsUBChFHcmVwRmlsZXNSZXNwb25zZRIyCgdtYXRjaGVzGAEgAygLMiEuaW5hYmEudjEuR3JlcEZpbGVzUmVzcG9uc2UuTWF0Y2gSEQoJdHJ1bmNhdGVkGAIgASgIGmkKBU1hdGNoEgwKBHBhdGgYASABKAkSDAoEbGluZRgCIAEoDRIOCgZjb2x1bW4YAyABKA0SDAoEdGV4dBgEIAEoCRITCgttYXRjaF9zdGFydBgFIAEoDRIRCgltYXRjaF9lbmQYBiABKA0iNAoRTGlzdEZvbGRlclJlcXVlc3QSEQoJdGhyZWFkX2lkGAEgASgJEgwKBHBhdGgYAiABKAkifgoSTGlzdEZvbGRlclJlc3BvbnNlEjMKB2VudHJpZXMYASADKAsyIi5pbmFiYS52MS5MaXN0Rm9sZGVyUmVzcG9uc2UuRW50cnkaMwoFRW50cnkSDAoEbmFtZRgBIAEoCRIOCgZmb2xkZXIYAiABKAgSDAoEc2l6ZRgDIAEoBCIyCg9SZWFkRmlsZVJlcXVlc3QSEQoJdGhyZWFkX2lkGAEgASgJEgwKBHBhdGgYAiABKAkiZQoQUmVhZEZpbGVSZXNwb25zZRIMCgRkYXRhGAEgASgMEhEKCW1pbWVfdHlwZRgCIAEoCRIMCgRzaXplGAMgASgEEhEKCXRydW5jYXRlZBgEIAEoCBIPCgd2ZXJzaW9uGAUgASgJMrMECgtGaWxlU2VydmljZRJxCgtTZWFyY2hGaWxlcxIcLmluYWJhLnYxLlNlYXJjaEZpbGVzUmVxdWVzdBodLmluYWJhLnYxLlNlYXJjaEZpbGVzUmVzcG9uc2UiJYLT5JMCHxIdL3YxL3RocmVhZHMve3RocmVhZF9pZH0vZmlsZXMSagoJR3JlcEZpbGVzEhouaW5hYmEudjEuR3JlcEZpbGVzUmVxdWVzdBobLmluYWJhLnYxLkdyZXBGaWxlc1Jlc3BvbnNlIiSC0+STAh4SHC92MS90aHJlYWRzL3t0aHJlYWRfaWR9L2dyZXASbQoKTGlzdEZvbGRlchIbLmluYWJhLnYxLkxpc3RGb2xkZXJSZXF1ZXN0GhwuaW5hYmEudjEuTGlzdEZvbGRlclJlc3BvbnNlIiSC0+STAh4SHC92MS90aHJlYWRzL3t0aHJlYWRfaWR9L3RyZWUSZwoIUmVhZEZpbGUSGS5pbmFiYS52MS5SZWFkRmlsZVJlcXVlc3QaGi5pbmFiYS52MS5SZWFkRmlsZVJlc3BvbnNlIiSC0+STAh4SHC92MS90aHJlYWRzL3t0aHJlYWRfaWR9L2ZpbGUSbQoJV3JpdGVGaWxlEhouaW5hYmEudjEuV3JpdGVGaWxlUmVxdWVzdBobLmluYWJhLnYxLldyaXRlRmlsZVJlc3BvbnNlIieC0+STAiE6ASoaHC92MS90aHJlYWRzL3t0aHJlYWRfaWR9L2ZpbGVCiwEKDGNvbS5pbmFiYS52MUIKRmlsZXNQcm90b1ABWi5naXRodWIuY29tL0FsZXg0Mzg2L2luYWJhL2dlbi9pbmFiYS92MTtpbmFiYXYxogIDSVhYqgIISW5hYmEuVjHKAghJbmFiYVxWMeICFEluYWJhXFYxXEdQQk1ldGFkYXRh6gIJSW5hYmE6OlYxYgZwcm90bzM", [file_google_api_annotations]);
 
 /**
  * @generated from message inaba.v1.WriteFileRequest
@@ -111,6 +111,121 @@ export const SearchFilesResponseSchema: GenMessage<SearchFilesResponse> = /*@__P
   messageDesc(file_inaba_v1_files, 3);
 
 /**
+ * @generated from message inaba.v1.GrepFilesRequest
+ */
+export type GrepFilesRequest = Message<"inaba.v1.GrepFilesRequest"> & {
+  /**
+   * @generated from field: string thread_id = 1;
+   */
+  threadId: string;
+
+  /**
+   * @generated from field: string query = 2;
+   */
+  query: string;
+
+  /**
+   * @generated from field: bool case_sensitive = 3;
+   */
+  caseSensitive: boolean;
+
+  /**
+   * @generated from field: bool whole_word = 4;
+   */
+  wholeWord: boolean;
+
+  /**
+   * The query is a regular expression (extended, as grep -E), not plain text.
+   *
+   * @generated from field: bool regex = 5;
+   */
+  regex: boolean;
+};
+
+/**
+ * Describes the message inaba.v1.GrepFilesRequest.
+ * Use `create(GrepFilesRequestSchema)` to create a new message.
+ */
+export const GrepFilesRequestSchema: GenMessage<GrepFilesRequest> = /*@__PURE__*/
+  messageDesc(file_inaba_v1_files, 4);
+
+/**
+ * @generated from message inaba.v1.GrepFilesResponse
+ */
+export type GrepFilesResponse = Message<"inaba.v1.GrepFilesResponse"> & {
+  /**
+   * @generated from field: repeated inaba.v1.GrepFilesResponse.Match matches = 1;
+   */
+  matches: GrepFilesResponse_Match[];
+
+  /**
+   * More matched than was sent: at most 500 in all, and 50 in one file.
+   *
+   * @generated from field: bool truncated = 2;
+   */
+  truncated: boolean;
+};
+
+/**
+ * Describes the message inaba.v1.GrepFilesResponse.
+ * Use `create(GrepFilesResponseSchema)` to create a new message.
+ */
+export const GrepFilesResponseSchema: GenMessage<GrepFilesResponse> = /*@__PURE__*/
+  messageDesc(file_inaba_v1_files, 5);
+
+/**
+ * @generated from message inaba.v1.GrepFilesResponse.Match
+ */
+export type GrepFilesResponse_Match = Message<"inaba.v1.GrepFilesResponse.Match"> & {
+  /**
+   * Relative to the thread's folder.
+   *
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * 1-based.
+   *
+   * @generated from field: uint32 line = 2;
+   */
+  line: number;
+
+  /**
+   * 1-based, in UTF-16 units of the whole line, as an editor counts.
+   *
+   * @generated from field: uint32 column = 3;
+   */
+  column: number;
+
+  /**
+   * The line, trimmed around the match when long.
+   *
+   * @generated from field: string text = 4;
+   */
+  text: string;
+
+  /**
+   * Where the match is in text, in UTF-16 units.
+   *
+   * @generated from field: uint32 match_start = 5;
+   */
+  matchStart: number;
+
+  /**
+   * @generated from field: uint32 match_end = 6;
+   */
+  matchEnd: number;
+};
+
+/**
+ * Describes the message inaba.v1.GrepFilesResponse.Match.
+ * Use `create(GrepFilesResponse_MatchSchema)` to create a new message.
+ */
+export const GrepFilesResponse_MatchSchema: GenMessage<GrepFilesResponse_Match> = /*@__PURE__*/
+  messageDesc(file_inaba_v1_files, 5, 0);
+
+/**
  * @generated from message inaba.v1.ListFolderRequest
  */
 export type ListFolderRequest = Message<"inaba.v1.ListFolderRequest"> & {
@@ -132,7 +247,7 @@ export type ListFolderRequest = Message<"inaba.v1.ListFolderRequest"> & {
  * Use `create(ListFolderRequestSchema)` to create a new message.
  */
 export const ListFolderRequestSchema: GenMessage<ListFolderRequest> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_files, 4);
+  messageDesc(file_inaba_v1_files, 6);
 
 /**
  * @generated from message inaba.v1.ListFolderResponse
@@ -149,7 +264,7 @@ export type ListFolderResponse = Message<"inaba.v1.ListFolderResponse"> & {
  * Use `create(ListFolderResponseSchema)` to create a new message.
  */
 export const ListFolderResponseSchema: GenMessage<ListFolderResponse> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_files, 5);
+  messageDesc(file_inaba_v1_files, 7);
 
 /**
  * @generated from message inaba.v1.ListFolderResponse.Entry
@@ -176,7 +291,7 @@ export type ListFolderResponse_Entry = Message<"inaba.v1.ListFolderResponse.Entr
  * Use `create(ListFolderResponse_EntrySchema)` to create a new message.
  */
 export const ListFolderResponse_EntrySchema: GenMessage<ListFolderResponse_Entry> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_files, 5, 0);
+  messageDesc(file_inaba_v1_files, 7, 0);
 
 /**
  * @generated from message inaba.v1.ReadFileRequest
@@ -200,7 +315,7 @@ export type ReadFileRequest = Message<"inaba.v1.ReadFileRequest"> & {
  * Use `create(ReadFileRequestSchema)` to create a new message.
  */
 export const ReadFileRequestSchema: GenMessage<ReadFileRequest> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_files, 6);
+  messageDesc(file_inaba_v1_files, 8);
 
 /**
  * @generated from message inaba.v1.ReadFileResponse
@@ -243,7 +358,7 @@ export type ReadFileResponse = Message<"inaba.v1.ReadFileResponse"> & {
  * Use `create(ReadFileResponseSchema)` to create a new message.
  */
 export const ReadFileResponseSchema: GenMessage<ReadFileResponse> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_files, 7);
+  messageDesc(file_inaba_v1_files, 9);
 
 /**
  * Reading what is in a thread's folder: finding files to point an agent at with @path,
@@ -263,6 +378,17 @@ export const FileService: GenService<{
     methodKind: "unary";
     input: typeof SearchFilesRequestSchema;
     output: typeof SearchFilesResponseSchema;
+  },
+  /**
+   * Lines in the thread's folder's files holding the query, grouped by file in path
+   * order. In a git repository ignored files are left out. A bad regex is INVALID_ARGUMENT.
+   *
+   * @generated from rpc inaba.v1.FileService.GrepFiles
+   */
+  grepFiles: {
+    methodKind: "unary";
+    input: typeof GrepFilesRequestSchema;
+    output: typeof GrepFilesResponseSchema;
   },
   /**
    * Lists one folder of the thread's folder, folders first. Only .git is left out.

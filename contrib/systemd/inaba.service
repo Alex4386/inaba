@@ -23,6 +23,9 @@ ExecStart=%h/.local/bin/inaba connect
 EnvironmentFile=-%h/.config/inaba/host.env
 Restart=on-failure
 RestartSec=5
+# Stopping signals only the host, which ends its agents itself and so knows their turns were
+# cut short, to go on after a restart; anything left is killed once it exits.
+KillMode=mixed
 
 [Install]
 WantedBy=default.target

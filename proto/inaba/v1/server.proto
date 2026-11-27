@@ -827,7 +827,8 @@ message HeartbeatRequest {
   // A random id the browser tab keeps, so one person in two tabs is in two places.
   string client_id = 1;
   string host_id = 2;
-  // What it has open: a thread, or a project's page; both empty for neither.
+  // What it has open: a thread, a project's page, or one of the host's terminals; at most
+  // one of the three, all empty for none.
   string thread_id = 3;
   string project_id = 4;
   reserved 5;
@@ -844,6 +845,9 @@ message HeartbeatRequest {
   // Whether the page is on screen now. Only a browser showing the thread holds back pushes
   // about it; one left open in a background tab does not.
   bool visible = 10;
+  // A host terminal it has open, whose driver seat take, from, release and give_to then
+  // ask about, as they do a thread's.
+  string terminal_id = 11;
 }
 
 message HeartbeatResponse {
@@ -868,6 +872,8 @@ message Presence {
   reserved 7;
   // Their browser tabs' client ids there, to tell who holds a thread's driver seat.
   repeated string clients = 8;
+  // The host terminal they have open, if any; see HeartbeatRequest.terminal_id.
+  string terminal_id = 9;
 }
 
 // Push notifications to the signed-in account's devices, and the threads and projects it

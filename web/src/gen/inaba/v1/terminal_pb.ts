@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file inaba/v1/terminal.proto.
  */
 export const file_inaba_v1_terminal: GenFile = /*@__PURE__*/
-  fileDesc("ChdpbmFiYS92MS90ZXJtaW5hbC5wcm90bxIIaW5hYmEudjEidgoMSG9zdFRlcm1pbmFsEgoKAmlkGAEgASgJEgsKA2N3ZBgCIAEoCRIuCgpzdGFydGVkX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIOCgZleGl0ZWQYBCABKAgSDQoFdGl0bGUYBSABKAkiGgoYTGlzdEhvc3RUZXJtaW5hbHNSZXF1ZXN0IkYKGUxpc3RIb3N0VGVybWluYWxzUmVzcG9uc2USKQoJdGVybWluYWxzGAEgAygLMhYuaW5hYmEudjEuSG9zdFRlcm1pbmFsIkIKF09wZW5Ib3N0VGVybWluYWxSZXF1ZXN0EgsKA2N3ZBgBIAEoCRIMCgRjb2xzGAIgASgNEgwKBHJvd3MYAyABKA0iQwoZQXR0YWNoSG9zdFRlcm1pbmFsUmVxdWVzdBIKCgJpZBgBIAEoCRIMCgRjb2xzGAIgASgNEgwKBHJvd3MYAyABKA0iNAoYV3JpdGVIb3N0VGVybWluYWxSZXF1ZXN0EgoKAmlkGAEgASgJEgwKBGRhdGEYAiABKAwiGwoZV3JpdGVIb3N0VGVybWluYWxSZXNwb25zZSJDChlSZXNpemVIb3N0VGVybWluYWxSZXF1ZXN0EgoKAmlkGAEgASgJEgwKBGNvbHMYAiABKA0SDAoEcm93cxgDIAEoDSIcChpSZXNpemVIb3N0VGVybWluYWxSZXNwb25zZSImChhDbG9zZUhvc3RUZXJtaW5hbFJlcXVlc3QSCgoCaWQYASABKAkiGwoZQ2xvc2VIb3N0VGVybWluYWxSZXNwb25zZTLOBQoTSG9zdFRlcm1pbmFsU2VydmljZRJzChFMaXN0SG9zdFRlcm1pbmFscxIiLmluYWJhLnYxLkxpc3RIb3N0VGVybWluYWxzUmVxdWVzdBojLmluYWJhLnYxLkxpc3RIb3N0VGVybWluYWxzUmVzcG9uc2UiFYLT5JMCDxINL3YxL3Rlcm1pbmFscxJnChBPcGVuSG9zdFRlcm1pbmFsEiEuaW5hYmEudjEuT3Blbkhvc3RUZXJtaW5hbFJlcXVlc3QaFi5pbmFiYS52MS5Ib3N0VGVybWluYWwiGILT5JMCEjoBKiINL3YxL3Rlcm1pbmFscxJVChJBdHRhY2hIb3N0VGVybWluYWwSIy5pbmFiYS52MS5BdHRhY2hIb3N0VGVybWluYWxSZXF1ZXN0GhguaW5hYmEudjEuVGVybWluYWxPdXRwdXQwARKBAQoRV3JpdGVIb3N0VGVybWluYWwSIi5pbmFiYS52MS5Xcml0ZUhvc3RUZXJtaW5hbFJlcXVlc3QaIy5pbmFiYS52MS5Xcml0ZUhvc3RUZXJtaW5hbFJlc3BvbnNlIiOC0+STAh06ASoiGC92MS90ZXJtaW5hbHMve2lkfS9pbnB1dBKDAQoSUmVzaXplSG9zdFRlcm1pbmFsEiMuaW5hYmEudjEuUmVzaXplSG9zdFRlcm1pbmFsUmVxdWVzdBokLmluYWJhLnYxLlJlc2l6ZUhvc3RUZXJtaW5hbFJlc3BvbnNlIiKC0+STAhw6ASoiFy92MS90ZXJtaW5hbHMve2lkfS9zaXplEngKEUNsb3NlSG9zdFRlcm1pbmFsEiIuaW5hYmEudjEuQ2xvc2VIb3N0VGVybWluYWxSZXF1ZXN0GiMuaW5hYmEudjEuQ2xvc2VIb3N0VGVybWluYWxSZXNwb25zZSIagtPkkwIUKhIvdjEvdGVybWluYWxzL3tpZH1CjgEKDGNvbS5pbmFiYS52MUINVGVybWluYWxQcm90b1ABWi5naXRodWIuY29tL0FsZXg0Mzg2L2luYWJhL2dlbi9pbmFiYS92MTtpbmFiYXYxogIDSVhYqgIISW5hYmEuVjHKAghJbmFiYVxWMeICFEluYWJhXFYxXEdQQk1ldGFkYXRh6gIJSW5hYmE6OlYxYgZwcm90bzM", [file_google_api_annotations, file_google_protobuf_timestamp, file_inaba_v1_host]);
+  fileDesc("ChdpbmFiYS92MS90ZXJtaW5hbC5wcm90bxIIaW5hYmEudjEihAEKDEhvc3RUZXJtaW5hbBIKCgJpZBgBIAEoCRILCgNjd2QYAiABKAkSLgoKc3RhcnRlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDgoGZXhpdGVkGAQgASgIEg0KBXRpdGxlGAUgASgJEgwKBG5hbWUYBiABKAkiGgoYTGlzdEhvc3RUZXJtaW5hbHNSZXF1ZXN0IkYKGUxpc3RIb3N0VGVybWluYWxzUmVzcG9uc2USKQoJdGVybWluYWxzGAEgAygLMhYuaW5hYmEudjEuSG9zdFRlcm1pbmFsIkIKF09wZW5Ib3N0VGVybWluYWxSZXF1ZXN0EgsKA2N3ZBgBIAEoCRIMCgRjb2xzGAIgASgNEgwKBHJvd3MYAyABKA0iQwoZQXR0YWNoSG9zdFRlcm1pbmFsUmVxdWVzdBIKCgJpZBgBIAEoCRIMCgRjb2xzGAIgASgNEgwKBHJvd3MYAyABKA0iNAoYV3JpdGVIb3N0VGVybWluYWxSZXF1ZXN0EgoKAmlkGAEgASgJEgwKBGRhdGEYAiABKAwiGwoZV3JpdGVIb3N0VGVybWluYWxSZXNwb25zZSJDChlSZXNpemVIb3N0VGVybWluYWxSZXF1ZXN0EgoKAmlkGAEgASgJEgwKBGNvbHMYAiABKA0SDAoEcm93cxgDIAEoDSIcChpSZXNpemVIb3N0VGVybWluYWxSZXNwb25zZSI1ChlSZW5hbWVIb3N0VGVybWluYWxSZXF1ZXN0EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkiJgoYQ2xvc2VIb3N0VGVybWluYWxSZXF1ZXN0EgoKAmlkGAEgASgJIhsKGUNsb3NlSG9zdFRlcm1pbmFsUmVzcG9uc2UywAYKE0hvc3RUZXJtaW5hbFNlcnZpY2UScwoRTGlzdEhvc3RUZXJtaW5hbHMSIi5pbmFiYS52MS5MaXN0SG9zdFRlcm1pbmFsc1JlcXVlc3QaIy5pbmFiYS52MS5MaXN0SG9zdFRlcm1pbmFsc1Jlc3BvbnNlIhWC0+STAg8SDS92MS90ZXJtaW5hbHMSZwoQT3Blbkhvc3RUZXJtaW5hbBIhLmluYWJhLnYxLk9wZW5Ib3N0VGVybWluYWxSZXF1ZXN0GhYuaW5hYmEudjEuSG9zdFRlcm1pbmFsIhiC0+STAhI6ASoiDS92MS90ZXJtaW5hbHMSVQoSQXR0YWNoSG9zdFRlcm1pbmFsEiMuaW5hYmEudjEuQXR0YWNoSG9zdFRlcm1pbmFsUmVxdWVzdBoYLmluYWJhLnYxLlRlcm1pbmFsT3V0cHV0MAESgQEKEVdyaXRlSG9zdFRlcm1pbmFsEiIuaW5hYmEudjEuV3JpdGVIb3N0VGVybWluYWxSZXF1ZXN0GiMuaW5hYmEudjEuV3JpdGVIb3N0VGVybWluYWxSZXNwb25zZSIjgtPkkwIdOgEqIhgvdjEvdGVybWluYWxzL3tpZH0vaW5wdXQSgwEKElJlc2l6ZUhvc3RUZXJtaW5hbBIjLmluYWJhLnYxLlJlc2l6ZUhvc3RUZXJtaW5hbFJlcXVlc3QaJC5pbmFiYS52MS5SZXNpemVIb3N0VGVybWluYWxSZXNwb25zZSIigtPkkwIcOgEqIhcvdjEvdGVybWluYWxzL3tpZH0vc2l6ZRJwChJSZW5hbWVIb3N0VGVybWluYWwSIy5pbmFiYS52MS5SZW5hbWVIb3N0VGVybWluYWxSZXF1ZXN0GhYuaW5hYmEudjEuSG9zdFRlcm1pbmFsIh2C0+STAhc6ASoyEi92MS90ZXJtaW5hbHMve2lkfRJ4ChFDbG9zZUhvc3RUZXJtaW5hbBIiLmluYWJhLnYxLkNsb3NlSG9zdFRlcm1pbmFsUmVxdWVzdBojLmluYWJhLnYxLkNsb3NlSG9zdFRlcm1pbmFsUmVzcG9uc2UiGoLT5JMCFCoSL3YxL3Rlcm1pbmFscy97aWR9Qo4BCgxjb20uaW5hYmEudjFCDVRlcm1pbmFsUHJvdG9QAVouZ2l0aHViLmNvbS9BbGV4NDM4Ni9pbmFiYS9nZW4vaW5hYmEvdjE7aW5hYmF2MaICA0lYWKoCCEluYWJhLlYxygIISW5hYmFcVjHiAhRJbmFiYVxWMVxHUEJNZXRhZGF0YeoCCUluYWJhOjpWMWIGcHJvdG8z", [file_google_api_annotations, file_google_protobuf_timestamp, file_inaba_v1_host]);
 
 /**
  * @generated from message inaba.v1.HostTerminal
@@ -55,6 +55,13 @@ export type HostTerminal = Message<"inaba.v1.HostTerminal"> & {
    * @generated from field: string title = 5;
    */
   title: string;
+
+  /**
+   * Set by a person; shown instead of the title while it is set.
+   *
+   * @generated from field: string name = 6;
+   */
+  name: string;
 };
 
 /**
@@ -230,6 +237,28 @@ export const ResizeHostTerminalResponseSchema: GenMessage<ResizeHostTerminalResp
   messageDesc(file_inaba_v1_terminal, 8);
 
 /**
+ * @generated from message inaba.v1.RenameHostTerminalRequest
+ */
+export type RenameHostTerminalRequest = Message<"inaba.v1.RenameHostTerminalRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+};
+
+/**
+ * Describes the message inaba.v1.RenameHostTerminalRequest.
+ * Use `create(RenameHostTerminalRequestSchema)` to create a new message.
+ */
+export const RenameHostTerminalRequestSchema: GenMessage<RenameHostTerminalRequest> = /*@__PURE__*/
+  messageDesc(file_inaba_v1_terminal, 9);
+
+/**
  * @generated from message inaba.v1.CloseHostTerminalRequest
  */
 export type CloseHostTerminalRequest = Message<"inaba.v1.CloseHostTerminalRequest"> & {
@@ -244,7 +273,7 @@ export type CloseHostTerminalRequest = Message<"inaba.v1.CloseHostTerminalReques
  * Use `create(CloseHostTerminalRequestSchema)` to create a new message.
  */
 export const CloseHostTerminalRequestSchema: GenMessage<CloseHostTerminalRequest> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_terminal, 9);
+  messageDesc(file_inaba_v1_terminal, 10);
 
 /**
  * @generated from message inaba.v1.CloseHostTerminalResponse
@@ -257,7 +286,7 @@ export type CloseHostTerminalResponse = Message<"inaba.v1.CloseHostTerminalRespo
  * Use `create(CloseHostTerminalResponseSchema)` to create a new message.
  */
 export const CloseHostTerminalResponseSchema: GenMessage<CloseHostTerminalResponse> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_terminal, 10);
+  messageDesc(file_inaba_v1_terminal, 11);
 
 /**
  * Login shells on the host, each in the folder it was opened in. One runs until it is
@@ -313,7 +342,16 @@ export const HostTerminalService: GenService<{
   },
   /**
    * Ends a terminal and its process.
+   * Names a terminal; an empty name goes back to the title its shell sets.
    *
+   * @generated from rpc inaba.v1.HostTerminalService.RenameHostTerminal
+   */
+  renameHostTerminal: {
+    methodKind: "unary";
+    input: typeof RenameHostTerminalRequestSchema;
+    output: typeof HostTerminalSchema;
+  },
+  /**
    * @generated from rpc inaba.v1.HostTerminalService.CloseHostTerminal
    */
   closeHostTerminal: {

@@ -217,3 +217,87 @@ func TestDriverSeat(t *testing.T) {
 		t.Fatalf("an administrator taking the seat: %q", d)
 	}
 }
+
+// A host terminal has a driver seat as a thread does, kept apart from every thread's.
+func TestTerminalSeat(t *testing.T) {
+	s, err := New(context.Background(), Config{DataPath: filepath.Join(testdir.New(t), "s.db")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler, _ := s.Handler()
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+	c := &http.Client{}
+	u, _ := s.store.AddLocalUser("alice", "pw", false, nil)
+	_, tok, _ := s.store.NewToken(store.KindAPI, u.ID, "t", 0)
+	host, _, _ := s.store.AddHost("shared", "")
+	beat := func(body map[string]any) (string, []any) {
+		t.Helper()
+		body["hostId"] = host.ID
+		code, res := postJSON(t, c, srv.URL+"/v1/presence", tok, body)
+		if code != 200 {
+			t.Fatalf("heartbeat %v: %d %v", body, code, res)
+		}
+		d, _ := res["driver"].(string)
+		clients, _ := res["clients"].([]any)
+		return d, clients
+	}
+	if d, _ := beat(map[string]any{"clientId": "a", "terminalId": "x1", "take": true}); d != "a" {
+		t.Fatalf("first to ask for the terminal: %q", d)
+	}
+	// The same id as a thread is another place: its seat is free, and its own.
+	if d, _ := beat(map[string]any{"clientId": "b", "threadId": "x1"}); d != "" {
+		t.Fatalf("thread x1 has the terminal's driver: %q", d)
+	}
+	if d, _ := beat(map[string]any{"clientId": "b", "threadId": "x1", "take": true}); d != "b" {
+		t.Fatalf("thread x1 taken: %q", d)
+	}
+	if d, clients := beat(map[string]any{"clientId": "c", "terminalId": "x1"}); d != "a" || len(clients) != 1 {
+		t.Fatalf("watcher on the terminal: %q %v", d, clients)
+	}
+	// One's other tab takes it over from the holder it saw.
+	if d, _ := beat(map[string]any{"clientId": "c", "terminalId": "x1", "take": true}); d != "a" {
+		t.Fatalf("took a held seat without saying from whom: %q", d)
+	}
+	if d, _ := beat(map[string]any{"clientId": "c", "terminalId": "x1", "take": true, "from": "a"}); d != "c" {
+		t.Fatalf("other tab taking over: %q", d)
+	}
+	if d, _ := beat(map[string]any{"clientId": "c", "terminalId": "x1", "release": true}); d != "" {
+		t.Fatalf("released: %q", d)
+	}
+	if d, _ := beat(map[string]any{"clientId": "a", "terminalId": "x1", "take": true}); d != "a" {
+		t.Fatalf("a free seat again: %q", d)
+	}
+	// Its holder going quiet frees it.
+	s.mu.Lock()
+	s.present[u.ID+"/a"].seen = s.present[u.ID+"/a"].seen.Add(-2 * presenceTTL)
+	s.mu.Unlock()
+	if d, _ := beat(map[string]any{"clientId": "c", "terminalId": "x1"}); d != "" {
+		t.Fatalf("after the holder went quiet: %q", d)
+	}
+	// None of it moved the thread's seat.
+	if d, _ := beat(map[string]any{"clientId": "b", "threadId": "x1"}); d != "b" {
+		t.Fatalf("thread x1 after the terminal's seat moved: %q", d)
+	}
+	// Another account on the host neither sees alice on her terminal nor reaches its seat.
+	_, btok, _ := func() (any, string, error) {
+		b, _ := s.store.AddLocalUser("bob", "pw", false, nil)
+		return s.store.NewToken(store.KindAPI, b.ID, "t", 0)
+	}()
+	_, res := postJSON(t, c, srv.URL+"/v1/presence", btok, map[string]any{"clientId": "z", "hostId": host.ID, "terminalId": "x1", "take": true})
+	// Only alice's tab on thread x1 shows; he sits alone, in a seat of his own.
+	if p, _ := res["present"].([]any); len(p) != 1 || p[0].(map[string]any)["threadId"] != "x1" || len(res["clients"].([]any)) != 0 {
+		t.Fatalf("bob on alice's terminal sees: %v", res)
+	}
+	if d, clients := beat(map[string]any{"clientId": "c", "terminalId": "x1", "take": true}); d != "c" || len(clients) != 0 {
+		t.Fatalf("alice after bob asked for her terminal: %q %v", d, clients)
+	}
+	_, res = postJSON(t, c, srv.URL+"/v1/presence", btok, map[string]any{"clientId": "z", "hostId": host.ID})
+	if p, _ := res["present"].([]any); len(p) != 1 || p[0].(map[string]any)["terminalId"] != "" {
+		t.Fatalf("bob sees alice's terminal: %v", p)
+	}
+	code, _ := postJSON(t, c, srv.URL+"/v1/presence", tok, map[string]any{"clientId": "a", "hostId": host.ID, "terminalId": "x1", "threadId": "t1"})
+	if code != http.StatusBadRequest {
+		t.Fatalf("a terminal and a thread at once: %d", code)
+	}
+}

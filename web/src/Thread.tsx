@@ -17,7 +17,6 @@ import {
   Undo2Icon,
   GitBranchIcon,
   XIcon,
-  EyeIcon,
   HandIcon,
   UsersIcon,
   ChevronRightIcon,
@@ -65,22 +64,24 @@ import { ChangesPanel, LineCounts, type TurnScope } from "@/components/changes-p
 
 import { WhereCard } from "@/components/where-card";
 import { allTabs, dockOf, type Docks, type DockState, moveTab, newTabId, oneChanges, placeTab, type Surface, type TabId, withoutTab } from "@/lib/tabs";
-import { CLIENT, PeopleStack, usePresent } from "@/components/presence";
+import { CLIENT, PeopleStack, usePresent, WatchingBanner } from "@/components/presence";
 import { type Host, PresenceService } from "./gen/inaba/v1/server_pb";
 import { createClient } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-web";
 import { FilesPanel } from "@/components/files-panel";
 import { BrowserPanel } from "@/modules/browser/BrowserPanel";
 import { AttachmentImage, Composer, type Draft } from "@/components/composer";
+import { ChatMap, type Exchange } from "@/components/chat-map";
 import { QueueList } from "@/components/queue-list";
 import { ConfirmDialog, RenameDialog } from "@/components/dialogs";
+import { Logo } from "@/components/logo";
 import { Markdown } from "@/components/markdown";
 import { Badge } from "@/components/reui/badge";
 import { ProjectIcon, threadFailed, threadName, threadState, threadWorking } from "@/components/project-tree";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -157,11 +158,25 @@ export function ThreadView({
   const [diffScope, setDiffScope] = useState<string>();
   const [docks, setDocks] = useState<Docks<Dock>>(() => Object.fromEntries(DOCKS.map((d) => [d, { open: false, tabs: [] }])) as unknown as Docks<Dock>);
   const updateDock = (dock: Dock, change: (d: DockState) => DockState) => setDocks((all) => ({ ...all, [dock]: change(all[dock]) }));
-  const toggleDock = (dock: Dock) => updateDock(dock, (d) => ({ ...d, open: !d.open }));
+  // Files tabs with unsaved edits: closing, moving or hiding one unmounts it, so that asks first.
+  const unsaved = useRef(new Set<TabId>());
+  // The file each files tab shows, to name the tab by it.
+  const [fileOf, setFileOf] = useState<Record<TabId, string | undefined>>({});
+  // The title of the page each browser tab shows, as its tab's name.
+  const [titleOf, setTitleOf] = useState<Record<TabId, string | undefined>>({});
+  const [discarding, setDiscarding] = useState<() => void>();
+  const guard = (tabs: TabId[], go: () => void) => {
+    if (!tabs.some((x) => unsaved.current.has(x))) return go();
+    setDiscarding(() => () => {
+      for (const x of tabs) unsaved.current.delete(x);
+      go();
+    });
+  };
+  const toggleDock = (dock: Dock) => guard(docks[dock].open ? docks[dock].tabs : [], () => updateDock(dock, (d) => ({ ...d, open: !d.open })));
   // Opens a surface in a dock: another terminal, file tree or page each time, and the one diff moved there.
   const openSurface = (dock: Dock, surface: Surface) => setDocks((all) => placeTab(all, dock, newTabId(surface, allTabs(all))));
   // Takes a tab from whichever dock holds it into this one, keeping what it shows.
-  const moveTo = (dock: Dock, tab: TabId) => setDocks((all) => placeTab(all, dock, tab));
+  const moveTo = (dock: Dock, tab: TabId) => guard(dockOf(docks, tab) === dock ? [] : [tab], () => setDocks((all) => placeTab(all, dock, tab)));
   // A turn's changes show in the changes panel beside the conversation, opening it if the driver may.
   const showTurn = (turn: TurnScope) => {
     setDiffScope(turn.after);
@@ -212,7 +227,7 @@ export function ThreadView({
     setDocks(next);
     setPageOf((b) => ({ ...b, ...ties }));
   }, []);
-  const closeTab = (tab: TabId) => {
+  const closeTab = (tab: TabId) => guard([tab], () => {
     setDocks((all) => withoutTab(all, tab));
     // A browser tab's page closes with it.
     const page = pageOf[tab];
@@ -222,11 +237,19 @@ export function ThreadView({
     }
     // A terminal's process ends with its tab.
     if (surfaceOf(tab) === "shell") link.shell.closeShell({ threadId, shellId: tab }).catch(() => {});
-  };
+  });
   const isMobile = useIsMobile();
+  // A phone watching has no room to follow every dock the driver opens: it opens one itself, when the
+  // driver has it open, and it closes when the driver closes it.
+  const ownDocks = isMobile && !driving;
+  const [peek, setPeek] = useState<Record<Dock, boolean>>({ right: false, bottom: false });
+  const shown = (dock: Dock) => docks[dock].open && (!ownDocks || peek[dock]);
+  useEffect(() => {
+    setPeek((p) => (DOCKS.some((d) => p[d] && !docks[d].open) ? { right: p.right && docks.right.open, bottom: p.bottom && docks.bottom.open } : p));
+  }, [docks.right.open, docks.bottom.open]);
   // The sizes the user dragged the docks to, kept across threads and reloads.
-  const rightLayout = useDefaultLayout({ id: "inaba-thread-side", panelIds: docks.right.open ? ["main", "side"] : ["main"] });
-  const bottomLayout = useDefaultLayout({ id: "inaba-thread-bottom", panelIds: docks.bottom.open ? ["top", "bottom"] : ["top"] });
+  const rightLayout = useDefaultLayout({ id: "inaba-thread-side", panelIds: shown("right") ? ["main", "side"] : ["main"] });
+  const bottomLayout = useDefaultLayout({ id: "inaba-thread-bottom", panelIds: shown("bottom") ? ["top", "bottom"] : ["top"] });
   const [thread, setThread] = useState<Thread>();
   const [provider, setProvider] = useState<Provider>();
   // Every provider the host offers, for moving the thread to another between turns.
@@ -378,7 +401,7 @@ export function ThreadView({
             running={thread.status !== ThreadStatus.IDLE}
           />;
       case "files":
-        return <FilesPanel link={link} threadId={threadId} root={fileRoot(thread, projectName)} onClose={() => closeTab(tab)} readOnly={!driving} />;
+        return <FilesPanel link={link} threadId={threadId} root={fileRoot(thread, projectName)} onClose={() => closeTab(tab)} onDirty={(d) => void (d ? unsaved.current.add(tab) : unsaved.current.delete(tab))} onActive={(path) => setFileOf((f) => (f[tab] === path ? f : { ...f, [tab]: path }))} readOnly={!driving} />;
       case "browser":
         return (
           <BrowserPanel
@@ -392,6 +415,7 @@ export function ThreadView({
               setPageOf(({ [tab]: _, ...rest }) => rest);
             }}
             onPages={showPages}
+            onTitle={(title) => setTitleOf((n) => (n[tab] === title ? n : { ...n, [tab]: title }))}
             driving={driving}
           />
         );
@@ -419,6 +443,8 @@ export function ThreadView({
         onDragging={setDragging}
         draggingTab={dragging}
         locked={!driving}
+        fileOf={fileOf}
+        titleOf={titleOf}
       >
         {pane}
       </SidePanel>
@@ -468,19 +494,7 @@ export function ThreadView({
           ))}
         {info && <WhereCard host={host} cwd={thread.cwd} git={git} connection={direct ? "direct" : "relayed"} provider={provider?.displayName || thread.provider} onChanges={git?.repository && driving ? () => openSurface("right", "changes") : undefined} className="absolute top-14 right-3 z-10" />}
         {/* Watching rather than driving: said over the conversation, with the way in when there is one. */}
-        {seat && !driving && (
-          <div className="pointer-events-none absolute inset-x-0 top-14 z-10 flex justify-center px-3">
-            <div role="status" className="pointer-events-auto flex max-w-full items-center gap-2 rounded-2xl border border-amber-500/40 bg-amber-100/95 py-1 pr-1 pl-3 text-sm text-amber-950 shadow-sm dark:bg-amber-950/90 dark:text-amber-100">
-              <EyeIcon className="size-4 shrink-0" />
-              <span className="py-0.5">{!driver ? t("drive.bannerFree") : holder ? t("drive.bannerOther", { name: holder.name }) : t("drive.bannerOwnTab")}</span>
-              {mayTake && (
-                <Button size="xs" variant="outline" className="border-amber-500/50 bg-transparent" onClick={() => void askToTake(driver ?? "")}>
-                  {t(driver ? "drive.take" : "drive.claim")}
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
+        {seat && !driving && <WatchingBanner driver={driver} holder={holder} onTake={mayTake ? () => void askToTake(driver ?? "") : undefined} />}
         <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
           <SidebarTrigger />
           {/* Where the thread sits, as the project's own pages show it: project / thread. */}
@@ -510,19 +524,46 @@ export function ThreadView({
             {/* Who else has this thread open. */}
             <PeopleStack people={here} label={driving ? t("drive.watchers") : undefined} />
             {git?.repository && (
-              <Button size="sm" variant={changesTab ? "secondary" : "outline"} title={t("git.changes")} disabled={!driving} onClick={() => (changesTab ? closeTab(changesTab) : openSurface("right", "changes"))}>
-                <GitBranchIcon data-icon="inline-start" />
-                <span className="hidden max-w-32 truncate @3xl:inline">{git.branch}</span>
-                {git.files.length > 0 && <LineCounts additions={git.additions} deletions={git.deletions} />}
+              <Button
+                size={isMobile ? "icon-sm" : "sm"}
+                variant={changesTab ? "secondary" : "outline"}
+                className="relative"
+                title={t("git.changes")}
+                aria-label={t("git.changes")}
+                disabled={!driving}
+                onClick={() => (changesTab ? closeTab(changesTab) : openSurface("right", "changes"))}
+              >
+                <GitBranchIcon data-icon={isMobile ? undefined : "inline-start"} />
+                {/* On a phone only the icon, with a dot when there are changes; the panel it opens has the rest. */}
+                {isMobile ? (
+                  git.files.length > 0 && <span aria-hidden className="bg-primary absolute top-1 right-1 size-1.5 rounded-full" />
+                ) : (
+                  <>
+                    <span className="hidden max-w-32 truncate @3xl:inline">{git.branch}</span>
+                    {git.files.length > 0 && <LineCounts additions={git.additions} deletions={git.deletions} />}
+                  </>
+                )}
               </Button>
             )}
-            <Button size="icon-sm" variant={info ? "secondary" : "ghost"} aria-pressed={info} aria-label={t("thread.info")} title={t("thread.info")} onClick={() => setInfo((v) => !v)}>
-              <PanelTopIcon />
-            </Button>
-            {(["bottom", "right"] as const).map((dock) => {
+            {/* On a phone these are in the menu, as the header has no room for them. */}
+            {!isMobile && (
+              <Button size="icon-sm" variant={info ? "secondary" : "ghost"} aria-pressed={info} aria-label={t("thread.info")} title={t("thread.info")} onClick={() => setInfo((v) => !v)}>
+                <PanelTopIcon />
+              </Button>
+            )}
+            {!isMobile && (["bottom", "right"] as const).map((dock) => {
               const Icon = dock === "bottom" ? PanelBottomIcon : PanelRightIcon;
               return (
-                <Button key={dock} size="icon-sm" variant={docks[dock].open ? "secondary" : "ghost"} aria-pressed={docks[dock].open} aria-label={t(`dock.${dock}`)} title={t(`dock.${dock}`)} disabled={!driving} onClick={() => toggleDock(dock)}>
+                <Button
+                  key={dock}
+                  size="icon-sm"
+                  variant={shown(dock) ? "secondary" : "ghost"}
+                  aria-pressed={shown(dock)}
+                  aria-label={t(`dock.${dock}`)}
+                  title={t(`dock.${dock}`)}
+                  disabled={ownDocks ? !docks[dock].open : !driving}
+                  onClick={() => (ownDocks ? setPeek((p) => ({ ...p, [dock]: !p[dock] })) : toggleDock(dock))}
+                >
                   <Icon />
                 </Button>
               );
@@ -539,6 +580,26 @@ export function ThreadView({
                 <span className="sr-only">{t("project.more", { name: threadName(thread) })}</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-auto whitespace-nowrap" align="end">
+                {isMobile && (
+                  <>
+                    <DropdownMenuCheckboxItem checked={info} onCheckedChange={(on) => setInfo(on)}>
+                      <PanelTopIcon />
+                      {t("thread.info")}
+                    </DropdownMenuCheckboxItem>
+                    {(["bottom", "right"] as const).map((dock) => (
+                      <DropdownMenuCheckboxItem
+                        key={dock}
+                        checked={shown(dock)}
+                        disabled={ownDocks ? !docks[dock].open : !driving}
+                        onCheckedChange={() => (ownDocks ? setPeek((p) => ({ ...p, [dock]: !p[dock] })) : toggleDock(dock))}
+                      >
+                        {dock === "bottom" ? <PanelBottomIcon /> : <PanelRightIcon />}
+                        {t(`dock.${dock}`)}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem disabled={!driving} onClick={() => setRenaming(true)}>
                   <PencilIcon />
                   {t("thread.rename")}
@@ -614,6 +675,19 @@ export function ThreadView({
           onRename={(title) => link.threads.updateThread({ threadId, title }).then(setThread)}
         />
         <ConfirmDialog
+          open={discarding !== undefined}
+          onClose={() => setDiscarding(undefined)}
+          title={t("files.discard")}
+          description={t("files.discardHelp")}
+          cancel={t("files.keepEditing")}
+          confirm={t("files.discardConfirm")}
+          destructive
+          onConfirm={() => {
+            discarding?.();
+            setDiscarding(undefined);
+          }}
+        />
+        <ConfirmDialog
           open={ending}
           onClose={() => setEnding(false)}
           title={t("thread.endTitle", { name: threadName(thread) })}
@@ -627,7 +701,7 @@ export function ThreadView({
   );
   // The same tree whichever docks are open, so the conversation never remounts and loses its draft.
   // On a narrow screen the right dock is a sheet over the thread instead.
-  const right = docks.right.open && !isMobile;
+  const right = shown("right") && !isMobile;
   return (
     <ResizablePanelGroup id="inaba-thread-side" orientation="horizontal" className="min-h-0 flex-1" defaultLayout={rightLayout.defaultLayout} onLayoutChanged={rightLayout.onLayoutChanged}>
       <ResizablePanel id="main" minSize={360}>
@@ -635,7 +709,7 @@ export function ThreadView({
           <ResizablePanel id="top" minSize={200}>
             {main}
           </ResizablePanel>
-          {docks.bottom.open && (
+          {shown("bottom") && (
             <>
               <ResizableHandle withHandle />
               <ResizablePanel id="bottom" defaultSize="35" minSize={120}>
@@ -653,7 +727,7 @@ export function ThreadView({
           </ResizablePanel>
         </>
       )}
-      <Sheet open={docks.right.open && isMobile} onOpenChange={(open) => !open && toggleDock("right")}>
+      <Sheet open={shown("right") && isMobile} onOpenChange={(open) => !open && (ownDocks ? setPeek((p) => ({ ...p, right: false })) : toggleDock("right"))}>
         <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-md" showCloseButton={false}>
           <SheetTitle className="sr-only">{t("dock.right")}</SheetTitle>
           {isMobile && dockPanel("right")}
@@ -728,6 +802,8 @@ function SidePanel({
   onDragging,
   draggingTab,
   locked,
+  fileOf,
+  titleOf,
   children,
 }: {
   tabs: TabId[];
@@ -748,6 +824,10 @@ function SidePanel({
   draggingTab?: TabId;
   /** Watching someone else drive: the dock shows what they show, and nothing here changes it. */
   locked: boolean;
+  /** The file a files tab shows, to name it by. */
+  fileOf: Record<TabId, string | undefined>;
+  /** The page title of each browser tab. */
+  titleOf: Record<TabId, string | undefined>;
   children: (tab: TabId) => ReactNode;
 }) {
   const { t } = useI18n();
@@ -833,8 +913,20 @@ function SidePanel({
                     <DropdownMenuItem onClick={() => onClose(tab)}>{t("palette.close")}</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                {t(sideTabTitle[surfaceOf(tab)])}
-                {tabNumber(tab) && tabNumber(tab) !== "1" && <span className="text-muted-foreground tabular-nums">{tabNumber(tab)}</span>}
+                {fileOf[tab] ? (
+                  <span className="max-w-40 truncate" title={fileOf[tab]}>
+                    {fileOf[tab]!.split("/").at(-1)}
+                  </span>
+                ) : titleOf[tab] ? (
+                  <span className="max-w-40 truncate" title={titleOf[tab]}>
+                    {titleOf[tab]}
+                  </span>
+                ) : (
+                  <>
+                    {t(sideTabTitle[surfaceOf(tab)])}
+                    {tabNumber(tab) && tabNumber(tab) !== "1" && <span className="text-muted-foreground tabular-nums">{tabNumber(tab)}</span>}
+                  </>
+                )}
                 {!locked && <span
                   role="button"
                   tabIndex={-1}
@@ -1393,11 +1485,23 @@ function Chat({
     [link, threadId],
   );
 
+  // One per message of the user's, with the answer shown under it, for the chat map: blocks() shows a turn's last assistant item and folds earlier ones.
+  const exchanges = useMemo(() => {
+    const out: Exchange[] = [];
+    for (const it of log.items) {
+      if (it.type === "user") out.push({ seq: String(it.seq), text: it.text || it.attachments.map((a) => a.name || a.path).join(", "), answer: "" });
+      else if (it.type === "assistant" && out.length) out[out.length - 1].answer = it.text;
+    }
+    return out;
+  }, [log.items]);
+  const scroller = useRef<HTMLDivElement>(null);
+
   return (
     <div ref={chat} className="contents" onPointerEnter={() => (hovered.current = true)} onPointerLeave={() => (hovered.current = false)}>
       <style>{`::highlight(inaba-find){background-color:color-mix(in oklab,var(--warning) 35%,transparent)}::highlight(inaba-find-current){background-color:var(--warning);color:var(--warning-foreground)}.dark ::highlight(inaba-find-current){color:var(--background)}`}</style>
       {/* --warning is bright yellow in both themes, but dark's --warning-foreground is yellow too, so the current match takes dark's near-black background as its text. */}
-      <div className="relative flex min-h-0 flex-1 flex-col">
+      <div className="@container/chat relative flex min-h-0 flex-1 flex-col">
+      <ChatMap exchanges={exchanges} scroller={scroller} />
       {find !== undefined && (
         <div
           role="search"
@@ -1444,6 +1548,7 @@ function Chat({
         </div>
       )}
       <div
+        ref={scroller}
         data-chat-scroll
         tabIndex={-1}
         className="min-h-0 flex-1 overflow-y-auto outline-none"
@@ -1541,7 +1646,7 @@ function Chat({
         <QueueList
           queue={thread.queue}
           paused={thread.queuePaused}
-          onEdit={(queuedId, text) => link.threads.editQueued({ threadId, queuedId, text }).then(refresh)}
+          onEdit={(queuedId, text, attachments) => link.threads.editQueued({ threadId, queuedId, text, attachments }).then(refresh)}
           onMove={(queuedId, toIndex) => run(link.threads.moveQueued({ threadId, queuedId, toIndex }))}
           onSendNow={(queuedId) => run(link.threads.sendQueuedNow({ threadId, queuedId }))}
           onRemove={(queuedId) => run(link.threads.cancelQueued({ threadId, queuedId }))}
@@ -1910,7 +2015,7 @@ const ItemView = memo(function ItemView({
   switch (item.type) {
     case "user":
       return (
-        <div className="group/message flex max-w-[85%] flex-col items-end gap-1 self-end">
+        <div data-seq={inWorkLog ? undefined : String(item.seq)} className="group/message flex max-w-[85%] flex-col items-end gap-1 self-end">
           {item.attachments.length > 0 && (
             <div className="flex flex-wrap justify-end gap-1.5">
               {item.attachments.map((a, i) =>
@@ -1957,6 +2062,13 @@ const ItemView = memo(function ItemView({
       return (
         <div className="text-muted-foreground py-1 text-center text-xs">
           {t(item.key, item.values && Object.fromEntries(Object.entries(item.values).map(([k, v]) => [k, (item.key === "chat.providerChanged" && names?.[v]) || v])))}
+        </div>
+      );
+    case "restarted":
+      return (
+        <div role="status" className="text-muted-foreground flex items-center justify-center gap-1.5 py-1 text-xs">
+          <Logo className="size-4" />
+          {t("chat.restarted")}
         </div>
       );
     case "error":

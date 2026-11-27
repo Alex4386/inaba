@@ -1,5 +1,5 @@
 import { Code, ConnectError } from "@connectrpc/connect";
-import { KeyRoundIcon, SearchIcon, ServerOffIcon } from "lucide-react";
+import { KeyRoundIcon, LanguagesIcon, SearchIcon, ServerOffIcon, SunMoonIcon } from "lucide-react";
 import { signInWithPasskey } from "@/components/profile-panel";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useRoute } from "wouter";
@@ -35,7 +35,9 @@ import { UserMenu } from "@/components/user-menu";
 import { errorText, showError } from "@/lib/errors";
 import { disablePush, syncPush } from "@/lib/push";
 import { bindingOf, formatBinding, matches, useKeybindings } from "@/lib/keybindings";
-import { useI18n } from "@/lib/i18n";
+import { type Locale, localeNames, useI18n } from "@/lib/i18n";
+import { useTheme } from "next-themes";
+import { Picker } from "@/components/picker";
 import { toast } from "sonner";
 
 export function App() {
@@ -96,6 +98,7 @@ function BootError({ error, onRetry }: { error: string; onRetry: () => void }) {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
         <Button onClick={onRetry}>{t("common.retry")}</Button>
+        <AuthPrefs />
       </div>
     </main>
   );
@@ -200,8 +203,43 @@ function AuthCard({ children, onSubmit }: { children: ReactNode; onSubmit: (even
         <form onSubmit={onSubmit} className="bg-card grid gap-4 rounded-xl border p-6 shadow-xs">
           {children}
         </form>
+        <AuthPrefs />
       </div>
     </main>
+  );
+}
+
+/** Language, then theme under it, for whoever has not signed in yet to reach the settings. */
+function AuthPrefs() {
+  const { t, locale, setLocale } = useI18n();
+  const { theme = "system", setTheme } = useTheme();
+  return (
+    <div className="grid justify-items-center gap-2">
+      <div className="inline-flex items-center gap-1">
+        <LanguagesIcon aria-hidden className="text-muted-foreground size-4" />
+        <Picker
+          size="sm"
+          label={t("user.language")}
+          value={locale}
+          onChange={setLocale}
+          options={(Object.keys(localeNames) as Locale[]).map((l) => ({ value: l, label: localeNames[l] }))}
+        />
+      </div>
+      <div className="inline-flex items-center gap-1">
+        <SunMoonIcon aria-hidden className="text-muted-foreground size-4" />
+        <Picker
+          size="sm"
+          label={t("user.theme")}
+          value={theme}
+          onChange={setTheme}
+          options={[
+            { value: "system", label: t("user.themeSystem") },
+            { value: "light", label: t("user.themeLight") },
+            { value: "dark", label: t("user.themeDark") },
+          ]}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -389,7 +427,7 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
 
 
   // Who else is on this host, and where; this tab says where it is as it goes.
-  const present = usePresence(host?.id, threadId, draftId);
+  const present = usePresence(host?.id, threadId, draftId, onTerminal?.terminal);
 
   const selectHost = (next: Host) => home(next.id);
 
@@ -487,7 +525,7 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
             onAddProject={canOn(host, Permission.MANAGE_PROJECTS) ? () => setPalette("folder") : undefined}
           />
         ) : link && onTerminal ? (
-          <HostTerminalPage key={onTerminal.terminal} link={link} id={onTerminal.terminal} onClosed={() => home()} />
+          <HostTerminalPage key={onTerminal.terminal} link={link} id={onTerminal.terminal} onClosed={() => home()} stealth={user.admin && user.stealth} />
         ) : link && onProjectThreads ? (
           <ProjectThreadsPage
             key={onProjectThreads.project}
@@ -511,7 +549,7 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
             onOpenThread={openThread}
           />
         ) : link && threadId ? (
-          <ThreadView key={threadId} link={link} host={host} threadId={threadId} onEnded={() => home()} onOpen={openThread} onProject={(p) => navigate(`/hosts/${shownHost}/projects/${p.id}/threads`)} modules={modulesOn} admin={user.admin} stealth={user.admin && user.stealth} />
+          <ThreadView key={threadId} link={link} host={host} threadId={threadId} onEnded={() => home()} onOpen={openThread} onProject={(p) => navigate(`/hosts/${shownHost}/projects/${p.id}/threads`)} modules={modulesOn} stealth={user.admin && user.stealth} />
         ) : (
           <>
             <header className="flex h-12 shrink-0 items-center px-3">

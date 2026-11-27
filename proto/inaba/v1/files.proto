@@ -15,6 +15,11 @@ service FileService {
   rpc SearchFiles(SearchFilesRequest) returns (SearchFilesResponse) {
     option (google.api.http) = {get: "/v1/threads/{thread_id}/files"};
   }
+  // Lines in the thread's folder's files holding the query, grouped by file in path
+  // order. In a git repository ignored files are left out. A bad regex is INVALID_ARGUMENT.
+  rpc GrepFiles(GrepFilesRequest) returns (GrepFilesResponse) {
+    option (google.api.http) = {get: "/v1/threads/{thread_id}/grep"};
+  }
   // Lists one folder of the thread's folder, folders first. Only .git is left out.
   rpc ListFolder(ListFolderRequest) returns (ListFolderResponse) {
     option (google.api.http) = {get: "/v1/threads/{thread_id}/tree"};
@@ -53,6 +58,33 @@ message SearchFilesRequest {
 message SearchFilesResponse {
   // Paths relative to the thread's folder, best match first; at most 50.
   repeated string paths = 1;
+}
+
+message GrepFilesRequest {
+  string thread_id = 1;
+  string query = 2;
+  bool case_sensitive = 3;
+  bool whole_word = 4;
+  // The query is a regular expression (extended, as grep -E), not plain text.
+  bool regex = 5;
+}
+message GrepFilesResponse {
+  message Match {
+    // Relative to the thread's folder.
+    string path = 1;
+    // 1-based.
+    uint32 line = 2;
+    // 1-based, in UTF-16 units of the whole line, as an editor counts.
+    uint32 column = 3;
+    // The line, trimmed around the match when long.
+    string text = 4;
+    // Where the match is in text, in UTF-16 units.
+    uint32 match_start = 5;
+    uint32 match_end = 6;
+  }
+  repeated Match matches = 1;
+  // More matched than was sent: at most 500 in all, and 50 in one file.
+  bool truncated = 2;
 }
 
 message ListFolderRequest {

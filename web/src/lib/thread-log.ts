@@ -12,6 +12,8 @@ export type Item =
   | { type: "plan"; entries: Plan_Entry[] }
   // A line of the UI's own, kept as a message key so it follows the language setting.
   | { type: "note"; key: MessageKey; values?: Record<string, string> }
+  // inaba's own message carrying on a turn the host's restart cut short, in place of a person's.
+  | { type: "restarted"; at: number }
   // agents are those of a background workflow the call started, such as an ultracode run.
   | { type: "tool"; id: string; title: string; kind: string; status: string; input: string; output: string; agents: WorkflowAgent[] }
   | { type: "permission"; requestId: string; title: string; options: PermissionRequest_Option[]; answer?: string }
@@ -47,7 +49,8 @@ export function apply(log: Log, event: Event): Log {
   const p = event.payload;
   switch (p.case) {
     case "userMessage":
-      items.push({ type: "user", text: p.value.text, at: millis(event), seq: event.seq, attachments: p.value.attachments });
+      if (p.value.resume) items.push({ type: "restarted", at: millis(event) });
+      else items.push({ type: "user", text: p.value.text, at: millis(event), seq: event.seq, attachments: p.value.attachments });
       break;
     case "rewound": {
       // Everything from the message rewound to onward is no longer part of the conversation.
@@ -105,7 +108,8 @@ export function apply(log: Log, event: Event): Log {
       const i = items.findLastIndex((it) => it.type === "turn");
       if (i >= 0) items[i] = { ...(items[i] as Extract<Item, { type: "turn" }>), endedAt: millis(event) };
       if (p.value.error) items.push({ type: "error", text: p.value.error, at: millis(event) });
-      else if (p.value.stopReason && p.value.stopReason !== "end_turn") items.push({ type: "note", key: "chat.turnEnded", values: { reason: p.value.stopReason } });
+      // Cut short by the host's restart and going on: the next turn says so.
+      else if (p.value.stopReason && p.value.stopReason !== "end_turn" && p.value.stopReason !== "host_restarted") items.push({ type: "note", key: "chat.turnEnded", values: { reason: p.value.stopReason } });
       break;
     }
     case "plan": {

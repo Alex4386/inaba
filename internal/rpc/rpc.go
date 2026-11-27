@@ -28,6 +28,11 @@ func Mount(mux *http.ServeMux, server *connect.Server, streams ...Stream) error 
 // request, replacing whatever the caller sent; the host enforces it.
 const PermissionsHeader = "X-Inaba-Permissions"
 
+// UserHeader is how inaba-server tells a host which account is calling: its id, or empty
+// for a call with no account behind it, such as a webhook. Like PermissionsHeader, the
+// server sets it on every relayed request, replacing whatever the caller sent.
+const UserHeader = "X-Inaba-User"
+
 // Permissions a host enforces, by the names inaba-server sends in PermissionsHeader.
 const (
 	// PermProjects lets its holder add, change and remove a host's projects.
@@ -70,4 +75,16 @@ func May(ctx context.Context, permission string) error {
 		}
 	}
 	return connect.NewError(connect.CodePermissionDenied, "an administrator has to allow your account to manage "+permission)
+}
+
+// Caller returns the calling account's id, as inaba-server said in UserHeader, and whether
+// the call is trusted, in which case it acts for every account.
+func Caller(ctx context.Context) (user string, trusted bool) {
+	if ctx.Value(trustedKey{}) != nil {
+		return "", true
+	}
+	if info, ok := connect.CallInfoForServerContext(ctx); ok {
+		return info.RequestHeader().Get(UserHeader), false
+	}
+	return "", false
 }

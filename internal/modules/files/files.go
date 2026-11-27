@@ -3,19 +3,26 @@
 package files
 
 import (
+	"bufio"
+	"bytes"
 	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io"
 	"io/fs"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
+	"unicode/utf16"
+	"unicode/utf8"
 
 	"connectrpc.com/connect/v2"
 	"go.uber.org/fx"
@@ -269,4 +276,222 @@ func gitFiles(ctx context.Context, dir string) (string, error) {
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_OPTIONAL_LOCKS=0")
 	out, err := cmd.Output()
 	return string(out), err
+}
+
+const (
+	maxGrepMatches = 500
+	maxGrepPerFile = 50
+	// A file larger than this is left out of a search outside git.
+	maxGrepFileBytes = 1 << 20
+	// Lines longer than this in git grep's output end the search there.
+	maxGrepLineBytes = 1 << 20
+	// How much of a matching line is sent, in bytes, around the match.
+	grepContext = 200
+	grepTimeout = 10 * time.Second
+)
+
+func (s *service) GrepFiles(ctx context.Context, req *inabav1.GrepFilesRequest) (*inabav1.GrepFilesResponse, error) {
+	dir, err := s.folder(req.ThreadId)
+	if err != nil {
+		return nil, err
+	}
+	res := &inabav1.GrepFilesResponse{}
+	if req.Query == "" {
+		return res, nil
+	}
+	// The same pattern finds where in a line the match is, whichever way the lines were found.
+	expr := req.Query
+	if !req.Regex {
+		expr = regexp.QuoteMeta(expr)
+	}
+	// Group 1 is the match; whole words are edged by hand, as \b only knows ASCII letters.
+	expr = "(" + expr + ")"
+	if req.WholeWord {
+		expr = `(?:^|[^\p{L}\p{N}_])` + expr + `(?:[^\p{L}\p{N}_]|$)`
+	}
+	if !req.CaseSensitive {
+		expr = "(?i)" + expr
+	}
+	re, err := regexp.Compile(expr)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, "not a regular expression: "+err.Error())
+	}
+	ctx, cancel := context.WithTimeout(ctx, grepTimeout)
+	defer cancel()
+	g := &grep{re: re, res: res}
+	if err := g.git(ctx, dir, req); err != nil {
+		if bad := (*badPattern)(nil); errors.As(err, &bad) {
+			return nil, connect.NewError(connect.CodeInvalidArgument, "not a regular expression: "+bad.msg)
+		}
+		if ctx.Err() == nil && !g.full() {
+			// Not a repository, or git cannot search it: read the files here.
+			g.res.Matches, g.res.Truncated, g.counts = nil, false, nil
+			g.walk(ctx, dir)
+		}
+	}
+	if ctx.Err() != nil {
+		res.Truncated = true
+	}
+	return res, nil
+}
+
+type grep struct {
+	re     *regexp.Regexp
+	res    *inabav1.GrepFilesResponse
+	counts map[string]int
+}
+
+// badPattern is git refusing the query, which Go's syntax accepted.
+type badPattern struct{ msg string }
+
+func (e *badPattern) Error() string { return e.msg }
+
+func (g *grep) full() bool { return len(g.res.Matches) >= maxGrepMatches }
+
+// add records a match of path's line n, unless the file or the search has had its share.
+func (g *grep) add(path string, n int, line string) {
+	// Lines in another encoding are sent as far as they are UTF-8, as proto strings must be.
+	path, line = strings.ToValidUTF8(path, "\uFFFD"), strings.ToValidUTF8(line, "\uFFFD")
+	if g.counts == nil {
+		g.counts = map[string]int{}
+	}
+	if g.full() || g.counts[path] >= maxGrepPerFile {
+		g.res.Truncated = true
+		return
+	}
+	loc := g.re.FindStringSubmatchIndex(line)
+	if loc == nil {
+		return
+	}
+	g.counts[path]++
+	from, to := loc[2], loc[3]
+	col := utf16Len(line[:from]) + 1
+	// Around the match, cut on whole characters, without leading space; a long match is cut too.
+	start, end := max(0, from-grepContext/4), min(len(line), from+grepContext*3/4)
+	for start > 0 && !utf8.RuneStart(line[start]) {
+		start--
+	}
+	for end < len(line) && !utf8.RuneStart(line[end]) {
+		end++
+	}
+	text := strings.TrimLeft(line[start:end], " \t")
+	start = end - len(text)
+	if start > from {
+		start = from
+		text = line[start:end]
+	}
+	ms := utf16Len(line[start:from])
+	g.res.Matches = append(g.res.Matches, &inabav1.GrepFilesResponse_Match{
+		Path: path, Line: uint32(n), Column: uint32(col), Text: text,
+		MatchStart: uint32(ms), MatchEnd: uint32(ms + utf16Len(line[from:min(to, end)])),
+	})
+}
+
+func utf16Len(s string) int {
+	n := 0
+	for _, r := range s {
+		n += utf16.RuneLen(r)
+	}
+	return n
+}
+
+// git searches with git grep, which leaves ignored and binary files out.
+func (g *grep) git(ctx context.Context, dir string, req *inabav1.GrepFilesRequest) error {
+	ctx, stop := context.WithCancel(ctx)
+	defer stop()
+	// shortcut: git's -E is POSIX, so Go-only syntax such as \d matches nothing here; -P if that is missed.
+	args := []string{"grep", "-n", "-z", "-I", "--no-color", "--no-column", "--no-full-name", "--untracked", "-E"}
+	if !req.Regex {
+		args[len(args)-1] = "-F"
+	}
+	if !req.CaseSensitive {
+		args = append(args, "-i")
+	}
+	if req.WholeWord {
+		args = append(args, "-w")
+	}
+	// -e, so a query starting with - is not taken for an option.
+	cmd := exec.CommandContext(ctx, "git", append(args, "-e", req.Query)...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_OPTIONAL_LOCKS=0")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	sc := bufio.NewScanner(out)
+	sc.Buffer(nil, maxGrepLineBytes)
+	for sc.Scan() {
+		if g.full() {
+			break
+		}
+		// path NUL line NUL text
+		parts := strings.SplitN(sc.Text(), "\x00", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		n, _ := strconv.Atoi(parts[1])
+		g.add(parts[0], n, strings.TrimSuffix(parts[2], "\r"))
+	}
+	if sc.Err() != nil || g.full() {
+		g.res.Truncated = true
+		stop()
+		_ = cmd.Wait()
+		return nil
+	}
+	err = cmd.Wait()
+	var exit *exec.ExitError
+	if errors.As(err, &exit) && exit.ExitCode() == 1 {
+		return nil // nothing matched
+	}
+	// git's POSIX syntax refuses some of Go's, such as (?:x); outside git it would search ignored files.
+	if msg := stderr.String(); req.Regex && strings.Contains(msg, "regular expression") {
+		return &badPattern{strings.TrimSpace(strings.TrimPrefix(msg, "fatal: "))}
+	}
+	return err
+}
+
+// walk searches the folder outside git, skipping hidden folders, dependencies, links,
+// binary files and large ones.
+func (g *grep) walk(ctx context.Context, dir string) {
+	files := 0
+	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if ctx.Err() != nil || g.full() || files >= maxWalkedFiles {
+			// shortcut: says truncated once full even if nothing more would match.
+			g.res.Truncated = true
+			return filepath.SkipAll
+		}
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if path != dir && (strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !d.Type().IsRegular() {
+			return nil
+		}
+		files++
+		if info, err := d.Info(); err != nil || info.Size() > maxGrepFileBytes {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil || bytes.IndexByte(data[:min(len(data), 8000)], 0) >= 0 {
+			return nil
+		}
+		rel, _ := filepath.Rel(dir, path)
+		rel = filepath.ToSlash(rel)
+		for i, line := range strings.Split(string(data), "\n") {
+			if g.re.MatchString(line) {
+				g.add(rel, i+1, strings.TrimSuffix(line, "\r"))
+			}
+		}
+		return nil
+	})
 }

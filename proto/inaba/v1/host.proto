@@ -188,6 +188,8 @@ message QueuedMessage {
   string id = 1;
   string text = 2;
   repeated Attachment attachments = 3;
+  // As UserMessage.resume.
+  bool resume = 4;
 }
 
 // A folder on the host that threads are grouped under.
@@ -275,6 +277,8 @@ message OptionsChanged {
 message UserMessage {
   string text = 1;
   repeated Attachment attachments = 2;
+  // Written by inaba, not a person: it carries on a turn the host's restart cut short.
+  bool resume = 3;
 }
 
 // The agent's plan for the turn, whole each time it changes.
@@ -714,6 +718,20 @@ message EditQueuedRequest {
   string thread_id = 1;
   string queued_id = 2;
   string text = 3;
+  // Unset leaves the message's attachments as they are.
+  QueuedAttachmentsEdit attachments = 4;
+}
+
+// What a queued message's attachments become: those of its current ones it keeps, then
+// new ones. The kept ones go by index, so a client never has to send back bytes it holds.
+message QueuedAttachmentsEdit {
+  // Indexes into the message's current attachments, in increasing order.
+  repeated uint32 keep = 1;
+  // New attachments, checked and stored as StartTurn's are.
+  repeated Attachment add = 2;
+  // The names of the message's attachments that keep indexes into, as the client saw
+  // them; the edit is refused if the message's attachments have changed since.
+  repeated string seen = 3;
 }
 
 message MoveQueuedRequest {

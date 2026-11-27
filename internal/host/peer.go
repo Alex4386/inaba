@@ -47,12 +47,13 @@ func (p *peers) Connect(ctx context.Context, req *inabav1.ConnectRequest) (*inab
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, "could not create the connection").WithCause(err)
 	}
-	// The offer came through the server, which vouched for the caller's permissions.
+	// The offer came through the server, which vouched for the caller and their permissions.
 	// Requests on this connection skip the server, so they are held to the same ones.
 	// shortcut: a permission change reaches a direct connection only when it reconnects.
-	var permissions string
+	var permissions, user string
 	if info, ok := connect.CallInfoForServerContext(ctx); ok {
 		permissions = info.RequestHeader().Get(rpc.PermissionsHeader)
+		user = info.RequestHeader().Get(rpc.UserHeader)
 	}
 	conns := make(chanListener, 16)
 	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -62,6 +63,7 @@ func (p *peers) Connect(ctx context.Context, req *inabav1.ConnectRequest) (*inab
 			return
 		}
 		r.Header.Set(rpc.PermissionsHeader, permissions)
+		r.Header.Set(rpc.UserHeader, user)
 		p.handler.ServeHTTP(w, r)
 	})}
 	go server.Serve(conns)

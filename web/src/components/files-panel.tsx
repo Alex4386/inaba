@@ -1,121 +1,258 @@
 import { Code, ConnectError } from "@connectrpc/connect";
-import { ChevronLeftIcon, FileIcon, FolderIcon, RefreshCwIcon, XIcon } from "lucide-react";
-import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { CaseSensitiveIcon, ChevronRightIcon, FileIcon, FilesIcon, FolderIcon, RefreshCwIcon, RegexIcon, SearchIcon, WholeWordIcon, XIcon } from "lucide-react";
+import { Fragment, lazy, type ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useDefaultLayout } from "react-resizable-panels";
 import { ConfirmDialog } from "@/components/dialogs";
 import type { HostLink } from "@/api";
 import { FilePreview, previewKind } from "@/components/file-preview";
 import { Button } from "@/components/ui/button";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { ListFolderResponse_Entry, ReadFileResponse } from "@/gen/inaba/v1/files_pb";
+import type { Reveal } from "@/components/code-editor";
+import type { GrepFilesResponse_Match, ListFolderResponse_Entry, ReadFileResponse } from "@/gen/inaba/v1/files_pb";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { errorText, showError } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 
-/** The files of a thread's folder: one folder at a time, and a file read in place. */
-export function FilesPanel({ link, threadId, root, onClose, readOnly = false }: { link: HostLink; threadId: string; /** What the path's first step is called: the project, or the folder. */ root: string; onClose: () => void; /** Watching a thread someone else drives: files are read, not changed. */ readOnly?: boolean }) {
+const TREE_KEY = "inaba.files.tree";
+// Narrower than this, the tree floats over the editor instead of sitting beside it.
+const NARROW = 480;
+
+/** The files of a thread's folder: a tree beside them, and the files open in tabs, each kept as it was left. */
+export function FilesPanel({ link, threadId, root, onClose, onDirty: onAnyDirty, onActive, readOnly = false }: { link: HostLink; threadId: string; /** What the path's first step is called: the project, or the folder. */ root: string; onClose: () => void; /** Says whether any open file has unsaved edits, so whoever closes or moves the panel can ask first. */ onDirty: (dirty: boolean) => void; /** Says which file is shown, if any. */ onActive?: (path?: string) => void; /** Watching a thread someone else drives: files are read, not changed. */ readOnly?: boolean }) {
   const { t } = useI18n();
-  const [folder, setFolder] = useState("");
-  const [entries, setEntries] = useState<ListFolderResponse_Entry[]>();
-  const [file, setOpenFile] = useState<string>();
-  // Unsaved edits in the open file, so leaving it asks first.
-  const [dirty, setDirty] = useState(false);
-  // Leaving a file with unsaved edits waits for a yes; then holds what to do after.
+  // Each folder's entries once read, or why it could not be; "" is the root.
+  const [folders, setFolders] = useState<Record<string, ListFolderResponse_Entry[] | string>>({});
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [tabs, setTabs] = useState<string[]>([]);
+  const [active, setActive] = useState<string>();
+  // Which open files have unsaved edits, so closing them asks first.
+  const [dirty, setDirtyOf] = useState<Record<string, boolean>>({});
+  const onDirty = useCallback((path: string, d: boolean) => setDirtyOf((x) => (x[path] === d ? x : { ...x, [path]: d })), []);
+  const anyDirty = Object.values(dirty).some(Boolean);
+  useEffect(() => onAnyDirty(anyDirty), [anyDirty, onAnyDirty]);
+  // Closing with unsaved edits waits for a yes; then holds what to do.
   const [leaving, setLeaving] = useState<() => void>();
-  const setFile = (next: string | undefined, then?: () => void) => {
+  const [refreshing, setRefreshing] = useState(false);
+  const [treeHidden, setTreeHidden] = useState(() => localStorage.getItem(TREE_KEY) === "hidden");
+  const [narrowBox, setNarrow] = useState(false);
+  // On a phone the tree and the search take the whole panel, and step aside once something is picked.
+  const mobile = useIsMobile();
+  const narrow = narrowBox || mobile;
+  // The search floating over the editor: 0 when closed, counting each time it is asked for so it takes the focus again.
+  const [search, setSearch] = useState(0);
+  // Where each file was asked to be shown from a search result.
+  const [revealOf, setRevealOf] = useState<Record<string, Reveal>>({});
+  // On a narrow panel the tree is an overlay, shown at first and gone once a file is picked.
+  const [overlay, setOverlay] = useState(() => localStorage.getItem(TREE_KEY) !== "hidden");
+  const box = useRef<HTMLDivElement>(null);
+  const strip = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    onActive?.(active);
+  }, [active, onActive]);
+  useEffect(() => strip.current?.querySelector("[aria-current]")?.scrollIntoView({ inline: "nearest", block: "nearest" }), [active]);
+  useEffect(() => {
+    const ro = new ResizeObserver(([e]) => e.contentRect.width > 0 && setNarrow(e.contentRect.width < NARROW));
+    ro.observe(box.current!);
+    return () => ro.disconnect();
+  }, []);
+  const besideTree = !narrow && !treeHidden;
+  const layout = useDefaultLayout({ id: "inaba-files", panelIds: besideTree ? ["tree", "editor"] : ["editor"] });
+
+  const loadFolder = useCallback(
+    (path: string) =>
+      link.files
+        .listFolder({ threadId, path })
+        .then((r) => r.entries, (e) => errorText(e))
+        .then((v) => setFolders((f) => ({ ...f, [path]: v }))),
+    [link, threadId],
+  );
+  useEffect(() => {
+    setFolders({});
+    void loadFolder("");
+  }, [loadFolder]);
+  const refresh = () => {
+    setRefreshing(true);
+    void Promise.all(["", ...expanded].map(loadFolder)).finally(() => setRefreshing(false));
+  };
+  const toggleFolder = (path: string) => {
+    const next = new Set(expanded);
+    if (!next.delete(path)) {
+      next.add(path);
+      // Read again each time it opens, so a refresh while it was closed does not leave it stale.
+      void loadFolder(path);
+    }
+    setExpanded(next);
+  };
+  const toggleTree = () => {
+    if (narrow) {
+      setSearch(0);
+      return setOverlay((o) => !o);
+    }
+    localStorage.setItem(TREE_KEY, treeHidden ? "shown" : "hidden");
+    setTreeHidden(!treeHidden);
+  };
+
+  const open = (path: string) => {
+    setTabs((ts) => (ts.includes(path) ? ts : [...ts, path]));
+    setActive(path);
+    setOverlay(false);
+  };
+  // A link from a preview opens its file, with its folders opened in the tree to show where it is.
+  const reveal = (path: string) => {
+    const steps = path.split("/").slice(0, -1).map((_, i, a) => a.slice(0, i + 1).join("/"));
+    setExpanded((s) => new Set([...s, ...steps]));
+    for (const f of steps) if (folders[f] === undefined) void loadFolder(f);
+    open(path);
+  };
+  const pick = (path: string, at?: Reveal) => {
+    if (at) setRevealOf((r) => ({ ...r, [path]: at }));
+    reveal(path);
+    if (narrow) setSearch(0);
+  };
+  // Back into the panel, so ⌘⇧F still reaches it once the search is gone.
+  const closeSearch = () => {
+    setSearch(0);
+    box.current?.focus();
+  };
+  const openSearch = () => {
+    setSearch((n) => n + 1);
+    if (narrow) setOverlay(false);
+  };
+  const close = (path: string) => {
     const go = () => {
-      setDirty(false);
-      setOpenFile(next);
-      then?.();
+      const next = tabs.filter((p) => p !== path);
+      if (active === path) setActive(next[Math.min(tabs.indexOf(path), next.length - 1)]);
+      setTabs(next);
+      setDirtyOf(({ [path]: _, ...rest }) => rest);
+      setRevealOf(({ [path]: _, ...rest }) => rest);
     };
-    if (dirty && next !== file) setLeaving(() => go);
+    if (dirty[path]) setLeaving(() => go);
     else go();
   };
-  const [error, setError] = useState("");
-  const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(() => {
-    setError("");
-    setRefreshing(true);
-    link.files
-      .listFolder({ threadId, path: folder })
-      .then(
-        (r) => setEntries(r.entries),
-        (e) => (setEntries([]), setError(errorText(e))),
-      )
-      .finally(() => setRefreshing(false));
-  }, [link, threadId, folder]);
-  useEffect(() => {
-    setEntries(undefined);
-    load();
-  }, [load]);
-
-  const parts = folder ? folder.split("/") : [];
-  const join = (name: string) => (folder ? `${folder}/${name}` : name);
+  const rows = (folder: string, depth: number): ReactNode => {
+    const list = folders[folder];
+    const pad = { paddingLeft: 8 + depth * 12 };
+    if (list === undefined) return <Spinner className="my-1" style={{ marginLeft: pad.paddingLeft + 20 }} />;
+    if (typeof list === "string") return <p className="text-destructive px-3 py-1 text-xs" style={pad}>{list}</p>;
+    if (list.length === 0) return <p className="text-muted-foreground py-1 text-xs" style={{ paddingLeft: pad.paddingLeft + 20 }}>{t("files.empty")}</p>;
+    return list.map((e) => {
+      const path = folder ? `${folder}/${e.name}` : e.name;
+      const isOpen = e.folder && expanded.has(path);
+      return (
+        <Fragment key={path}>
+          <button
+            type="button"
+            className={cn("hover:bg-sidebar-accent/60 flex w-full items-center gap-1 py-0.5 pr-2 text-left", path === active && "bg-sidebar-accent text-sidebar-accent-foreground font-medium")}
+            style={pad}
+            title={path}
+            aria-expanded={e.folder ? isOpen : undefined}
+            aria-current={path === active || undefined}
+            onClick={() => (e.folder ? toggleFolder(path) : open(path))}
+          >
+            {e.folder ? <ChevronRightIcon className={cn("text-muted-foreground size-4 shrink-0 transition-transform", isOpen && "rotate-90")} /> : <span className="size-4 shrink-0" />}
+            {e.folder ? <FolderIcon className="text-muted-foreground size-4 shrink-0" /> : <FileIcon className="text-muted-foreground size-4 shrink-0" />}
+            <span className="min-w-0 flex-1 truncate">{e.name}</span>
+          </button>
+          {isOpen && rows(path, depth + 1)}
+        </Fragment>
+      );
+    });
+  };
+  const tree = (
+    <nav className="bg-sidebar text-sidebar-foreground h-full overflow-y-auto py-1 text-sm" aria-label={t("files.title")}>
+      {rows("", 0)}
+    </nav>
+  );
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div
+      ref={box}
+      tabIndex={-1}
+      className="flex h-full min-h-0 flex-col outline-none"
+      onKeyDown={(e) => {
+        if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f") {
+          e.preventDefault();
+          openSearch();
+        }
+      }}
+    >
       <header className="flex h-12 shrink-0 items-center gap-1 border-b px-3">
-        {file !== undefined && (
-          <Button size="icon-sm" variant="ghost" aria-label={t("files.back")} title={t("files.back")} onClick={() => void setFile(undefined)}>
-            <ChevronLeftIcon />
-          </Button>
-        )}
-        {/* Where we are, each step a way back up. */}
-        <nav className="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden text-sm" aria-label={t("files.path")}>
-          <Button size="xs" variant="ghost" className="shrink-0 font-medium" title={root} onClick={() => setFile(undefined, () => setFolder(""))}>
-            {root || t("files.root")}
-          </Button>
-          {parts.map((part, i) => (
-            <Fragment key={i}>
-              <span className="text-muted-foreground">/</span>
-              <Button size="xs" variant="ghost" className="min-w-0 truncate" onClick={() => setFile(undefined, () => setFolder(parts.slice(0, i + 1).join("/")))}>
-                {part}
-              </Button>
-            </Fragment>
-          ))}
-          {file !== undefined && (
-            <>
-              <span className="text-muted-foreground">/</span>
-              <span className="min-w-0 truncate px-1.5 font-medium">{file.split("/").at(-1)}</span>
-            </>
-          )}
-        </nav>
-        {/* The folder list is hidden while a file is open; the file has its own reload when it changes on disk. */}
-        {file === undefined && (
-          <Button size="icon-sm" variant="ghost" aria-label={t("git.refresh")} title={t("git.refresh")} disabled={refreshing} onClick={load}>
-            {refreshing ? <Spinner /> : <RefreshCwIcon />}
-          </Button>
-        )}
+        <Button size="icon-sm" variant="ghost" aria-label={t("files.tree")} title={t("files.tree")} aria-pressed={narrow ? overlay : !treeHidden} onClick={toggleTree}>
+          <FilesIcon />
+        </Button>
+        <Button size="icon-sm" variant="ghost" aria-label={t("files.search")} title={`${t("files.search")} (⇧⌘F)`} aria-pressed={search > 0} onClick={() => (search ? setSearch(0) : openSearch())}>
+          <SearchIcon />
+        </Button>
+        <span className="min-w-0 flex-1 truncate px-1 text-sm font-medium" title={active ?? root}>
+          {root || t("files.root")}
+          {active !== undefined && <span className="text-muted-foreground font-normal"> / {active}</span>}
+        </span>
+        <Button size="icon-sm" variant="ghost" aria-label={t("git.refresh")} title={t("git.refresh")} disabled={refreshing} onClick={refresh}>
+          {refreshing ? <Spinner /> : <RefreshCwIcon />}
+        </Button>
         <Button size="icon-sm" variant="ghost" aria-label={t("palette.close")} title={t("palette.close")} onClick={onClose}>
           <XIcon />
         </Button>
       </header>
-      {file !== undefined ? (
-        // Keyed so each file opens fresh, in its preview when it has one.
-        <FileView key={file} link={link} threadId={threadId} path={file} onDirty={setDirty} readOnly={readOnly} onOpen={(p) => setFile(p, () => setFolder(p.split("/").slice(0, -1).join("/")))} />
-      ) : error ? (
-        <p className="text-destructive p-4 text-sm">{error}</p>
-      ) : !entries ? (
-        <Spinner className="m-4" />
-      ) : entries.length === 0 ? (
-        <p className="text-muted-foreground m-auto text-sm">{t("files.empty")}</p>
-      ) : (
-        <ul className="min-h-0 flex-1 overflow-y-auto py-1">
-          {entries.map((e) => (
-            <li key={e.name}>
-              <button
-                type="button"
-                className="hover:bg-muted flex w-full items-center gap-2 px-3 py-1 text-left text-sm"
-                onClick={() => (e.folder ? setFolder(join(e.name)) : void setFile(join(e.name)))}
-              >
-                {e.folder ? <FolderIcon className="text-muted-foreground size-4 shrink-0" /> : <FileIcon className="text-muted-foreground size-4 shrink-0" />}
-                <span className="min-w-0 flex-1 truncate">{e.name}</span>
-                {!e.folder && <span className="text-muted-foreground text-xs tabular-nums">{size(e.size)}</span>}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <ResizablePanelGroup id="inaba-files" orientation="horizontal" className="min-h-0 flex-1" defaultLayout={layout.defaultLayout} onLayoutChanged={layout.onLayoutChanged}>
+        {besideTree && (
+          <>
+            <ResizablePanel id="tree" defaultSize={220} minSize={140} maxSize="70" groupResizeBehavior="preserve-pixel-size">
+              {tree}
+            </ResizablePanel>
+            <ResizableHandle />
+          </>
+        )}
+        <ResizablePanel id="editor" minSize={200}>
+          <div className="relative flex h-full min-h-0 flex-col">
+            {tabs.length > 0 && (
+              <div ref={strip} className="bg-muted/40 flex h-8 shrink-0 overflow-x-auto border-b">
+                {tabs.map((p) => (
+                  <div
+                    key={p}
+                    className={cn("group flex shrink-0 items-center border-r text-xs", p === active ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground")}
+                    onAuxClick={(e) => e.button === 1 && (e.preventDefault(), close(p))}
+                  >
+                    <button type="button" aria-current={p === active || undefined} className="h-full max-w-48 truncate pr-1 pl-3" title={p} onClick={() => setActive(p)}>
+                      {p.split("/").at(-1)}
+                    </button>
+                    <button type="button" className="hover:bg-muted mr-1 grid size-5 place-items-center rounded" aria-label={dirty[p] ? `${t("palette.close")} (${t("files.unsaved")})` : t("palette.close")} title={t("palette.close")} onClick={() => close(p)}>
+                      {dirty[p] && <span className="size-2 rounded-full bg-current group-hover:hidden" />}
+                      <XIcon className={cn("size-3.5", dirty[p] && "hidden group-hover:block")} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="relative min-h-0 flex-1">
+              {/* Every open file stays mounted, hidden when not shown, so its edits, undo, view and scroll wait for it. */}
+              {tabs.map((p) => (
+                <div key={p} className={cn("absolute inset-0 flex flex-col", p !== active && "invisible")}>
+                  <FileView link={link} threadId={threadId} path={p} onDirty={onDirty} readOnly={readOnly} onOpen={reveal} at={revealOf[p]} />
+                </div>
+              ))}
+              {tabs.length === 0 && (
+                <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center text-sm">
+                  <p>{t("files.pick")}</p>
+                  {!besideTree && !(narrow && overlay) && (
+                    <Button size="sm" variant="outline" onClick={toggleTree}>
+                      <FilesIcon data-icon="inline-start" />
+                      {t("files.tree")}
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+            {narrow && overlay && <div className="absolute inset-0 z-20">{tree}</div>}
+            {/* Mounted while closed, so the query and its results wait for the next look. */}
+            <SearchPanel link={link} threadId={threadId} focus={search} full={narrow} onPick={pick} onClose={closeSearch} />
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
       <ConfirmDialog
         open={leaving !== undefined}
         onClose={() => setLeaving(undefined)}
@@ -143,7 +280,7 @@ function size(n: bigint) {
 /** A file's content: text with line numbers, an image as itself, anything else described. */
 const CodeEditor = lazy(() => import("@/components/code-editor"));
 
-function FileView({ link, threadId, path, onDirty, readOnly, onOpen }: { link: HostLink; threadId: string; path: string; onDirty: (dirty: boolean) => void; readOnly: boolean; /** Opens another file of the folder, from a link in a preview. */ onOpen: (path: string) => void }) {
+function FileView({ link, threadId, path, onDirty, readOnly, onOpen, at }: { link: HostLink; threadId: string; path: string; onDirty: (path: string, dirty: boolean) => void; readOnly: boolean; /** Opens another file of the folder, from a link in a preview. */ onOpen: (path: string) => void; /** A line to show, from a search result. */ at?: Reveal }) {
   const { t } = useI18n();
   const [file, setFile] = useState<ReadFileResponse>();
   const [error, setError] = useState("");
@@ -160,6 +297,13 @@ function FileView({ link, threadId, path, onDirty, readOnly, onOpen }: { link: H
   // The editor stays mounted once shown, so toggling back keeps its undo history, cursor and scroll.
   const [editorShown, setEditorShown] = useState(!kind);
   const previewing = kind !== undefined && !source;
+  // A search result is a line of the source, so it shows the source.
+  useEffect(() => {
+    if (at && kind) {
+      setSource(true);
+      setEditorShown(true);
+    }
+  }, [at, kind]);
   const load = useCallback(() => {
     setFile(undefined);
     setError("");
@@ -183,7 +327,7 @@ function FileView({ link, threadId, path, onDirty, readOnly, onOpen }: { link: H
   );
   const text = useMemo(() => (file && (file.mimeType.startsWith("text/") || file.mimeType.includes("json")) ? new TextDecoder().decode(file.data) : undefined), [file]);
   const dirty = draft !== undefined && draft !== text;
-  useEffect(() => onDirty(dirty), [dirty, onDirty]);
+  useEffect(() => onDirty(path, dirty), [path, dirty, onDirty]);
   const save = () => {
     if (!dirty || saving || file?.truncated) return;
     setSaving(true);
@@ -257,7 +401,7 @@ function FileView({ link, threadId, path, onDirty, readOnly, onOpen }: { link: H
           {editorShown && (
             <div className={previewing ? "hidden" : "min-h-0 flex-1"}>
               <Suspense fallback={<Spinner className="m-4" />}>
-                <CodeEditor path={path} value={draft ?? text} readOnly={file.truncated || readOnly} onChange={setDraft} onSave={() => !readOnly && save()} />
+                <CodeEditor path={path} value={draft ?? text} readOnly={file.truncated || readOnly} onChange={setDraft} onSave={() => !readOnly && save()} reveal={at} />
               </Suspense>
             </div>
           )}
@@ -276,5 +420,121 @@ function FileView({ link, threadId, path, onDirty, readOnly, onOpen }: { link: H
         onConfirm={load}
       />
     </div>
+  );
+}
+
+type Found = { files: string[]; matches: GrepFilesResponse_Match[]; truncated: boolean };
+
+/** Finding files by name and lines by content, floating over the editor; it stays open to go through the results. */
+function SearchPanel({ link, threadId, focus, full, onPick, onClose }: { link: HostLink; threadId: string; /** 0 while closed; changes when the search is asked for again, to take the focus. */ focus: number; /** Covers the whole panel, as on a phone. */ full: boolean; onPick: (path: string, at?: Reveal) => void; onClose: () => void }) {
+  const { t } = useI18n();
+  const [query, setQuery] = useState("");
+  const [caseSensitive, setCaseSensitive] = useState(false);
+  const [wholeWord, setWholeWord] = useState(false);
+  const [regex, setRegex] = useState(false);
+  // The results, or why there are none.
+  const [found, setFound] = useState<Found | string>();
+  const [busy, setBusy] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (focus) input.current?.select();
+  }, [focus]);
+  useEffect(() => {
+    if (!query.trim()) {
+      setFound(undefined);
+      return setBusy(false);
+    }
+    setBusy(true);
+    const abort = new AbortController();
+    const signal = abort.signal;
+    const timer = setTimeout(
+      () =>
+        void Promise.all([link.files.searchFiles({ threadId, query }, { signal }), link.files.grepFiles({ threadId, query, caseSensitive, wholeWord, regex }, { signal })]).then(
+          ([names, lines]) => !signal.aborted && (setFound({ files: names.paths.slice(0, 5), matches: lines.matches, truncated: lines.truncated }), setBusy(false)),
+          (e) => !signal.aborted && (setFound(errorText(e)), setBusy(false)),
+        ),
+      250,
+    );
+    return () => {
+      clearTimeout(timer);
+      abort.abort();
+    };
+  }, [link, threadId, query, caseSensitive, wholeWord, regex]);
+  // The host sends them in path order, so each file's lines are together.
+  const byFile = useMemo(() => {
+    const files = new Map<string, GrepFilesResponse_Match[]>();
+    for (const m of typeof found === "object" ? found.matches : []) files.set(m.path, [...(files.get(m.path) ?? []), m]);
+    return [...files];
+  }, [found]);
+  const toggles = [
+    { on: caseSensitive, set: setCaseSensitive, label: t("files.matchCase"), Icon: CaseSensitiveIcon },
+    { on: wholeWord, set: setWholeWord, label: t("files.wholeWord"), Icon: WholeWordIcon },
+    { on: regex, set: setRegex, label: t("files.regex"), Icon: RegexIcon },
+  ];
+  const row = "hover:bg-accent flex w-full items-baseline gap-2 px-3 py-0.5 text-left";
+  return (
+    <section
+      className={cn("bg-popover text-popover-foreground absolute z-30 flex flex-col text-sm", !focus && "hidden", full ? "inset-0" : "top-2 right-2 bottom-2 w-80 max-w-[calc(100%-1rem)] rounded-lg border shadow-lg")}
+      aria-label={t("files.search")}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          onClose();
+        }
+      }}
+    >
+      <div className="flex shrink-0 items-center gap-0.5 border-b p-1.5">
+        <input
+          ref={input}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t("files.searchPlaceholder")}
+          aria-label={t("files.search")}
+          className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent px-1.5 py-1 outline-none"
+        />
+        {toggles.map(({ on, set, label, Icon }) => (
+          <Button key={label} size="icon-xs" variant="ghost" className={cn(on && "bg-accent text-accent-foreground")} aria-pressed={on} aria-label={label} title={label} onClick={() => set(!on)}>
+            <Icon />
+          </Button>
+        ))}
+        <Button size="icon-xs" variant="ghost" aria-label={t("palette.close")} title={t("palette.close")} onClick={onClose}>
+          <XIcon />
+        </Button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto py-1">
+        {busy && <Spinner className="mx-3 my-2" />}
+        {typeof found === "string" && <p className="text-destructive px-3 py-2 text-xs">{found}</p>}
+        {typeof found === "object" && found.files.length + found.matches.length === 0 && <p className="text-muted-foreground px-3 py-2 text-xs">{t("files.noResults")}</p>}
+        {typeof found === "object" && found.files.length > 0 && (
+          <>
+            <h3 className="text-muted-foreground px-3 pt-1 text-xs font-medium">{t("files.fileNames")}</h3>
+            {found.files.map((p) => (
+              <button key={p} type="button" className={row} title={p} onClick={() => onPick(p)}>
+                <FileIcon className="text-muted-foreground size-3.5 shrink-0 self-center" />
+                <span className="min-w-0 truncate">{p}</span>
+              </button>
+            ))}
+          </>
+        )}
+        {byFile.map(([path, ms]) => (
+          <Fragment key={path}>
+            <h3 className="text-muted-foreground mt-1 truncate px-3 pt-1 text-xs font-medium" title={path}>
+              {path}
+            </h3>
+            {ms.map((m) => (
+              <button key={m.line} type="button" className={cn(row, "font-mono text-xs")} onClick={() => onPick(path, { line: m.line, column: m.column, length: m.matchEnd - m.matchStart })}>
+                <span className="text-muted-foreground w-8 shrink-0 text-right tabular-nums">{m.line}</span>
+                <span className="min-w-0 truncate">
+                  {m.text.slice(0, m.matchStart)}
+                  <mark className="bg-yellow-300/60 text-inherit dark:bg-yellow-500/40">{m.text.slice(m.matchStart, m.matchEnd)}</mark>
+                  {m.text.slice(m.matchEnd)}
+                </span>
+              </button>
+            ))}
+          </Fragment>
+        ))}
+        {typeof found === "object" && found.truncated && <p className="text-muted-foreground px-3 py-2 text-xs">{t("files.resultsTruncated")}</p>}
+      </div>
+    </section>
   );
 }

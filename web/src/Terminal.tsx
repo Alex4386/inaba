@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { HostLink } from "./api";
 import { Spinner } from "@/components/ui/spinner";
 import { useI18n } from "@/lib/i18n";
-import { codeFontStack, useCodeFont } from "@/lib/settings";
+import { codeFontStack, terminalFontSize, useCodeFont, useTerminalFontSize } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
 // shortcut: navigator.platform is deprecated but still set in every browser; switch to userAgentData once Safari and Firefox ship it.
@@ -36,12 +36,14 @@ export type TerminalIO = {
  * other terminal on the host. The thread's driver sizes it to their screen and types into it; anyone else
  * watches it at the driver's size.
  */
-export function TerminalView({ link, threadId = "", shell, io, driving = true, onExit }: { link: HostLink; threadId?: string; shell?: string; io?: TerminalIO; driving?: boolean; onExit: () => void }) {
+export function TerminalView({ link, threadId = "", shell, io, driving = true, onExit, onTitle }: { link: HostLink; threadId?: string; shell?: string; io?: TerminalIO; driving?: boolean; onExit: () => void; onTitle?: (title: string) => void }) {
   const el = useRef<HTMLDivElement>(null);
   const { t } = useI18n();
   // The latest callback and wording, read when the process exits rather than when the terminal was made.
   const exit = useRef(onExit);
   exit.current = onExit;
+  const title = useRef(onTitle);
+  title.current = onTitle;
   const exitedText = useRef("");
   exitedText.current = t("thread.exited");
   const notSentText = useRef("");
@@ -51,15 +53,17 @@ export function TerminalView({ link, threadId = "", shell, io, driving = true, o
   const direct = link.direct;
   // The code font, changed in settings while the terminal runs: it redraws in place, without attaching again.
   const font = useCodeFont();
+  const fontSize = useTerminalFontSize();
   const live = useRef<{ term: Terminal; fit: FitAddon }>(undefined);
   useEffect(() => {
     if (!live.current) return;
     live.current.term.options.fontFamily = font;
+    live.current.term.options.fontSize = fontSize;
     if (driving) live.current.fit.fit();
-  }, [font, driving]);
+  }, [font, fontSize, driving]);
 
   useEffect(() => {
-    const term = new Terminal({ fontFamily: codeFontStack(), fontSize: 13, cursorBlink: driving, disableStdin: !driving, theme: { background: "#0b0b0d" } });
+    const term = new Terminal({ fontFamily: codeFontStack(), fontSize: terminalFontSize(), cursorBlink: driving, disableStdin: !driving, theme: { background: "#0b0b0d" } });
     const fit = new FitAddon();
     live.current = { term, fit };
     term.loadAddon(fit);
@@ -99,6 +103,8 @@ export function TerminalView({ link, threadId = "", shell, io, driving = true, o
       write: (data) => (shell !== undefined ? link.shell.writeShell({ threadId, shellId: shell, data }) : link.terminal.write({ threadId, data })),
       resize: (size) => (shell !== undefined ? link.shell.resizeShell({ threadId, shellId: shell, ...size }) : link.terminal.resize({ threadId, ...size })),
     };
+    // The shell sets its window title as it goes; the host hears it too, but only reports it when asked.
+    term.onTitleChange((t) => title.current?.(t));
     term.onData((data) => enqueue(() => to.write(encoder.encode(data))));
     // Only the driver's size goes to the process: every viewer sending its own would fight over it.
     if (driving) term.onResize((size) => enqueue(() => to.resize(size)));

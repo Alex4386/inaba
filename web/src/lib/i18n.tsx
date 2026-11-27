@@ -1,3 +1,6 @@
+import { ja } from "@/lib/locales/ja";
+import { zhHans } from "@/lib/locales/zh-Hans";
+import { zhHant } from "@/lib/locales/zh-Hant";
 import { type ReactNode, createContext, useCallback, useContext, useMemo, useState } from "react";
 
 // shortcut: a flat dictionary with {name} placeholders and no plural rules; move to an
@@ -352,6 +355,8 @@ const en = {
   "uiFont.system": "System font",
   "uiFont.sample": "The quick brown fox · 다람쥐 헌 쳇바퀴에 타고파 · 0123",
   "codeFont.title": "Code font",
+  "terminalFont.title": "Terminal text size",
+  "terminalFont.help": "How big text is in terminals, in pixels.",
   "codeFont.help": "Used for the editor, terminals, diffs and code in messages, in this browser. JetBrains Mono comes with inaba.",
   "codeFont.system": "System monospace",
   "codeFont.search": "Search fonts",
@@ -654,6 +659,18 @@ const en = {
   "files.source": "Source",
   "files.emptyTable": "No rows.",
   "files.rowsCapped": "Showing the first {shown} of {total} rows.",
+  "files.tree": "Show or hide the file tree",
+  "files.pick": "Pick a file from the tree to open it.",
+  "files.search": "Search in files",
+  "files.searchPlaceholder": "Search",
+  "files.matchCase": "Match case",
+  "files.wholeWord": "Match whole word",
+  "files.regex": "Use regular expression",
+  "files.fileNames": "Files",
+  "files.noResults": "Nothing found.",
+  "files.resultsTruncated": "Only the first results are shown. Narrow the search to see the rest.",
+  "files.position": "Ln {line}, Col {column}",
+  "files.wordWrap": "Word wrap",
   "fork.action": "Fork from here",
   "fork.done": "Forked into a new thread",
   "fork.working": "Forking into a new thread…",
@@ -667,6 +684,9 @@ const en = {
   "find.next": "Next match",
   "find.close": "Close find",
   "chat.jumpLatest": "Jump to latest",
+  "chatMap.label": "Conversation map",
+  "chatMap.title": "Conversation map",
+  "chatMap.help": "Ticks at the left of a thread, one per message you sent, to jump through a long conversation. Drag along them to scrub.",
   "chat.quote": "Quote",
   "image.title": "Image",
   "image.open": "Open {name}",
@@ -851,6 +871,7 @@ const en = {
   "chat.workflowAgentDone": "done",
   "chat.workflowAgentStopped": "stopped",
   "chat.turnEnded": "Turn ended: {reason}",
+  "chat.restarted": "inaba was restarted. Restarting the thread…",
   "chat.toTerminal": "Moved to the terminal. What happened there is not shown here.",
   "chat.fromTerminal": "Back from the terminal.",
   "chat.asks": "The agent asks to: {title}",
@@ -974,6 +995,10 @@ const en = {
   "terminals.closeTitle": "Close this terminal?",
   "terminals.closeHelp": "Its shell and anything still running in it are ended.",
   "terminals.keep": "Keep",
+  "terminals.more": "More for {name}",
+  "terminals.rename": "Rename",
+  "terminals.renameTitle": "Rename terminal",
+  "terminals.useShellTitle": "Use the shell's title",
   "palette.threads": "Threads",
   "palette.messages": "Messages",
   "palette.current": "current",
@@ -1505,6 +1530,8 @@ const ko: Record<MessageKey, string> = {
   "uiFont.system": "시스템 글꼴",
   "uiFont.sample": "The quick brown fox · 다람쥐 헌 쳇바퀴에 타고파 · 0123",
   "codeFont.title": "코드 글꼴",
+  "terminalFont.title": "터미널 글자 크기",
+  "terminalFont.help": "터미널에 표시되는 글자 크기(픽셀)입니다.",
   "codeFont.help": "편집기, 터미널, diff, 메시지 속 코드에 쓰입니다. 이 브라우저에만 적용됩니다. JetBrains Mono는 inaba에 들어 있습니다.",
   "codeFont.system": "시스템 고정폭",
   "codeFont.search": "글꼴 검색",
@@ -1807,6 +1834,18 @@ const ko: Record<MessageKey, string> = {
   "files.source": "소스",
   "files.emptyTable": "행이 없습니다.",
   "files.rowsCapped": "전체 {total}행 중 앞 {shown}행을 보여 줍니다.",
+  "files.tree": "파일 트리 보이기/숨기기",
+  "files.pick": "트리에서 파일을 골라 여세요.",
+  "files.search": "파일에서 검색",
+  "files.searchPlaceholder": "검색",
+  "files.matchCase": "대소문자 구분",
+  "files.wholeWord": "단어 단위로",
+  "files.regex": "정규 표현식 사용",
+  "files.fileNames": "파일",
+  "files.noResults": "찾은 것이 없습니다.",
+  "files.resultsTruncated": "앞부분 결과만 보여 줍니다. 검색을 좁히면 나머지도 보입니다.",
+  "files.position": "줄 {line}, 열 {column}",
+  "files.wordWrap": "자동 줄 바꿈",
   "fork.action": "여기서 갈라 새 쓰레드 만들기",
   "fork.done": "새 쓰레드로 갈라냈습니다",
   "fork.working": "새 쓰레드로 갈라내는 중…",
@@ -1820,6 +1859,9 @@ const ko: Record<MessageKey, string> = {
   "find.next": "다음 결과",
   "find.close": "찾기 닫기",
   "chat.jumpLatest": "최신 메시지로 이동",
+  "chatMap.label": "대화 지도",
+  "chatMap.title": "대화 지도",
+  "chatMap.help": "쓰레드 왼쪽에 보낸 메시지마다 눈금을 표시해 긴 대화를 빠르게 오갈 수 있습니다. 눈금을 따라 끌면 빠르게 훑어볼 수 있습니다.",
   "chat.quote": "인용",
   "image.title": "이미지",
   "image.open": "{name} 열기",
@@ -2004,6 +2046,7 @@ const ko: Record<MessageKey, string> = {
   "chat.workflowAgentDone": "완료",
   "chat.workflowAgentStopped": "중단됨",
   "chat.turnEnded": "턴 종료: {reason}",
+  "chat.restarted": "inaba가 재시작되었습니다. 쓰레드를 다시 시작합니다…",
   "chat.toTerminal": "터미널로 전환했습니다. 터미널에서 일어난 일은 여기에 표시되지 않습니다.",
   "chat.fromTerminal": "터미널에서 돌아왔습니다.",
   "chat.asks": "에이전트의 요청: {title}",
@@ -2127,6 +2170,10 @@ const ko: Record<MessageKey, string> = {
   "terminals.closeTitle": "이 터미널을 닫을까요?",
   "terminals.closeHelp": "셸과 그 안에서 아직 실행 중인 모든 것이 종료됩니다.",
   "terminals.keep": "유지",
+  "terminals.more": "{name} 더 보기",
+  "terminals.rename": "이름 바꾸기",
+  "terminals.renameTitle": "터미널 이름 바꾸기",
+  "terminals.useShellTitle": "셸 제목 쓰기",
   "palette.threads": "쓰레드",
   "palette.messages": "대화 내용",
   "palette.current": "현재",
@@ -2306,17 +2353,28 @@ const ko: Record<MessageKey, string> = {
   "keys.dockChanges": "변경 사항 열기",
 };
 
-const dictionaries = { en, ko };
+// shortcut: every language is in the bundle (about 60 kB each); load them on demand if more are added.
+export const dictionaries = { en, ko, ja, "zh-Hans": zhHans, "zh-Hant": zhHant };
 export type Locale = keyof typeof dictionaries;
 /** Each language under its own name, for the picker. */
-export const localeNames: Record<Locale, string> = { en: "English", ko: "한국어" };
+export const localeNames: Record<Locale, string> = { en: "English", ko: "한국어", ja: "日本語", "zh-Hans": "简体中文", "zh-Hant": "繁體中文" };
 
 const LOCALE_KEY = "inaba.locale";
 
 function initialLocale(): Locale {
   const saved = localStorage.getItem(LOCALE_KEY);
   if (saved && saved in dictionaries) return saved as Locale;
-  return navigator.language.toLowerCase().startsWith("ko") ? "ko" : "en";
+  return browserLocale(navigator.languages ?? [navigator.language]);
+}
+
+/** The first of the browser's languages inaba has; Chinese by its script, or its region when it names none. */
+export function browserLocale(languages: readonly string[]): Locale {
+  for (const tag of languages) {
+    const lang = tag.toLowerCase();
+    if (lang.startsWith("zh")) return /hant|-(tw|hk|mo)\b/.test(lang) ? "zh-Hant" : "zh-Hans";
+    for (const locale of ["en", "ko", "ja"] as const) if (lang === locale || lang.startsWith(locale + "-")) return locale;
+  }
+  return "en";
 }
 
 // English strings for a count of one, used in place of the plural when {count} is 1.

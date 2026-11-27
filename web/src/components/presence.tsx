@@ -1,9 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@connectrpc/connect";
+import { EyeIcon } from "lucide-react";
 import { createConnectTransport } from "@connectrpc/connect-web";
+import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { type Presence, PresenceService } from "@/gen/inaba/v1/server_pb";
+import { useI18n } from "@/lib/i18n";
 import { closeNotifications } from "@/lib/push";
 import { cn } from "@/lib/utils";
 
@@ -72,8 +75,8 @@ type Present = {
   refresh: () => void;
 };
 
-/** Says where this tab is every few seconds, and keeps who else is on the host and who drives the thread. */
-export function usePresence(hostId: string | undefined, threadId: string | undefined, projectId: string | undefined): Present {
+/** Says where this tab is every few seconds, and keeps who else is on the host and who drives the thread or host terminal. */
+export function usePresence(hostId: string | undefined, threadId: string | undefined, projectId: string | undefined, terminalId?: string): Present {
   const [people, setPeople] = useState<Presence[]>([]);
   const [clients, setClients] = useState<string[]>();
   const [seat, setSeat] = useState<Seat>();
@@ -81,7 +84,7 @@ export function usePresence(hostId: string | undefined, threadId: string | undef
   useEffect(() => {
     setClients(undefined);
     setSeat(undefined);
-  }, [hostId, threadId]);
+  }, [hostId, threadId, terminalId]);
   // The heartbeat as it is now, for calls made between renders.
   type Ask = { take?: boolean; from?: string; release?: boolean; giveTo?: string };
   const beatRef = useRef<(ask?: Ask) => Promise<Seat | undefined>>(async () => undefined);
@@ -95,7 +98,7 @@ export function usePresence(hostId: string | undefined, threadId: string | undef
     const beat = (ask: Ask = {}) => {
       const sentAt = performance.now();
       const visible = document.visibilityState === "visible";
-      return presence.heartbeat({ clientId: CLIENT, hostId, threadId: threadId ?? "", projectId: projectId ?? "", visible, ...ask }).then(
+      return presence.heartbeat({ clientId: CLIENT, hostId, threadId: threadId ?? "", projectId: projectId ?? "", terminalId: terminalId ?? "", visible, ...ask }).then(
         (r) => {
           if (!live) return undefined;
           const next = { driver: r.driver, sentAt };
@@ -122,7 +125,7 @@ export function usePresence(hostId: string | undefined, threadId: string | undef
         if (threadId) void closeNotifications(threadId).catch(() => {});
         return;
       }
-      const body = JSON.stringify({ clientId: CLIENT, hostId, threadId: threadId ?? "", projectId: projectId ?? "", visible: false });
+      const body = JSON.stringify({ clientId: CLIENT, hostId, threadId: threadId ?? "", projectId: projectId ?? "", terminalId: terminalId ?? "", visible: false });
       void fetch("/inaba.v1.PresenceService/Heartbeat", { method: "POST", keepalive: true, credentials: "include", headers: { "Content-Type": "application/json" }, body }).catch(() => {});
     };
     if (threadId && document.visibilityState === "visible") void closeNotifications(threadId).catch(() => {});
@@ -133,7 +136,7 @@ export function usePresence(hostId: string | undefined, threadId: string | undef
       window.removeEventListener("pagehide", gone);
       document.removeEventListener("visibilitychange", shown);
     };
-  }, [hostId, threadId, projectId]);
+  }, [hostId, threadId, projectId, terminalId]);
   const take = useCallback((from: string) => beatRef.current({ take: true, from }), []);
   const release = useCallback(() => beatRef.current({ release: true }), []);
   const give = useCallback((giveTo: string, from: string) => beatRef.current({ giveTo, from }), []);
@@ -177,5 +180,23 @@ export function PeopleStack({ people, max = 3, size = "sm", className, label = "
       </TooltipTrigger>
       <TooltipContent>{label + unique.map((p) => p.name).join(", ")}</TooltipContent>
     </Tooltip>
+  );
+}
+
+/** Watching rather than driving: said over what is watched, with the way in when there is one. Sits in a relative parent, below its header. */
+export function WatchingBanner({ driver, holder, onTake }: { driver?: string; /** Whoever else holds the seat; none for oneself in another tab. */ holder?: Presence; onTake?: () => void }) {
+  const { t } = useI18n();
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-14 z-10 flex justify-center px-3">
+      <div role="status" className="pointer-events-auto flex max-w-full items-center gap-2 rounded-2xl border border-amber-500/40 bg-amber-100/95 py-1 pr-1 pl-3 text-sm text-amber-950 shadow-sm dark:bg-amber-950/90 dark:text-amber-100">
+        <EyeIcon className="size-4 shrink-0" />
+        <span className="py-0.5">{!driver ? t("drive.bannerFree") : holder ? t("drive.bannerOther", { name: holder.name }) : t("drive.bannerOwnTab")}</span>
+        {onTake && (
+          <Button size="xs" variant="outline" className="border-amber-500/50 bg-transparent" onClick={onTake}>
+            {t(driver ? "drive.take" : "drive.claim")}
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }

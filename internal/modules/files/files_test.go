@@ -2,11 +2,15 @@ package files
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
+	"unicode/utf16"
 
 	"connectrpc.com/connect/v2"
 
@@ -99,4 +103,107 @@ func TestMatchPaths(t *testing.T) {
 	if got := matchPaths(paths, "", 2); len(got) != 2 || got[0] != "README.md" {
 		t.Fatalf("empty query: %v", got)
 	}
+}
+
+func TestGrepFiles(t *testing.T) {
+	h := host.New(idleAgent{})
+	t.Cleanup(h.Close)
+	s := &service{threads: h}
+	ctx := rpc.Trusted(context.Background())
+	// A user's git config must not change what git grep prints.
+	for k, v := range map[string]string{"GIT_CONFIG_COUNT": "2", "GIT_CONFIG_KEY_0": "grep.column", "GIT_CONFIG_VALUE_0": "true", "GIT_CONFIG_KEY_1": "grep.fullName", "GIT_CONFIG_VALUE_1": "true"} {
+		t.Setenv(k, v)
+	}
+	outside := t.TempDir()
+	os.WriteFile(filepath.Join(outside, "secret"), []byte("Needle outside\n"), 0o644)
+	setup := func(git bool) string {
+		dir := t.TempDir()
+		os.MkdirAll(filepath.Join(dir, "src"), 0o755)
+		os.MkdirAll(filepath.Join(dir, "node_modules"), 0o755)
+		os.WriteFile(filepath.Join(dir, "src", "a.go"), []byte("x := needle\n\tNeedle()\nneedles\n"), 0o644)
+		os.WriteFile(filepath.Join(dir, "b.txt"), []byte("한글 needle\r\n"), 0o644)
+		os.WriteFile(filepath.Join(dir, "bin"), []byte("needle\x00"), 0o644)
+		os.WriteFile(filepath.Join(dir, "node_modules", "m.js"), []byte("needle\n"), 0o644)
+		os.WriteFile(filepath.Join(dir, "flags.txt"), []byte("run --help\n"), 0o644)
+		os.WriteFile(filepath.Join(dir, "many.txt"), []byte(strings.Repeat("needle\n", 60)), 0o644)
+		os.WriteFile(filepath.Join(dir, "latin.txt"), []byte("caf\xe9 zebra\n"), 0o644)
+		os.WriteFile(filepath.Join(dir, "k.txt"), []byte("안녕하세요\n안녕 세계\n"), 0o644)
+		os.WriteFile(filepath.Join(dir, "long.txt"), []byte("qq"+strings.Repeat("x", 100000)+"zz\n"), 0o644)
+		os.Symlink(filepath.Join(outside, "secret"), filepath.Join(dir, "link"))
+		if git {
+			os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("node_modules\n"), 0o644)
+			cmd := exec.Command("git", "init", "-q")
+			cmd.Dir = dir
+			if err := cmd.Run(); err != nil {
+				t.Skip("no git")
+			}
+		}
+		th, _ := h.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "idle", Cwd: dir})
+		return th.Id
+	}
+	for _, git := range []bool{false, true} {
+		id := setup(git)
+		grep := func(req *inabav1.GrepFilesRequest) []string {
+			req.ThreadId = id
+			r, err := s.GrepFiles(ctx, req)
+			if err != nil {
+				t.Fatalf("git=%v %v: %v", git, req, err)
+			}
+			var got []string
+			for _, m := range r.Matches {
+				if m.Path != "many.txt" {
+					got = append(got, fmt.Sprintf("%s:%d:%d %q %d-%d", m.Path, m.Line, m.Column, m.Text, m.MatchStart, m.MatchEnd))
+				}
+			}
+			return got
+		}
+		r, _ := s.GrepFiles(ctx, &inabav1.GrepFilesRequest{ThreadId: id, Query: "needle"})
+		if !r.Truncated || len(r.Matches) != 50+4 {
+			t.Errorf("git=%v: 50 a file, then truncated: %d %v", git, len(r.Matches), r.Truncated)
+		}
+		want := []string{`b.txt:1:4 "한글 needle" 3-9`, `src/a.go:1:6 "x := needle" 5-11`, `src/a.go:2:2 "Needle()" 0-6`, `src/a.go:3:1 "needles" 0-6`}
+		if got := grep(&inabav1.GrepFilesRequest{Query: "needle"}); !slices.Equal(got, want) {
+			t.Errorf("git=%v: %q", git, got)
+		}
+		if got := grep(&inabav1.GrepFilesRequest{Query: "Needle", CaseSensitive: true, WholeWord: true}); len(got) != 1 || !strings.HasPrefix(got[0], "src/a.go:2:") {
+			t.Errorf("git=%v case and word: %q", git, got)
+		}
+		if got := grep(&inabav1.GrepFilesRequest{Query: "needle[s]", Regex: true}); len(got) != 1 || !strings.HasPrefix(got[0], "src/a.go:3:") {
+			t.Errorf("git=%v regex: %q", git, got)
+		}
+		if got := grep(&inabav1.GrepFilesRequest{Query: "--help"}); len(got) != 1 || !strings.HasPrefix(got[0], "flags.txt:1:5 ") {
+			t.Errorf("git=%v a query like a flag: %q", git, got)
+		}
+		if _, err := s.GrepFiles(ctx, &inabav1.GrepFilesRequest{ThreadId: id, Query: "(", Regex: true}); connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("git=%v bad regex: %v", git, err)
+		}
+		// Go's syntax git refuses is an error in git, not a search of the ignored files.
+		if _, err := s.GrepFiles(ctx, &inabav1.GrepFilesRequest{ThreadId: id, Query: "(?:needle)", Regex: true}); git && connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("git=%v regex git refuses: %v", git, err)
+		}
+		if got := grep(&inabav1.GrepFilesRequest{Query: "zebra"}); !slices.Equal(got, []string{"latin.txt:1:6 \"caf\uFFFD zebra\" 5-10"}) {
+			t.Errorf("git=%v not UTF-8: %q", git, got)
+		}
+		if got := grep(&inabav1.GrepFilesRequest{Query: "안녕", WholeWord: true}); !slices.Equal(got, []string{`k.txt:2:1 "안녕 세계" 0-2`}) {
+			t.Errorf("git=%v a word not in ASCII: %q", git, got)
+		}
+		r, err := s.GrepFiles(ctx, &inabav1.GrepFilesRequest{ThreadId: id, Query: "qq.*zz", Regex: true})
+		if err != nil || len(r.Matches) != 1 || len(r.Matches[0].Text) > grepContext+2 || int(r.Matches[0].MatchEnd) != len(r.Matches[0].Text) {
+			t.Errorf("git=%v a long match is cut: %v", git, err)
+		}
+	}
+}
+
+func TestGrepTrimsLongLines(t *testing.T) {
+	g := &grep{re: regexp.MustCompile("(needle)"), res: &inabav1.GrepFilesResponse{}}
+	g.add("x", 1, strings.Repeat("é", 300)+"needle"+strings.Repeat("b", 300))
+	m := g.res.Matches[0]
+	if len(m.Text) > grepContext+2 || utf16Slice(m.Text, m.MatchStart, m.MatchEnd) != "needle" || m.Column != 301 {
+		t.Fatalf("%d %q %d-%d col %d", len(m.Text), m.Text, m.MatchStart, m.MatchEnd, m.Column)
+	}
+}
+
+func utf16Slice(s string, from, to uint32) string {
+	u := utf16.Encode([]rune(s))
+	return string(utf16.Decode(u[from:to]))
 }

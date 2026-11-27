@@ -5241,7 +5241,8 @@ type HeartbeatRequest struct {
 	// A random id the browser tab keeps, so one person in two tabs is in two places.
 	ClientId string `protobuf:"bytes,1,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
 	HostId   string `protobuf:"bytes,2,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
-	// What it has open: a thread, or a project's page; both empty for neither.
+	// What it has open: a thread, a project's page, or one of the host's terminals; at most
+	// one of the three, all empty for none.
 	ThreadId  string `protobuf:"bytes,3,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
 	ProjectId string `protobuf:"bytes,4,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
 	// Asks for the thread's driver seat: given only when it is free, or still held by from,
@@ -5256,7 +5257,10 @@ type HeartbeatRequest struct {
 	GiveTo string `protobuf:"bytes,9,opt,name=give_to,json=giveTo,proto3" json:"give_to,omitempty"`
 	// Whether the page is on screen now. Only a browser showing the thread holds back pushes
 	// about it; one left open in a background tab does not.
-	Visible       bool `protobuf:"varint,10,opt,name=visible,proto3" json:"visible,omitempty"`
+	Visible bool `protobuf:"varint,10,opt,name=visible,proto3" json:"visible,omitempty"`
+	// A host terminal it has open, whose driver seat take, from, release and give_to then
+	// ask about, as they do a thread's.
+	TerminalId    string `protobuf:"bytes,11,opt,name=terminal_id,json=terminalId,proto3" json:"terminal_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5354,6 +5358,13 @@ func (x *HeartbeatRequest) GetVisible() bool {
 	return false
 }
 
+func (x *HeartbeatRequest) GetTerminalId() string {
+	if x != nil {
+		return x.TerminalId
+	}
+	return ""
+}
+
 type HeartbeatResponse struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	Present []*Presence            `protobuf:"bytes,1,rep,name=present,proto3" json:"present,omitempty"`
@@ -5429,7 +5440,9 @@ type Presence struct {
 	ProjectId string                 `protobuf:"bytes,4,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
 	SeenAt    *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=seen_at,json=seenAt,proto3" json:"seen_at,omitempty"`
 	// Their browser tabs' client ids there, to tell who holds a thread's driver seat.
-	Clients       []string `protobuf:"bytes,8,rep,name=clients,proto3" json:"clients,omitempty"`
+	Clients []string `protobuf:"bytes,8,rep,name=clients,proto3" json:"clients,omitempty"`
+	// The host terminal they have open, if any; see HeartbeatRequest.terminal_id.
+	TerminalId    string `protobuf:"bytes,9,opt,name=terminal_id,json=terminalId,proto3" json:"terminal_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5511,6 +5524,13 @@ func (x *Presence) GetClients() []string {
 		return x.Clients
 	}
 	return nil
+}
+
+func (x *Presence) GetTerminalId() string {
+	if x != nil {
+		return x.TerminalId
+	}
+	return ""
 }
 
 type GetPushConfigRequest struct {
@@ -7413,7 +7433,7 @@ const file_inaba_v1_server_proto_rawDesc = "" +
 	"\x15ListThreadSeenRequest\x12\x17\n" +
 	"\ahost_id\x18\x01 \x01(\tR\x06hostId\"H\n" +
 	"\x16ListThreadSeenResponse\x12.\n" +
-	"\athreads\x18\x01 \x03(\v2\x14.inaba.v1.ThreadSeenR\athreads\"\xff\x01\n" +
+	"\athreads\x18\x01 \x03(\v2\x14.inaba.v1.ThreadSeenR\athreads\"\xa0\x02\n" +
 	"\x10HeartbeatRequest\x12\x1b\n" +
 	"\tclient_id\x18\x01 \x01(\tR\bclientId\x12\x17\n" +
 	"\ahost_id\x18\x02 \x01(\tR\x06hostId\x12\x1b\n" +
@@ -7425,11 +7445,13 @@ const file_inaba_v1_server_proto_rawDesc = "" +
 	"\arelease\x18\b \x01(\bR\arelease\x12\x17\n" +
 	"\agive_to\x18\t \x01(\tR\x06giveTo\x12\x18\n" +
 	"\avisible\x18\n" +
-	" \x01(\bR\avisibleJ\x04\b\x05\x10\x06\"s\n" +
+	" \x01(\bR\avisible\x12\x1f\n" +
+	"\vterminal_id\x18\v \x01(\tR\n" +
+	"terminalIdJ\x04\b\x05\x10\x06\"s\n" +
 	"\x11HeartbeatResponse\x12,\n" +
 	"\apresent\x18\x01 \x03(\v2\x12.inaba.v1.PresenceR\apresent\x12\x18\n" +
 	"\aclients\x18\x02 \x03(\tR\aclients\x12\x16\n" +
-	"\x06driver\x18\x03 \x01(\tR\x06driver\"\xe7\x01\n" +
+	"\x06driver\x18\x03 \x01(\tR\x06driver\"\x88\x02\n" +
 	"\bPresence\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1d\n" +
@@ -7439,7 +7461,9 @@ const file_inaba_v1_server_proto_rawDesc = "" +
 	"\n" +
 	"project_id\x18\x04 \x01(\tR\tprojectId\x123\n" +
 	"\aseen_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x06seenAt\x12\x18\n" +
-	"\aclients\x18\b \x03(\tR\aclientsJ\x04\b\a\x10\b\"\x16\n" +
+	"\aclients\x18\b \x03(\tR\aclients\x12\x1f\n" +
+	"\vterminal_id\x18\t \x01(\tR\n" +
+	"terminalIdJ\x04\b\a\x10\b\"\x16\n" +
 	"\x14GetPushConfigRequest\"A\n" +
 	"\x15GetPushConfigResponse\x12(\n" +
 	"\x10vapid_public_key\x18\x01 \x01(\tR\x0evapidPublicKey\"\xa9\x01\n" +

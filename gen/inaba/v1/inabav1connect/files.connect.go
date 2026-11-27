@@ -28,6 +28,8 @@ const (
 const (
 	// FileServiceSearchFilesProcedure is the procedure name of the FileService's SearchFiles RPC.
 	FileServiceSearchFilesProcedure = "/inaba.v1.FileService/SearchFiles"
+	// FileServiceGrepFilesProcedure is the procedure name of the FileService's GrepFiles RPC.
+	FileServiceGrepFilesProcedure = "/inaba.v1.FileService/GrepFiles"
 	// FileServiceListFolderProcedure is the procedure name of the FileService's ListFolder RPC.
 	FileServiceListFolderProcedure = "/inaba.v1.FileService/ListFolder"
 	// FileServiceReadFileProcedure is the procedure name of the FileService's ReadFile RPC.
@@ -42,6 +44,13 @@ var (
 			StreamType: connect.StreamTypeUnary,
 			Schema:     v1.File_inaba_v1_files_proto.Services().ByName("FileService").Methods().ByName("SearchFiles"),
 			Procedure:  FileServiceSearchFilesProcedure,
+		}
+	})
+	fileServiceGrepFilesSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_inaba_v1_files_proto.Services().ByName("FileService").Methods().ByName("GrepFiles"),
+			Procedure:  FileServiceGrepFilesProcedure,
 		}
 	})
 	fileServiceListFolderSpec = sync.OnceValue(func() connect.Spec {
@@ -72,6 +81,9 @@ type FileServiceClient interface {
 	// Files in the thread's folder whose path matches the query, for pointing the
 	// agent at them with @path. Ignored files are left out in a git repository.
 	SearchFiles(context.Context, *v1.SearchFilesRequest) (*v1.SearchFilesResponse, error)
+	// Lines in the thread's folder's files holding the query, grouped by file in path
+	// order. In a git repository ignored files are left out. A bad regex is INVALID_ARGUMENT.
+	GrepFiles(context.Context, *v1.GrepFilesRequest) (*v1.GrepFilesResponse, error)
 	// Lists one folder of the thread's folder, folders first. Only .git is left out.
 	ListFolder(context.Context, *v1.ListFolderRequest) (*v1.ListFolderResponse, error)
 	// Reads a file in the thread's folder, up to 1 MiB of it.
@@ -93,6 +105,9 @@ type FileServiceHandler interface {
 	// Files in the thread's folder whose path matches the query, for pointing the
 	// agent at them with @path. Ignored files are left out in a git repository.
 	SearchFiles(context.Context, *v1.SearchFilesRequest) (*v1.SearchFilesResponse, error)
+	// Lines in the thread's folder's files holding the query, grouped by file in path
+	// order. In a git repository ignored files are left out. A bad regex is INVALID_ARGUMENT.
+	GrepFiles(context.Context, *v1.GrepFilesRequest) (*v1.GrepFilesResponse, error)
 	// Lists one folder of the thread's folder, folders first. Only .git is left out.
 	ListFolder(context.Context, *v1.ListFolderRequest) (*v1.ListFolderResponse, error)
 	// Reads a file in the thread's folder, up to 1 MiB of it.
@@ -108,6 +123,7 @@ func RegisterFileServiceHandler(server *connect.Server, svc FileServiceHandler) 
 	adapter := fileServiceHandler{svc: svc}
 	server.Register(
 		connect.Method{Spec: fileServiceSearchFilesSpec(), Handler: adapter.searchFiles},
+		connect.Method{Spec: fileServiceGrepFilesSpec(), Handler: adapter.grepFiles},
 		connect.Method{Spec: fileServiceListFolderSpec(), Handler: adapter.listFolder},
 		connect.Method{Spec: fileServiceReadFileSpec(), Handler: adapter.readFile},
 		connect.Method{Spec: fileServiceWriteFileSpec(), Handler: adapter.writeFile},
@@ -119,6 +135,10 @@ type UnimplementedFileServiceHandler struct{}
 
 func (UnimplementedFileServiceHandler) SearchFiles(context.Context, *v1.SearchFilesRequest) (*v1.SearchFilesResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.FileService.SearchFiles is not implemented")
+}
+
+func (UnimplementedFileServiceHandler) GrepFiles(context.Context, *v1.GrepFilesRequest) (*v1.GrepFilesResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.FileService.GrepFiles is not implemented")
 }
 
 func (UnimplementedFileServiceHandler) ListFolder(context.Context, *v1.ListFolderRequest) (*v1.ListFolderResponse, error) {
@@ -140,6 +160,14 @@ type fileServiceClient struct {
 func (c *fileServiceClient) SearchFiles(ctx context.Context, req *v1.SearchFilesRequest) (*v1.SearchFilesResponse, error) {
 	var res v1.SearchFilesResponse
 	if err := c.client.CallUnary(ctx, fileServiceSearchFilesSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *fileServiceClient) GrepFiles(ctx context.Context, req *v1.GrepFilesRequest) (*v1.GrepFilesResponse, error) {
+	var res v1.GrepFilesResponse
+	if err := c.client.CallUnary(ctx, fileServiceGrepFilesSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -177,6 +205,18 @@ func (h fileServiceHandler) searchFiles(ctx context.Context, _ connect.Spec, str
 		return err
 	}
 	res, err := h.svc.SearchFiles(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h fileServiceHandler) grepFiles(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.GrepFilesRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.GrepFiles(ctx, &req)
 	if err != nil {
 		return err
 	}

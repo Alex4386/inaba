@@ -2,7 +2,10 @@ package host
 
 import (
 	"log/slog"
+	"maps"
 	"path/filepath"
+	"slices"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm"
@@ -183,12 +186,27 @@ func (h *Host) OpenData(path string) error {
 		}
 		// Nothing queued runs by itself after a restart; the user decides.
 		meta.QueuePaused = len(meta.Queue) > 0
+		running := meta.Status != inabav1.ThreadStatus_THREAD_STATUS_IDLE
 		// Background workflows ran inside the agent's session, which the restart ended.
+		background := meta.BackgroundAgents > 0
 		meta.BackgroundAgents = 0
-		if meta.Status != inabav1.ThreadStatus_THREAD_STATUS_IDLE {
+		resume := (running || background) && resumable(meta, t.events)
+		if resume {
+			// Its work goes on, first thing once ResumeTurns runs, with what was queued behind it.
+			meta.Queue = append([]*inabav1.QueuedMessage{{Id: randomID(), Text: resumePrompt, Resume: true}}, meta.Queue...)
+			meta.QueuePaused = false
+		}
+		if running {
 			// A turn was running when the host stopped. Close it in the log, so readers
 			// do not wait for an end that will not come.
-			t.emit(&inabav1.Event{Payload: &inabav1.Event_TurnEnded{TurnEnded: &inabav1.TurnEnded{Error: "the host restarted while this turn was running"}}})
+			ended := &inabav1.TurnEnded{StopReason: hostRestarted}
+			if !resume {
+				ended.Error = "the host restarted while this turn was running"
+			}
+			t.emit(&inabav1.Event{Payload: &inabav1.Event_TurnEnded{TurnEnded: ended}})
+		} else if n := len(t.events); n > 0 && t.events[n-1].GetTurnEnded().GetStopReason() == hostRestarted && t.events[n-1].GetTurnEnded().GetError() == "" {
+			// It was to go on, but the host stopped again before the resume began: the user decides.
+			t.emit(&inabav1.Event{Payload: &inabav1.Event_TurnEnded{TurnEnded: &inabav1.TurnEnded{Error: "the host restarted again before this turn could go on"}}})
 		}
 		h.threads[meta.Id] = t
 	}
@@ -196,4 +214,47 @@ func (h *Host) OpenData(path string) error {
 	h.stopArchive = make(chan struct{})
 	go h.archiveLoop(h.stopArchive)
 	return nil
+}
+
+// hostRestarted is the stop reason of a turn the host's restart cut short.
+const hostRestarted = "host_restarted"
+
+// resumePrompt carries on a turn the host's restart cut short.
+const resumePrompt = "The inaba host restarted while you were working on this turn. Your session was restarted, and any background agents or workflows you had running were stopped. Continue where you left off."
+
+// resumable reports whether work cut short by a restart goes on by itself: an agent
+// thread in use, busy lately, whose turn was not already a resume, so a host that keeps
+// crashing does not keep starting it.
+func resumable(meta *inabav1.Thread, events []*inabav1.Event) bool {
+	if meta.Mode != inabav1.ThreadMode_THREAD_MODE_STRUCTURED || meta.Labels["archived"] != "" || len(events) == 0 {
+		return false
+	}
+	// Work left off long ago, say while its provider was not configured, is not taken up unseen.
+	if time.Since(events[len(events)-1].Time.AsTime()) > time.Hour {
+		return false
+	}
+	for i := len(events) - 1; i >= 0; i-- {
+		if m := events[i].GetUserMessage(); m != nil {
+			return !m.Resume
+		}
+	}
+	return false
+}
+
+// ResumeTurns starts the turns OpenData lined up to resume, each in the background, as
+// agents can take minutes to start. Call it once the host can start agents, with the
+// modules that give them their tools running.
+func (h *Host) ResumeTurns() {
+	h.mu.Lock()
+	threads := slices.Collect(maps.Values(h.threads))
+	h.mu.Unlock()
+	for _, t := range threads {
+		go func() {
+			t.op.Lock()
+			defer t.op.Unlock()
+			if !t.deleted {
+				t.runNext()
+			}
+		}()
+	}
 }

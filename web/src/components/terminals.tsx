@@ -1,11 +1,14 @@
 import { Code, ConnectError } from "@connectrpc/connect";
-import { ChevronRightIcon, PlusIcon, SquareTerminalIcon, XIcon } from "lucide-react";
+import { ChevronRightIcon, MoreHorizontalIcon, PencilIcon, PlusIcon, SquareTerminalIcon, Trash2Icon, UndoIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import type { HostLink } from "@/api";
-import { ConfirmDialog } from "@/components/dialogs";
+import { ConfirmDialog, RenameDialog } from "@/components/dialogs";
+import { CLIENT, usePresent, WatchingBanner } from "@/components/presence";
 import { Badge } from "@/components/reui/badge";
 import { Button } from "@/components/ui/button";
-import { SidebarGroup, SidebarGroupAction, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { SidebarGroup, SidebarGroupAction, SidebarGroupLabel, SidebarMenu, SidebarMenuAction, SidebarMenuButton, SidebarMenuItem, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
 import type { HostTerminal } from "@/gen/inaba/v1/terminal_pb";
 import { errorText, showError } from "@/lib/errors";
@@ -25,11 +28,17 @@ function useTerminals(link: HostLink) {
       ),
     [link],
   );
+  // Titles change as people work in them (cd, ssh), and names as they are set, so the list follows.
   useEffect(() => {
     void load();
+    const timer = setInterval(() => void load(), 3_000);
+    return () => clearInterval(timer);
   }, [load]);
   return { terminals, error, load };
 }
+
+/** What a terminal is called: the name someone gave it, else the title its shell set, else its folder. */
+const terminalName = (term: HostTerminal, title = term.title) => term.name || title || term.cwd;
 
 function Header({ children }: { children: React.ReactNode }) {
   return (
@@ -67,11 +76,9 @@ export function TerminalTree({ link, selected, onOpen }: { link: HostLink; selec
   const { terminals, error, load } = useTerminals(link);
   const [open, setOpen] = useState(true);
   const [opening, setOpening] = useState(false);
-  // Titles change as people work in them (cd, ssh), so the list follows, as the projects' does.
-  useEffect(() => {
-    const timer = setInterval(() => void load(), 3_000);
-    return () => clearInterval(timer);
-  }, [load]);
+  const [renaming, setRenaming] = useState<HostTerminal>();
+  const { ask, dialog } = useClose(link, () => void load());
+  const rename = (id: string, name: string) => link.hostTerminals.renameHostTerminal({ id, name }).then(() => load());
   if (error === "off") return null;
   const start = () => {
     if (opening) return;
@@ -102,7 +109,7 @@ export function TerminalTree({ link, selected, onOpen }: { link: HostLink; selec
           {terminals?.map((term) => (
             <SidebarMenuItem key={term.id}>
               <SidebarMenuButton
-                tooltip={term.title || term.cwd}
+                tooltip={terminalName(term)}
                 isActive={term.id === selected}
                 onClick={() => {
                   setOpenMobile(false);
@@ -110,21 +117,83 @@ export function TerminalTree({ link, selected, onOpen }: { link: HostLink; selec
                 }}
               >
                 <SquareTerminalIcon />
-                <span className={cn("truncate", term.exited && "text-muted-foreground")}>{term.title || term.cwd}</span>
+                <span className={cn("truncate", term.exited && "text-muted-foreground")}>{terminalName(term)}</span>
               </SidebarMenuButton>
+              <DropdownMenu>
+                <DropdownMenuTrigger render={<SidebarMenuAction showOnHover className="aria-expanded:bg-muted" />}>
+                  <MoreHorizontalIcon />
+                  <span className="sr-only">{t("terminals.more", { name: terminalName(term) })}</span>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-auto whitespace-nowrap" side="right" align="start">
+                  <DropdownMenuItem onClick={() => setRenaming(term)}>
+                    <PencilIcon />
+                    {t("terminals.rename")}
+                  </DropdownMenuItem>
+                  {term.name && (
+                    <DropdownMenuItem onClick={() => rename(term.id, "").catch(showError)}>
+                      <UndoIcon />
+                      {t("terminals.useShellTitle")}
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onClick={() => ask(term)}>
+                    <Trash2Icon />
+                    {t("terminals.close")}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </SidebarMenuItem>
           ))}
         </SidebarMenu>
       )}
+      <RenameDialog
+        open={renaming !== undefined}
+        onClose={() => setRenaming(undefined)}
+        title={t("terminals.renameTitle")}
+        name={renaming ? terminalName(renaming) : ""}
+        onRename={(name) => rename(renaming!.id, name)}
+      />
+      {dialog}
     </SidebarGroup>
   );
 }
 
 /** One terminal filling the main area. Leaving it leaves the shell running; coming back attaches again and replays recent output. */
-export function HostTerminalPage({ link, id, onClosed }: { link: HostLink; id: string; onClosed: () => void }) {
+export function HostTerminalPage({ link, id, onClosed, stealth }: { link: HostLink; id: string; onClosed: () => void; /** Never takes a free seat by itself. */ stealth?: boolean }) {
   const { t } = useI18n();
+  // One browser tab types and sizes the terminal, as a thread's driver does; every other tab watches.
+  const { clients, seat, take, refresh } = usePresent();
+  // Answers asked before this terminal opened are the last place's, which the page above has not reset yet.
+  const openedAt = useMemo(() => performance.now(), [id]);
+  // A tab taking the seat tells this browser's other tabs at once, so the one that lost it stops typing now, not at its next beat.
+  // shortcut: a tab in another browser still learns at its next beat, up to 10 s; the host does not check the seat.
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+    const channel = new BroadcastChannel("inaba.seat");
+    channel.onmessage = (e: MessageEvent<string>) => e.data === id && refresh();
+    return () => channel.close();
+  }, [id, refresh]);
+  // Not before the server has answered for this terminal: a duplicated tab learns its own id only then.
+  const driver = seat?.driver || undefined;
+  const driving = seat !== undefined && driver === CLIENT;
+  // A free seat goes by itself only to a tab alone on the terminal; with others watching, the first to ask gets it.
+  useEffect(() => {
+    if (!stealth && seat && seat.sentAt >= openedAt && clients && !seat.driver && clients.length === 0) void take("");
+  }, [seat, clients, stealth, take, openedAt]);
+  const askToTake = () =>
+    void take(driver ?? "").then((s) => {
+      if (s && s.driver !== CLIENT) toast.error(t("drive.denied"));
+      else if (s && typeof BroadcastChannel !== "undefined") {
+        const channel = new BroadcastChannel("inaba.seat");
+        channel.postMessage(id);
+        channel.close();
+      }
+    });
   const { terminals, error, load } = useTerminals(link);
   const term = terminals?.find((x) => x.id === id);
+  // Live from the terminal itself, ahead of the listing; reset when another terminal opens.
+  const [live, setLive] = useState<{ id: string; title: string }>();
+  const title = term && terminalName(term, (live?.id === id && live.title) || term.title);
   const { ask, dialog } = useClose(link, onClosed);
   const io = useMemo<TerminalIO>(
     () => ({
@@ -135,30 +204,34 @@ export function HostTerminalPage({ link, id, onClosed }: { link: HostLink; id: s
     [link, id],
   );
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      {/* Only the owner's own tabs share a terminal's seat, so it is always theirs to take. */}
+      {seat && !driving && term && <WatchingBanner driver={driver} onTake={askToTake} />}
       <Header>
         <SquareTerminalIcon className="text-muted-foreground size-4 shrink-0" />
         <h1 className="min-w-0 truncate text-sm font-medium" title={term?.cwd}>
-          {term?.title || term?.cwd}
+          {title}
         </h1>
         {term?.exited && (
           <Badge size="sm" variant="outline">
             {t("terminals.exited")}
           </Badge>
         )}
-        {term && (
-          <Button size="sm" variant="outline" className="ml-auto" onClick={() => ask(term)}>
-            <XIcon data-icon="inline-start" />
-            {t("terminals.close")}
-          </Button>
-        )}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {/* Who else has this terminal open. */}
+          {term && (
+            <Button size="icon-sm" variant="ghost" aria-label={t("terminals.close")} title={t("terminals.close")} disabled={!driving} onClick={() => ask(term)}>
+              <XIcon />
+            </Button>
+          )}
+        </div>
       </Header>
       {error || (terminals && !term) ? (
         <p className="text-muted-foreground p-6 text-sm">{error === "off" ? t("terminals.moduleOff") : error || t("terminals.notFound")}</p>
       ) : !term ? (
         <Spinner className="m-auto" />
       ) : (
-        <TerminalView link={link} io={io} onExit={() => void load()} />
+        <TerminalView key={id} link={link} io={io} driving={driving} onExit={() => void load()} onTitle={(t) => setLive({ id, title: t })} />
       )}
       {dialog}
     </div>

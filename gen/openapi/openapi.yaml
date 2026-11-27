@@ -2726,7 +2726,6 @@ paths:
         delete:
             tags:
                 - HostTerminalService
-            description: Ends a terminal and its process.
             operationId: HostTerminalService_CloseHostTerminal
             parameters:
                 - name: id
@@ -2741,6 +2740,38 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/CloseHostTerminalResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        patch:
+            tags:
+                - HostTerminalService
+            description: |-
+                Ends a terminal and its process.
+                 Names a terminal; an empty name goes back to the title its shell sets.
+            operationId: HostTerminalService_RenameHostTerminal
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RenameHostTerminalRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/HostTerminal'
                 default:
                     description: Default error response
                     content:
@@ -3684,6 +3715,56 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/GitStatus'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/hosts/{host_id}/threads/{thread_id}/grep:
+        get:
+            tags:
+                - FileService
+            description: |-
+                Lines in the thread's folder's files holding the query, grouped by file in path
+                 order. In a git repository ignored files are left out. A bad regex is INVALID_ARGUMENT.
+            operationId: FileService_GrepFiles
+            parameters:
+                - name: host_id
+                  in: path
+                  required: true
+                  description: The id of the host, from GET /v1/hosts.
+                  schema:
+                    type: string
+                - name: thread_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: query
+                  in: query
+                  schema:
+                    type: string
+                - name: case_sensitive
+                  in: query
+                  schema:
+                    type: boolean
+                - name: whole_word
+                  in: query
+                  schema:
+                    type: boolean
+                - name: regex
+                  in: query
+                  description: The query is a regular expression (extended, as grep -E), not plain text.
+                  schema:
+                    type: boolean
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GrepFilesResponse'
                 default:
                     description: Default error response
                     content:
@@ -5403,6 +5484,10 @@ components:
                     type: string
                 text:
                     type: string
+                attachments:
+                    allOf:
+                        - $ref: '#/components/schemas/QueuedAttachmentsEdit'
+                    description: Unset leaves the message's attachments as they are.
         EnableTotpRequest:
             type: object
             properties:
@@ -5666,6 +5751,40 @@ components:
             description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
         GoogleProtobufValue:
             description: Represents a dynamically typed value which can be either null, a number, a string, a boolean, a recursive struct value, or a list of values.
+        GrepFilesResponse:
+            type: object
+            properties:
+                matches:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/GrepFilesResponse_Match'
+                truncated:
+                    type: boolean
+                    description: 'More matched than was sent: at most 500 in all, and 50 in one file.'
+        GrepFilesResponse_Match:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: Relative to the thread's folder.
+                line:
+                    type: integer
+                    description: 1-based.
+                    format: uint32
+                column:
+                    type: integer
+                    description: 1-based, in UTF-16 units of the whole line, as an editor counts.
+                    format: uint32
+                text:
+                    type: string
+                    description: The line, trimmed around the match when long.
+                match_start:
+                    type: integer
+                    description: Where the match is in text, in UTF-16 units.
+                    format: uint32
+                match_end:
+                    type: integer
+                    format: uint32
         HeartbeatRequest:
             type: object
             properties:
@@ -5676,7 +5795,9 @@ components:
                     type: string
                 thread_id:
                     type: string
-                    description: 'What it has open: a thread, or a project''s page; both empty for neither.'
+                    description: |-
+                        What it has open: a thread, a project's page, or one of the host's terminals; at most
+                         one of the three, all empty for none.
                 project_id:
                     type: string
                 take:
@@ -5699,6 +5820,11 @@ components:
                     description: |-
                         Whether the page is on screen now. Only a browser showing the thread holds back pushes
                          about it; one left open in a background tab does not.
+                terminal_id:
+                    type: string
+                    description: |-
+                        A host terminal it has open, whose driver seat take, from, release and give_to then
+                         ask about, as they do a thread's.
         HeartbeatResponse:
             type: object
             properties:
@@ -5844,6 +5970,9 @@ components:
                     description: |-
                         The window title its program last set, as a shell prompt does with user@host: folder,
                          or ssh's remote shell; empty until one is set.
+                name:
+                    type: string
+                    description: Set by a person; shown instead of the title while it is set.
         Housekeeping:
             type: object
             properties:
@@ -6490,6 +6619,9 @@ components:
                     items:
                         type: string
                     description: Their browser tabs' client ids there, to tell who holds a thread's driver seat.
+                terminal_id:
+                    type: string
+                    description: The host terminal they have open, if any; see HeartbeatRequest.terminal_id.
         Project:
             type: object
             properties:
@@ -6645,6 +6777,30 @@ components:
                 endpoint:
                     type: string
                     description: The endpoint, so a browser can find its own subscription in the list.
+        QueuedAttachmentsEdit:
+            type: object
+            properties:
+                keep:
+                    type: array
+                    items:
+                        type: integer
+                        format: uint32
+                    description: Indexes into the message's current attachments, in increasing order.
+                add:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Attachment'
+                    description: New attachments, checked and stored as StartTurn's are.
+                seen:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The names of the message's attachments that keep indexes into, as the client saw
+                         them; the edit is refused if the message's attachments have changed since.
+            description: |-
+                What a queued message's attachments become: those of its current ones it keeps, then
+                 new ones. The kept ones go by index, so a client never has to send back bytes it holds.
         QueuedMessage:
             type: object
             properties:
@@ -6656,6 +6812,9 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/Attachment'
+                resume:
+                    type: boolean
+                    description: As UserMessage.resume.
         RawEvent:
             type: object
             properties:
@@ -6728,6 +6887,13 @@ components:
         RemoveHostMemberResponse:
             type: object
             properties: {}
+        RenameHostTerminalRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
         ResizeHostTerminalRequest:
             type: object
             properties:
@@ -7721,6 +7887,9 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/Attachment'
+                resume:
+                    type: boolean
+                    description: 'Written by inaba, not a person: it carries on a turn the host''s restart cut short.'
         WebhookChannel:
             type: object
             properties:

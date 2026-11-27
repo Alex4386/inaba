@@ -26,12 +26,17 @@ const (
 	maxAttachmentBytes = 20 << 20
 )
 
-// checkAttachments reports why a message's attachments cannot be sent.
-func checkAttachments(cwd string, attachments []*inabav1.Attachment) error {
-	if len(attachments) > maxAttachments {
+// checkAttachments reports why a message's attachments cannot be sent. kept are ones the
+// message already holds, checked when they came: they count toward the caps only.
+func checkAttachments(cwd string, kept, attachments []*inabav1.Attachment) error {
+	if len(kept)+len(attachments) > maxAttachments {
 		return connect.NewError(connect.CodeInvalidArgument, "a message takes at most "+strconv.Itoa(maxAttachments)+" attachments")
 	}
 	total := 0
+	for _, a := range kept {
+		// An uploaded file that was written out keeps its size, not its data.
+		total += len(a.Data) + int(a.GetSize())
+	}
 	for _, a := range attachments {
 		switch {
 		case a.Path != "":

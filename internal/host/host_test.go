@@ -517,10 +517,10 @@ func TestThreadsSurviveARestart(t *testing.T) {
 		t.Fatalf("turn after restart: %q", text)
 	}
 
-	// The turn that was running is closed in the log, and the thread can be used again.
+	// The turn that was running is closed in the log, lined up to go on.
 	th, _ = h.GetThread(ctx, &inabav1.GetThreadRequest{ThreadId: running.Id})
 	evs, _ := h.ListEvents(ctx, &inabav1.ListEventsRequest{ThreadId: running.Id})
-	if last := evs.Events[len(evs.Events)-1].GetTurnEnded(); th.Status != inabav1.ThreadStatus_THREAD_STATUS_IDLE || last == nil || last.Error == "" {
+	if last := evs.Events[len(evs.Events)-1].GetTurnEnded(); th.Status != inabav1.ThreadStatus_THREAD_STATUS_IDLE || last == nil || last.StopReason != hostRestarted || len(th.Queue) != 1 {
 		t.Fatalf("interrupted thread after restart: %v, last event %v", th, evs.Events[len(evs.Events)-1])
 	}
 
@@ -533,6 +533,106 @@ func TestThreadsSurviveARestart(t *testing.T) {
 	}
 	if _, err := h.Write(ctx, &inabav1.WriteRequest{ThreadId: term.Id, Data: []byte("x")}); err != nil {
 		t.Fatalf("write to the restarted terminal: %v", err)
+	}
+}
+
+// A turn the host's restart cut short goes on by itself, with what was queued behind it;
+// a resume cut short too does not, and idle threads stay as they were.
+func TestRunningTurnResumesAfterARestart(t *testing.T) {
+	path := filepath.Join(testdir.New(t), "inaba.db")
+	ctx := Trusted(context.Background())
+	settled := func(h *Host, id string) *inabav1.Thread {
+		t.Helper()
+		for range 1000 {
+			th, _ := h.GetThread(ctx, &inabav1.GetThreadRequest{ThreadId: id})
+			if th.Status == inabav1.ThreadStatus_THREAD_STATUS_IDLE && (len(th.Queue) == 0 || th.QueuePaused) {
+				return th
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		t.Fatal("thread did not settle")
+		return nil
+	}
+	// Between turns a thread looks settled for a moment, so this waits for how its log ends.
+	ends := func(h *Host, id, suffix string) {
+		t.Helper()
+		// Generous, for a machine busy with the rest of the suite.
+		for range 1000 {
+			if strings.HasSuffix(logLine(t, h, id), suffix) {
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		t.Fatalf("the log never ended in %q: %s", suffix, logLine(t, h, id))
+	}
+	reopen := func(h *Host) *Host {
+		t.Helper()
+		h.Close()
+		h = New(fakeProvider{})
+		t.Cleanup(h.Close)
+		if err := h.OpenData(path); err != nil {
+			t.Fatal(err)
+		}
+		h.ResumeTurns()
+		return h
+	}
+
+	h := New(fakeProvider{})
+	if err := h.OpenData(path); err != nil {
+		t.Fatal(err)
+	}
+	idle, _ := h.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "fake", Cwd: t.TempDir()})
+	h.StartTurn(ctx, &inabav1.StartTurnRequest{ThreadId: idle.Id, Text: "done"})
+	settled(h, idle.Id)
+	running, _ := h.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "fake", Cwd: t.TempDir()})
+	h.StartTurn(ctx, &inabav1.StartTurnRequest{ThreadId: running.Id, Text: "hang"})
+	h.StartTurn(ctx, &inabav1.StartTurnRequest{ThreadId: running.Id, Text: "after"})
+
+	h = reopen(h)
+	ends(h, running.Id, "user:after ended:end_turn")
+	if got, want := logLine(t, h, running.Id), "user:hang ended:host_restarted user:"+resumePrompt+" ended:end_turn user:after ended:end_turn"; got != want {
+		t.Fatalf("transcript = %s\nwant %s", got, want)
+	}
+	if got := logLine(t, h, idle.Id); got != "user:done ended:end_turn" {
+		t.Fatalf("idle thread after restart: %s", got)
+	}
+
+	// As if the host died again while a resume ran: that one is left for the user.
+	h.StartTurn(ctx, &inabav1.StartTurnRequest{ThreadId: running.Id, Text: "hang"})
+	h = reopen(h)
+	ends(h, running.Id, "user:"+resumePrompt+" ended:end_turn")
+	th, _ := h.thread(running.Id)
+	th.mu.Lock()
+	// Its log keeps the resume's message and start, and loses the rest.
+	started := th.meta.LastSeq
+	for th.events[started-1].GetUserMessage().GetText() != resumePrompt {
+		started--
+	}
+	th.save.db.Where("thread_id = ? AND seq > ?", running.Id, started+1).Delete(&eventRow{})
+	th.meta.Status = inabav1.ThreadStatus_THREAD_STATUS_RUNNING
+	th.save.meta(th.meta)
+	th.mu.Unlock()
+	h = reopen(h)
+	if got := settled(h, running.Id); !got.LastTurnFailed || len(got.Queue) != 0 {
+		t.Fatalf("a resume cut short was resumed again: %v", got)
+	}
+	if got := logLine(t, h, running.Id); !strings.HasSuffix(got, "user:hang ended:host_restarted user:"+resumePrompt+" failed") {
+		t.Fatalf("transcript = %s", got)
+	}
+
+	// Stopped again before its resume began, it does not look finished.
+	h.StartTurn(ctx, &inabav1.StartTurnRequest{ThreadId: running.Id, Text: "hang"})
+	h.Close()
+	h = New(fakeProvider{})
+	if err := h.OpenData(path); err != nil {
+		t.Fatal(err)
+	}
+	h = reopen(h)
+	if got := settled(h, running.Id); !got.LastTurnFailed || !got.QueuePaused {
+		t.Fatalf("a resume that never began: %v", got)
+	}
+	if got := logLine(t, h, running.Id); !strings.HasSuffix(got, "user:hang ended:host_restarted failed") {
+		t.Fatalf("transcript = %s", got)
 	}
 }
 
@@ -635,6 +735,82 @@ func TestQueueRunsInOrderAndStopsWhenTold(t *testing.T) {
 	settled()
 	if got := logLine(t, h, th.Id); !strings.HasSuffix(got, "user:hang failed user:after ended:end_turn") {
 		t.Fatalf("transcript = %s", got)
+	}
+}
+
+// Editing a queued message can drop attachments it has, by index, and add new ones,
+// which are checked and stored as a sent message's are; text alone leaves them be.
+func TestQueuedMessageAttachmentsCanBeEdited(t *testing.T) {
+	h := New(fakeProvider{})
+	t.Cleanup(h.Close)
+	ctx := Trusted(context.Background())
+	th, _ := h.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "fake", Cwd: t.TempDir()})
+	png := func(name string, n int) *inabav1.Attachment {
+		return &inabav1.Attachment{Name: name, MimeType: "image/png", Data: make([]byte, n)}
+	}
+	if _, err := h.StartTurn(ctx, &inabav1.StartTurnRequest{ThreadId: th.Id, Text: "hang"}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := h.StartTurn(ctx, &inabav1.StartTurnRequest{ThreadId: th.Id, Text: "q", Attachments: []*inabav1.Attachment{png("a.png", 1), png("b.png", 1)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	edit := func(text string, e *inabav1.QueuedAttachmentsEdit) ([]string, error) {
+		t.Helper()
+		if e != nil && e.Seen == nil {
+			now, _ := h.GetThread(ctx, &inabav1.GetThreadRequest{ThreadId: th.Id})
+			e.Seen = attachmentNames(now.Queue[0].Attachments)
+		}
+		got, err := h.EditQueued(ctx, &inabav1.EditQueuedRequest{ThreadId: th.Id, QueuedId: res.QueuedId, Text: text, Attachments: e})
+		if err != nil {
+			return nil, err
+		}
+		var names []string
+		for _, a := range got.Queue[0].Attachments {
+			names = append(names, a.Name)
+		}
+		return names, nil
+	}
+	if names, err := edit("Q", nil); err != nil || strings.Join(names, ",") != "a.png,b.png" {
+		t.Fatalf("text only: %v %v", names, err)
+	}
+	if names, err := edit("Q", &inabav1.QueuedAttachmentsEdit{Keep: []uint32{1}}); err != nil || strings.Join(names, ",") != "b.png" {
+		t.Fatalf("remove one: %v %v", names, err)
+	}
+	notes := &inabav1.Attachment{Name: "notes.txt", MimeType: "text/plain", Data: []byte("hi")}
+	if names, err := edit("Q", &inabav1.QueuedAttachmentsEdit{Keep: []uint32{0}, Add: []*inabav1.Attachment{notes}}); err != nil || strings.Join(names, ",") != "b.png,notes.txt" {
+		t.Fatalf("add one: %v %v", names, err)
+	}
+	got, _ := h.GetThread(ctx, &inabav1.GetThreadRequest{ThreadId: th.Id})
+	if a := got.Queue[0].Attachments[1]; len(a.Data) != 0 || a.Path == "" || a.GetSize() != 2 {
+		t.Fatalf("an added file is not stored as an upload: %v", a)
+	}
+	for name, e := range map[string]*inabav1.QueuedAttachmentsEdit{
+		"bad index":       {Keep: []uint32{5}},
+		"kept twice":      {Keep: []uint32{0, 0}},
+		"too large":       {Add: []*inabav1.Attachment{png("big.png", maxImageBytes+1)}},
+		"over the total":  {Keep: []uint32{0}, Add: []*inabav1.Attachment{png("c.png", maxImageBytes), png("d.png", maxImageBytes), png("e.png", maxImageBytes), png("f.png", maxImageBytes)}},
+		"too many":        {Add: slices.Repeat([]*inabav1.Attachment{png("x.png", 1)}, maxAttachments+1)},
+		"emptied as well": {},
+	} {
+		text := "Q"
+		if name == "emptied as well" {
+			text = " "
+		}
+		if _, err := edit(text, e); connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	// Indexes taken against attachments that have since changed are refused, not misapplied.
+	if _, err := edit("Q", &inabav1.QueuedAttachmentsEdit{Keep: []uint32{0}, Seen: []string{"a.png", "b.png", "notes.txt"}}); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Errorf("stale keep: %v", err)
+	}
+	// Text alone may go once attachments carry the message, and the other way round.
+	if names, err := edit(" ", &inabav1.QueuedAttachmentsEdit{Keep: []uint32{0, 1}}); err != nil || len(names) != 2 {
+		t.Fatalf("attachments only: %v %v", names, err)
+	}
+	if names, err := edit("Q", &inabav1.QueuedAttachmentsEdit{}); err != nil || len(names) != 0 {
+		t.Fatalf("all removed: %v %v", names, err)
 	}
 }
 

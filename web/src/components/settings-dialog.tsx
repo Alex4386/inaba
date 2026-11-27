@@ -22,7 +22,7 @@ import { ThemeEditor } from "@/components/theme-editor";
 import { type Locale, type MessageKey, localeNames, useI18n } from "@/lib/i18n";
 import { showError } from "@/lib/errors";
 import { disablePush, enablePush, pushSupport, usePushDevices } from "@/lib/push";
-import { setNotify, useNotify } from "@/lib/settings";
+import { setChatMap, setNotify, setTerminalFontSize, terminalFontSizes, useChatMap, useNotify, useTerminalFontSize } from "@/lib/settings";
 
 // Hosts, and what each one offers, are set in each host's own settings, from the host switcher.
 export type SettingsSection = "profile" | "general" | "notifications" | "appearance" | "keyboard" | "tokens";
@@ -48,6 +48,8 @@ export function SettingsDialog({
   const { t, locale, setLocale } = useI18n();
   const { theme = "system", setTheme } = useTheme();
   const notify = useNotify();
+  const chatMap = useChatMap();
+  const terminalSize = useTerminalFontSize();
 
   const sections: [SettingsSection, MessageKey, ReactNode][] = [
     ["profile", "profile.title", <UserRoundIcon />],
@@ -126,6 +128,17 @@ export function SettingsDialog({
               </Row>
               <Row title={t("codeFont.title")} description={t("codeFont.help")}>
                 <CodeFontPicker />
+              </Row>
+              <Row title={t("terminalFont.title")} description={t("terminalFont.help")}>
+                <Picker
+                  label={t("terminalFont.title")}
+                  value={String(terminalSize)}
+                  onChange={(v) => setTerminalFontSize(Number(v))}
+                  options={terminalFontSizes.map((n) => ({ value: String(n), label: `${n}px` }))}
+                />
+              </Row>
+              <Row title={t("chatMap.title")} description={t("chatMap.help")}>
+                <Switch checked={chatMap} onCheckedChange={setChatMap} aria-label={t("chatMap.title")} />
               </Row>
               <ThemeEditor />
             </Card>

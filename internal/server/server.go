@@ -757,13 +757,16 @@ func (s *Server) serveTunnel(w http.ResponseWriter, r *http.Request) {
 			// The host enforces these. Set, never passed through, so a caller cannot claim more.
 			// A webhook call has no account behind it, and so no permissions.
 			var granted []string
+			var user string
 			if p := currentUser(pr.In.Context()); p != nil && p.user != nil {
+				user = p.user.ID
 				// As the host stands now, not as it was when it connected: roles and restrictions change.
 				if h, err := s.store.Host(hostID); err == nil {
 					granted = s.grantsOn(pr.In.Context(), h, p.user)
 				}
 			}
 			pr.Out.Header.Set(rpc.PermissionsHeader, strings.Join(granted, ","))
+			pr.Out.Header.Set(rpc.UserHeader, user)
 		},
 		Transport: &http.Transport{
 			DialContext: func(context.Context, string, string) (net.Conn, error) { return session.Open() },

@@ -41,6 +41,9 @@ const (
 	// HostTerminalServiceResizeHostTerminalProcedure is the procedure name of the HostTerminalService's
 	// ResizeHostTerminal RPC.
 	HostTerminalServiceResizeHostTerminalProcedure = "/inaba.v1.HostTerminalService/ResizeHostTerminal"
+	// HostTerminalServiceRenameHostTerminalProcedure is the procedure name of the HostTerminalService's
+	// RenameHostTerminal RPC.
+	HostTerminalServiceRenameHostTerminalProcedure = "/inaba.v1.HostTerminalService/RenameHostTerminal"
 	// HostTerminalServiceCloseHostTerminalProcedure is the procedure name of the HostTerminalService's
 	// CloseHostTerminal RPC.
 	HostTerminalServiceCloseHostTerminalProcedure = "/inaba.v1.HostTerminalService/CloseHostTerminal"
@@ -82,6 +85,13 @@ var (
 			Procedure:  HostTerminalServiceResizeHostTerminalProcedure,
 		}
 	})
+	hostTerminalServiceRenameHostTerminalSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_inaba_v1_terminal_proto.Services().ByName("HostTerminalService").Methods().ByName("RenameHostTerminal"),
+			Procedure:  HostTerminalServiceRenameHostTerminalProcedure,
+		}
+	})
 	hostTerminalServiceCloseHostTerminalSpec = sync.OnceValue(func() connect.Spec {
 		return connect.Spec{
 			StreamType: connect.StreamTypeUnary,
@@ -101,6 +111,8 @@ type HostTerminalServiceClient interface {
 	WriteHostTerminal(context.Context, *v1.WriteHostTerminalRequest) (*v1.WriteHostTerminalResponse, error)
 	ResizeHostTerminal(context.Context, *v1.ResizeHostTerminalRequest) (*v1.ResizeHostTerminalResponse, error)
 	// Ends a terminal and its process.
+	// Names a terminal; an empty name goes back to the title its shell sets.
+	RenameHostTerminal(context.Context, *v1.RenameHostTerminalRequest) (*v1.HostTerminal, error)
 	CloseHostTerminal(context.Context, *v1.CloseHostTerminalRequest) (*v1.CloseHostTerminalResponse, error)
 }
 
@@ -141,6 +153,8 @@ type HostTerminalServiceHandler interface {
 	WriteHostTerminal(context.Context, *v1.WriteHostTerminalRequest) (*v1.WriteHostTerminalResponse, error)
 	ResizeHostTerminal(context.Context, *v1.ResizeHostTerminalRequest) (*v1.ResizeHostTerminalResponse, error)
 	// Ends a terminal and its process.
+	// Names a terminal; an empty name goes back to the title its shell sets.
+	RenameHostTerminal(context.Context, *v1.RenameHostTerminalRequest) (*v1.HostTerminal, error)
 	CloseHostTerminal(context.Context, *v1.CloseHostTerminalRequest) (*v1.CloseHostTerminalResponse, error)
 }
 
@@ -154,6 +168,7 @@ func RegisterHostTerminalServiceHandler(server *connect.Server, svc HostTerminal
 		connect.Method{Spec: hostTerminalServiceAttachHostTerminalSpec(), Handler: adapter.attachHostTerminal},
 		connect.Method{Spec: hostTerminalServiceWriteHostTerminalSpec(), Handler: adapter.writeHostTerminal},
 		connect.Method{Spec: hostTerminalServiceResizeHostTerminalSpec(), Handler: adapter.resizeHostTerminal},
+		connect.Method{Spec: hostTerminalServiceRenameHostTerminalSpec(), Handler: adapter.renameHostTerminal},
 		connect.Method{Spec: hostTerminalServiceCloseHostTerminalSpec(), Handler: adapter.closeHostTerminal},
 	)
 }
@@ -195,6 +210,10 @@ func (UnimplementedHostTerminalServiceHandler) WriteHostTerminal(context.Context
 
 func (UnimplementedHostTerminalServiceHandler) ResizeHostTerminal(context.Context, *v1.ResizeHostTerminalRequest) (*v1.ResizeHostTerminalResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.HostTerminalService.ResizeHostTerminal is not implemented")
+}
+
+func (UnimplementedHostTerminalServiceHandler) RenameHostTerminal(context.Context, *v1.RenameHostTerminalRequest) (*v1.HostTerminal, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.HostTerminalService.RenameHostTerminal is not implemented")
 }
 
 func (UnimplementedHostTerminalServiceHandler) CloseHostTerminal(context.Context, *v1.CloseHostTerminalRequest) (*v1.CloseHostTerminalResponse, error) {
@@ -240,6 +259,14 @@ func (c *hostTerminalServiceClient) WriteHostTerminal(ctx context.Context, req *
 func (c *hostTerminalServiceClient) ResizeHostTerminal(ctx context.Context, req *v1.ResizeHostTerminalRequest) (*v1.ResizeHostTerminalResponse, error) {
 	var res v1.ResizeHostTerminalResponse
 	if err := c.client.CallUnary(ctx, hostTerminalServiceResizeHostTerminalSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *hostTerminalServiceClient) RenameHostTerminal(ctx context.Context, req *v1.RenameHostTerminalRequest) (*v1.HostTerminal, error) {
+	var res v1.HostTerminal
+	if err := c.client.CallUnary(ctx, hostTerminalServiceRenameHostTerminalSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -305,6 +332,18 @@ func (h hostTerminalServiceHandler) resizeHostTerminal(ctx context.Context, _ co
 		return err
 	}
 	res, err := h.svc.ResizeHostTerminal(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h hostTerminalServiceHandler) renameHostTerminal(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.RenameHostTerminalRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.RenameHostTerminal(ctx, &req)
 	if err != nil {
 		return err
 	}

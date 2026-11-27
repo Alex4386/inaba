@@ -165,6 +165,9 @@ type thread struct {
 	op sync.Mutex
 	// deleted is set, under op, once the thread is deleted; a turn ending after that leaves no trace.
 	deleted bool
+	// closing is set, under mu, as the host closes: a turn its agent's end cuts short stays
+	// open in the log, for the next start to resume.
+	closing bool
 
 	mu      sync.Mutex
 	meta    *inabav1.Thread
@@ -355,10 +358,18 @@ func (t *thread) openSession(ctx context.Context) error {
 	}
 	t.applyOptions(ctx, sess, chosen)
 	t.mu.Lock()
-	t.sess = sess
-	t.meta.NativeSessionId = sess.NativeSessionID()
-	t.save.meta(t.meta)
+	closing := t.closing
+	if !closing {
+		t.sess = sess
+		t.meta.NativeSessionId = sess.NativeSessionID()
+		t.save.meta(t.meta)
+	}
 	t.mu.Unlock()
+	if closing {
+		// The host closed while it started; nothing would end it otherwise.
+		_ = sess.Close()
+		return connect.NewError(connect.CodeUnavailable, "the host is closing")
+	}
 	return nil
 }
 
@@ -672,6 +683,12 @@ func (h *Host) Close() {
 	threads := h.threads
 	h.threads = map[string]*thread{}
 	h.mu.Unlock()
+	// All first: closing one agent can take seconds, and another's turn ending then is no failure.
+	for _, t := range threads {
+		t.mu.Lock()
+		t.closing = true
+		t.mu.Unlock()
+	}
 	for _, t := range threads {
 		t.closeSession()
 		t.closeTerminal()
@@ -693,7 +710,7 @@ func (h *Host) StartTurn(ctx context.Context, req *inabav1.StartTurnRequest) (*i
 		return nil, connect.NewError(connect.CodeNotFound, "no thread "+req.ThreadId)
 	}
 	meta := t.snapshot()
-	if err := checkAttachments(meta.Cwd, req.Attachments); err != nil {
+	if err := checkAttachments(meta.Cwd, nil, req.Attachments); err != nil {
 		return nil, err
 	}
 	if err := saveUploads(ctx, meta.Cwd, meta.Id, req.Attachments); err != nil {
@@ -754,6 +771,12 @@ func (t *thread) runTurn(ctx context.Context, msg *inabav1.UserMessage) error {
 		before, _ := snapshot(context.Background(), meta.Cwd, turn+"-before")
 		// Every way a turn can end, including the process dying, lands here.
 		stop, err := sess.Prompt(context.Background(), prompt)
+		t.mu.Lock()
+		closing := t.closing
+		t.mu.Unlock()
+		if err != nil && closing {
+			return
+		}
 		ended := &inabav1.TurnEnded{StopReason: stop}
 		if r, ok := sess.(provider.TurnUsageReporter); ok {
 			ended.Usage = r.LastTurnUsage()
@@ -790,7 +813,7 @@ func (t *thread) runTurn(ctx context.Context, msg *inabav1.UserMessage) error {
 func (t *thread) runNext() {
 	t.mu.Lock()
 	ready := t.meta.Status == inabav1.ThreadStatus_THREAD_STATUS_IDLE && t.meta.Mode == inabav1.ThreadMode_THREAD_MODE_STRUCTURED &&
-		!t.meta.QueuePaused && len(t.meta.Queue) > 0
+		!t.meta.QueuePaused && len(t.meta.Queue) > 0 && !t.closing
 	var next *inabav1.QueuedMessage
 	if ready {
 		next, t.meta.Queue = t.meta.Queue[0], t.meta.Queue[1:]
@@ -800,8 +823,19 @@ func (t *thread) runNext() {
 	if next == nil {
 		return
 	}
-	msg := &inabav1.UserMessage{Text: next.Text, Attachments: next.Attachments}
+	msg := &inabav1.UserMessage{Text: next.Text, Attachments: next.Attachments, Resume: next.Resume}
 	if err := t.runTurn(context.Background(), msg); err != nil {
+		t.mu.Lock()
+		closing := t.closing
+		if closing {
+			// The host closed as the agent started: the message waits, at the head, for the next start.
+			t.meta.Queue = append([]*inabav1.QueuedMessage{next}, t.meta.Queue...)
+			t.save.meta(t.meta)
+		}
+		t.mu.Unlock()
+		if closing {
+			return
+		}
 		// The agent could not be started. Say so in the log and keep the rest for later.
 		t.emit(&inabav1.Event{Payload: &inabav1.Event_UserMessage{UserMessage: msg}})
 		t.emit(&inabav1.Event{Payload: &inabav1.Event_TurnStarted{TurnStarted: &inabav1.TurnStarted{}}})
@@ -966,24 +1000,78 @@ func (t *thread) queuedAt(id string) (int, error) {
 	return i, nil
 }
 
-func (h *Host) EditQueued(_ context.Context, req *inabav1.EditQueuedRequest) (*inabav1.Thread, error) {
+func (h *Host) EditQueued(ctx context.Context, req *inabav1.EditQueuedRequest) (*inabav1.Thread, error) {
 	t, err := h.thread(req.ThreadId)
 	if err != nil {
 		return nil, err
 	}
 	t.mu.Lock()
-	defer t.mu.Unlock()
 	i, err := t.queuedAt(req.QueuedId)
 	if err != nil {
+		t.mu.Unlock()
 		return nil, err
 	}
 	q := t.meta.Queue[i]
-	if strings.TrimSpace(req.Text) == "" && len(q.Attachments) == 0 {
-		return nil, connect.NewError(connect.CodeInvalidArgument, "the message would be empty; cancel it instead")
+	before, cwd, id := q.Attachments, t.meta.Cwd, t.meta.Id
+	attachments, err := editedAttachments(cwd, q, req)
+	t.mu.Unlock()
+	if err != nil {
+		return nil, err
 	}
+	if e := req.Attachments; e != nil {
+		// Outside t.mu: a slow disk or a stuck git must not hold up the thread's events.
+		if err := saveUploads(ctx, cwd, id, e.Add); err != nil {
+			return nil, err
+		}
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	// It may have run, or been edited, while the files were written; those stay behind as a failed send's do.
+	if i, err := t.queuedAt(req.QueuedId); err != nil {
+		return nil, err
+	} else if t.meta.Queue[i] != q || !slices.Equal(q.Attachments, before) {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, "the message was changed meanwhile; edit it again")
+	}
+	q.Attachments = attachments
 	q.Text = req.Text
+	// Edited, it is the person's own message.
+	q.Resume = false
 	t.save.meta(t.meta)
 	return proto.Clone(t.meta).(*inabav1.Thread), nil
+}
+
+// editedAttachments checks an edit of a queued message and gives its attachments
+// afterwards, the new ones not yet saved. The caller holds t.mu.
+func editedAttachments(cwd string, q *inabav1.QueuedMessage, req *inabav1.EditQueuedRequest) ([]*inabav1.Attachment, error) {
+	attachments := q.Attachments
+	if e := req.Attachments; e != nil {
+		if !slices.Equal(e.Seen, attachmentNames(q.Attachments)) {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, "the message's attachments changed since it was opened for editing; edit it again")
+		}
+		var kept []*inabav1.Attachment
+		for j, k := range e.Keep {
+			if int(k) >= len(q.Attachments) || (j > 0 && k <= e.Keep[j-1]) {
+				return nil, connect.NewError(connect.CodeInvalidArgument, "keep names the message's attachments by index, each once and in order")
+			}
+			kept = append(kept, q.Attachments[k])
+		}
+		if err := checkAttachments(cwd, kept, e.Add); err != nil {
+			return nil, err
+		}
+		attachments = append(kept, e.Add...)
+	}
+	if strings.TrimSpace(req.Text) == "" && len(attachments) == 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, "the message would be empty; cancel it instead")
+	}
+	return attachments, nil
+}
+
+func attachmentNames(as []*inabav1.Attachment) []string {
+	names := make([]string, len(as))
+	for i, a := range as {
+		names[i] = a.Name
+	}
+	return names
 }
 
 func (h *Host) MoveQueued(_ context.Context, req *inabav1.MoveQueuedRequest) (*inabav1.Thread, error) {

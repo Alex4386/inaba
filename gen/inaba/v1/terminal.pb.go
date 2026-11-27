@@ -36,7 +36,9 @@ type HostTerminal struct {
 	Exited bool `protobuf:"varint,4,opt,name=exited,proto3" json:"exited,omitempty"`
 	// The window title its program last set, as a shell prompt does with user@host: folder,
 	// or ssh's remote shell; empty until one is set.
-	Title         string `protobuf:"bytes,5,opt,name=title,proto3" json:"title,omitempty"`
+	Title string `protobuf:"bytes,5,opt,name=title,proto3" json:"title,omitempty"`
+	// Set by a person; shown instead of the title while it is set.
+	Name          string `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -102,6 +104,13 @@ func (x *HostTerminal) GetExited() bool {
 func (x *HostTerminal) GetTitle() string {
 	if x != nil {
 		return x.Title
+	}
+	return ""
+}
+
+func (x *HostTerminal) GetName() string {
+	if x != nil {
+		return x.Name
 	}
 	return ""
 }
@@ -493,6 +502,58 @@ func (*ResizeHostTerminalResponse) Descriptor() ([]byte, []int) {
 	return file_inaba_v1_terminal_proto_rawDescGZIP(), []int{8}
 }
 
+type RenameHostTerminalRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RenameHostTerminalRequest) Reset() {
+	*x = RenameHostTerminalRequest{}
+	mi := &file_inaba_v1_terminal_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RenameHostTerminalRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RenameHostTerminalRequest) ProtoMessage() {}
+
+func (x *RenameHostTerminalRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inaba_v1_terminal_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RenameHostTerminalRequest.ProtoReflect.Descriptor instead.
+func (*RenameHostTerminalRequest) Descriptor() ([]byte, []int) {
+	return file_inaba_v1_terminal_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *RenameHostTerminalRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *RenameHostTerminalRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
 type CloseHostTerminalRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -502,7 +563,7 @@ type CloseHostTerminalRequest struct {
 
 func (x *CloseHostTerminalRequest) Reset() {
 	*x = CloseHostTerminalRequest{}
-	mi := &file_inaba_v1_terminal_proto_msgTypes[9]
+	mi := &file_inaba_v1_terminal_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -514,7 +575,7 @@ func (x *CloseHostTerminalRequest) String() string {
 func (*CloseHostTerminalRequest) ProtoMessage() {}
 
 func (x *CloseHostTerminalRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_terminal_proto_msgTypes[9]
+	mi := &file_inaba_v1_terminal_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -527,7 +588,7 @@ func (x *CloseHostTerminalRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloseHostTerminalRequest.ProtoReflect.Descriptor instead.
 func (*CloseHostTerminalRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_terminal_proto_rawDescGZIP(), []int{9}
+	return file_inaba_v1_terminal_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *CloseHostTerminalRequest) GetId() string {
@@ -545,7 +606,7 @@ type CloseHostTerminalResponse struct {
 
 func (x *CloseHostTerminalResponse) Reset() {
 	*x = CloseHostTerminalResponse{}
-	mi := &file_inaba_v1_terminal_proto_msgTypes[10]
+	mi := &file_inaba_v1_terminal_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -557,7 +618,7 @@ func (x *CloseHostTerminalResponse) String() string {
 func (*CloseHostTerminalResponse) ProtoMessage() {}
 
 func (x *CloseHostTerminalResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_terminal_proto_msgTypes[10]
+	mi := &file_inaba_v1_terminal_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -570,21 +631,22 @@ func (x *CloseHostTerminalResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloseHostTerminalResponse.ProtoReflect.Descriptor instead.
 func (*CloseHostTerminalResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_terminal_proto_rawDescGZIP(), []int{10}
+	return file_inaba_v1_terminal_proto_rawDescGZIP(), []int{11}
 }
 
 var File_inaba_v1_terminal_proto protoreflect.FileDescriptor
 
 const file_inaba_v1_terminal_proto_rawDesc = "" +
 	"\n" +
-	"\x17inaba/v1/terminal.proto\x12\binaba.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x13inaba/v1/host.proto\"\x99\x01\n" +
+	"\x17inaba/v1/terminal.proto\x12\binaba.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x13inaba/v1/host.proto\"\xad\x01\n" +
 	"\fHostTerminal\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
 	"\x03cwd\x18\x02 \x01(\tR\x03cwd\x129\n" +
 	"\n" +
 	"started_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12\x16\n" +
 	"\x06exited\x18\x04 \x01(\bR\x06exited\x12\x14\n" +
-	"\x05title\x18\x05 \x01(\tR\x05title\"\x1a\n" +
+	"\x05title\x18\x05 \x01(\tR\x05title\x12\x12\n" +
+	"\x04name\x18\x06 \x01(\tR\x04name\"\x1a\n" +
 	"\x18ListHostTerminalsRequest\"Q\n" +
 	"\x19ListHostTerminalsResponse\x124\n" +
 	"\tterminals\x18\x01 \x03(\v2\x16.inaba.v1.HostTerminalR\tterminals\"S\n" +
@@ -604,16 +666,20 @@ const file_inaba_v1_terminal_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04cols\x18\x02 \x01(\rR\x04cols\x12\x12\n" +
 	"\x04rows\x18\x03 \x01(\rR\x04rows\"\x1c\n" +
-	"\x1aResizeHostTerminalResponse\"*\n" +
+	"\x1aResizeHostTerminalResponse\"?\n" +
+	"\x19RenameHostTerminalRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"*\n" +
 	"\x18CloseHostTerminalRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x1b\n" +
-	"\x19CloseHostTerminalResponse2\xce\x05\n" +
+	"\x19CloseHostTerminalResponse2\xc0\x06\n" +
 	"\x13HostTerminalService\x12s\n" +
 	"\x11ListHostTerminals\x12\".inaba.v1.ListHostTerminalsRequest\x1a#.inaba.v1.ListHostTerminalsResponse\"\x15\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/terminals\x12g\n" +
 	"\x10OpenHostTerminal\x12!.inaba.v1.OpenHostTerminalRequest\x1a\x16.inaba.v1.HostTerminal\"\x18\x82\xd3\xe4\x93\x02\x12:\x01*\"\r/v1/terminals\x12U\n" +
 	"\x12AttachHostTerminal\x12#.inaba.v1.AttachHostTerminalRequest\x1a\x18.inaba.v1.TerminalOutput0\x01\x12\x81\x01\n" +
 	"\x11WriteHostTerminal\x12\".inaba.v1.WriteHostTerminalRequest\x1a#.inaba.v1.WriteHostTerminalResponse\"#\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/terminals/{id}/input\x12\x83\x01\n" +
-	"\x12ResizeHostTerminal\x12#.inaba.v1.ResizeHostTerminalRequest\x1a$.inaba.v1.ResizeHostTerminalResponse\"\"\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v1/terminals/{id}/size\x12x\n" +
+	"\x12ResizeHostTerminal\x12#.inaba.v1.ResizeHostTerminalRequest\x1a$.inaba.v1.ResizeHostTerminalResponse\"\"\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v1/terminals/{id}/size\x12p\n" +
+	"\x12RenameHostTerminal\x12#.inaba.v1.RenameHostTerminalRequest\x1a\x16.inaba.v1.HostTerminal\"\x1d\x82\xd3\xe4\x93\x02\x17:\x01*2\x12/v1/terminals/{id}\x12x\n" +
 	"\x11CloseHostTerminal\x12\".inaba.v1.CloseHostTerminalRequest\x1a#.inaba.v1.CloseHostTerminalResponse\"\x1a\x82\xd3\xe4\x93\x02\x14*\x12/v1/terminals/{id}B\x8e\x01\n" +
 	"\fcom.inaba.v1B\rTerminalProtoP\x01Z.github.com/Alex4386/inaba/gen/inaba/v1;inabav1\xa2\x02\x03IXX\xaa\x02\bInaba.V1\xca\x02\bInaba\\V1\xe2\x02\x14Inaba\\V1\\GPBMetadata\xea\x02\tInaba::V1b\x06proto3"
 
@@ -629,7 +695,7 @@ func file_inaba_v1_terminal_proto_rawDescGZIP() []byte {
 	return file_inaba_v1_terminal_proto_rawDescData
 }
 
-var file_inaba_v1_terminal_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_inaba_v1_terminal_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_inaba_v1_terminal_proto_goTypes = []any{
 	(*HostTerminal)(nil),               // 0: inaba.v1.HostTerminal
 	(*ListHostTerminalsRequest)(nil),   // 1: inaba.v1.ListHostTerminalsRequest
@@ -640,28 +706,31 @@ var file_inaba_v1_terminal_proto_goTypes = []any{
 	(*WriteHostTerminalResponse)(nil),  // 6: inaba.v1.WriteHostTerminalResponse
 	(*ResizeHostTerminalRequest)(nil),  // 7: inaba.v1.ResizeHostTerminalRequest
 	(*ResizeHostTerminalResponse)(nil), // 8: inaba.v1.ResizeHostTerminalResponse
-	(*CloseHostTerminalRequest)(nil),   // 9: inaba.v1.CloseHostTerminalRequest
-	(*CloseHostTerminalResponse)(nil),  // 10: inaba.v1.CloseHostTerminalResponse
-	(*timestamppb.Timestamp)(nil),      // 11: google.protobuf.Timestamp
-	(*TerminalOutput)(nil),             // 12: inaba.v1.TerminalOutput
+	(*RenameHostTerminalRequest)(nil),  // 9: inaba.v1.RenameHostTerminalRequest
+	(*CloseHostTerminalRequest)(nil),   // 10: inaba.v1.CloseHostTerminalRequest
+	(*CloseHostTerminalResponse)(nil),  // 11: inaba.v1.CloseHostTerminalResponse
+	(*timestamppb.Timestamp)(nil),      // 12: google.protobuf.Timestamp
+	(*TerminalOutput)(nil),             // 13: inaba.v1.TerminalOutput
 }
 var file_inaba_v1_terminal_proto_depIdxs = []int32{
-	11, // 0: inaba.v1.HostTerminal.started_at:type_name -> google.protobuf.Timestamp
+	12, // 0: inaba.v1.HostTerminal.started_at:type_name -> google.protobuf.Timestamp
 	0,  // 1: inaba.v1.ListHostTerminalsResponse.terminals:type_name -> inaba.v1.HostTerminal
 	1,  // 2: inaba.v1.HostTerminalService.ListHostTerminals:input_type -> inaba.v1.ListHostTerminalsRequest
 	3,  // 3: inaba.v1.HostTerminalService.OpenHostTerminal:input_type -> inaba.v1.OpenHostTerminalRequest
 	4,  // 4: inaba.v1.HostTerminalService.AttachHostTerminal:input_type -> inaba.v1.AttachHostTerminalRequest
 	5,  // 5: inaba.v1.HostTerminalService.WriteHostTerminal:input_type -> inaba.v1.WriteHostTerminalRequest
 	7,  // 6: inaba.v1.HostTerminalService.ResizeHostTerminal:input_type -> inaba.v1.ResizeHostTerminalRequest
-	9,  // 7: inaba.v1.HostTerminalService.CloseHostTerminal:input_type -> inaba.v1.CloseHostTerminalRequest
-	2,  // 8: inaba.v1.HostTerminalService.ListHostTerminals:output_type -> inaba.v1.ListHostTerminalsResponse
-	0,  // 9: inaba.v1.HostTerminalService.OpenHostTerminal:output_type -> inaba.v1.HostTerminal
-	12, // 10: inaba.v1.HostTerminalService.AttachHostTerminal:output_type -> inaba.v1.TerminalOutput
-	6,  // 11: inaba.v1.HostTerminalService.WriteHostTerminal:output_type -> inaba.v1.WriteHostTerminalResponse
-	8,  // 12: inaba.v1.HostTerminalService.ResizeHostTerminal:output_type -> inaba.v1.ResizeHostTerminalResponse
-	10, // 13: inaba.v1.HostTerminalService.CloseHostTerminal:output_type -> inaba.v1.CloseHostTerminalResponse
-	8,  // [8:14] is the sub-list for method output_type
-	2,  // [2:8] is the sub-list for method input_type
+	9,  // 7: inaba.v1.HostTerminalService.RenameHostTerminal:input_type -> inaba.v1.RenameHostTerminalRequest
+	10, // 8: inaba.v1.HostTerminalService.CloseHostTerminal:input_type -> inaba.v1.CloseHostTerminalRequest
+	2,  // 9: inaba.v1.HostTerminalService.ListHostTerminals:output_type -> inaba.v1.ListHostTerminalsResponse
+	0,  // 10: inaba.v1.HostTerminalService.OpenHostTerminal:output_type -> inaba.v1.HostTerminal
+	13, // 11: inaba.v1.HostTerminalService.AttachHostTerminal:output_type -> inaba.v1.TerminalOutput
+	6,  // 12: inaba.v1.HostTerminalService.WriteHostTerminal:output_type -> inaba.v1.WriteHostTerminalResponse
+	8,  // 13: inaba.v1.HostTerminalService.ResizeHostTerminal:output_type -> inaba.v1.ResizeHostTerminalResponse
+	0,  // 14: inaba.v1.HostTerminalService.RenameHostTerminal:output_type -> inaba.v1.HostTerminal
+	11, // 15: inaba.v1.HostTerminalService.CloseHostTerminal:output_type -> inaba.v1.CloseHostTerminalResponse
+	9,  // [9:16] is the sub-list for method output_type
+	2,  // [2:9] is the sub-list for method input_type
 	2,  // [2:2] is the sub-list for extension type_name
 	2,  // [2:2] is the sub-list for extension extendee
 	0,  // [0:2] is the sub-list for field type_name
@@ -679,7 +748,7 @@ func file_inaba_v1_terminal_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_inaba_v1_terminal_proto_rawDesc), len(file_inaba_v1_terminal_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

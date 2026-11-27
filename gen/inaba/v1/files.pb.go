@@ -236,6 +236,136 @@ func (x *SearchFilesResponse) GetPaths() []string {
 	return nil
 }
 
+type GrepFilesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
+	Query         string                 `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`
+	CaseSensitive bool                   `protobuf:"varint,3,opt,name=case_sensitive,json=caseSensitive,proto3" json:"case_sensitive,omitempty"`
+	WholeWord     bool                   `protobuf:"varint,4,opt,name=whole_word,json=wholeWord,proto3" json:"whole_word,omitempty"`
+	// The query is a regular expression (extended, as grep -E), not plain text.
+	Regex         bool `protobuf:"varint,5,opt,name=regex,proto3" json:"regex,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GrepFilesRequest) Reset() {
+	*x = GrepFilesRequest{}
+	mi := &file_inaba_v1_files_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GrepFilesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GrepFilesRequest) ProtoMessage() {}
+
+func (x *GrepFilesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inaba_v1_files_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GrepFilesRequest.ProtoReflect.Descriptor instead.
+func (*GrepFilesRequest) Descriptor() ([]byte, []int) {
+	return file_inaba_v1_files_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *GrepFilesRequest) GetThreadId() string {
+	if x != nil {
+		return x.ThreadId
+	}
+	return ""
+}
+
+func (x *GrepFilesRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *GrepFilesRequest) GetCaseSensitive() bool {
+	if x != nil {
+		return x.CaseSensitive
+	}
+	return false
+}
+
+func (x *GrepFilesRequest) GetWholeWord() bool {
+	if x != nil {
+		return x.WholeWord
+	}
+	return false
+}
+
+func (x *GrepFilesRequest) GetRegex() bool {
+	if x != nil {
+		return x.Regex
+	}
+	return false
+}
+
+type GrepFilesResponse struct {
+	state   protoimpl.MessageState     `protogen:"open.v1"`
+	Matches []*GrepFilesResponse_Match `protobuf:"bytes,1,rep,name=matches,proto3" json:"matches,omitempty"`
+	// More matched than was sent: at most 500 in all, and 50 in one file.
+	Truncated     bool `protobuf:"varint,2,opt,name=truncated,proto3" json:"truncated,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GrepFilesResponse) Reset() {
+	*x = GrepFilesResponse{}
+	mi := &file_inaba_v1_files_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GrepFilesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GrepFilesResponse) ProtoMessage() {}
+
+func (x *GrepFilesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_inaba_v1_files_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GrepFilesResponse.ProtoReflect.Descriptor instead.
+func (*GrepFilesResponse) Descriptor() ([]byte, []int) {
+	return file_inaba_v1_files_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *GrepFilesResponse) GetMatches() []*GrepFilesResponse_Match {
+	if x != nil {
+		return x.Matches
+	}
+	return nil
+}
+
+func (x *GrepFilesResponse) GetTruncated() bool {
+	if x != nil {
+		return x.Truncated
+	}
+	return false
+}
+
 type ListFolderRequest struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
@@ -247,7 +377,7 @@ type ListFolderRequest struct {
 
 func (x *ListFolderRequest) Reset() {
 	*x = ListFolderRequest{}
-	mi := &file_inaba_v1_files_proto_msgTypes[4]
+	mi := &file_inaba_v1_files_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -259,7 +389,7 @@ func (x *ListFolderRequest) String() string {
 func (*ListFolderRequest) ProtoMessage() {}
 
 func (x *ListFolderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_files_proto_msgTypes[4]
+	mi := &file_inaba_v1_files_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -272,7 +402,7 @@ func (x *ListFolderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFolderRequest.ProtoReflect.Descriptor instead.
 func (*ListFolderRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_files_proto_rawDescGZIP(), []int{4}
+	return file_inaba_v1_files_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ListFolderRequest) GetThreadId() string {
@@ -298,7 +428,7 @@ type ListFolderResponse struct {
 
 func (x *ListFolderResponse) Reset() {
 	*x = ListFolderResponse{}
-	mi := &file_inaba_v1_files_proto_msgTypes[5]
+	mi := &file_inaba_v1_files_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -310,7 +440,7 @@ func (x *ListFolderResponse) String() string {
 func (*ListFolderResponse) ProtoMessage() {}
 
 func (x *ListFolderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_files_proto_msgTypes[5]
+	mi := &file_inaba_v1_files_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -323,7 +453,7 @@ func (x *ListFolderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFolderResponse.ProtoReflect.Descriptor instead.
 func (*ListFolderResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_files_proto_rawDescGZIP(), []int{5}
+	return file_inaba_v1_files_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ListFolderResponse) GetEntries() []*ListFolderResponse_Entry {
@@ -344,7 +474,7 @@ type ReadFileRequest struct {
 
 func (x *ReadFileRequest) Reset() {
 	*x = ReadFileRequest{}
-	mi := &file_inaba_v1_files_proto_msgTypes[6]
+	mi := &file_inaba_v1_files_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -356,7 +486,7 @@ func (x *ReadFileRequest) String() string {
 func (*ReadFileRequest) ProtoMessage() {}
 
 func (x *ReadFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_files_proto_msgTypes[6]
+	mi := &file_inaba_v1_files_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -369,7 +499,7 @@ func (x *ReadFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadFileRequest.ProtoReflect.Descriptor instead.
 func (*ReadFileRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_files_proto_rawDescGZIP(), []int{6}
+	return file_inaba_v1_files_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ReadFileRequest) GetThreadId() string {
@@ -402,7 +532,7 @@ type ReadFileResponse struct {
 
 func (x *ReadFileResponse) Reset() {
 	*x = ReadFileResponse{}
-	mi := &file_inaba_v1_files_proto_msgTypes[7]
+	mi := &file_inaba_v1_files_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -414,7 +544,7 @@ func (x *ReadFileResponse) String() string {
 func (*ReadFileResponse) ProtoMessage() {}
 
 func (x *ReadFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_files_proto_msgTypes[7]
+	mi := &file_inaba_v1_files_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -427,7 +557,7 @@ func (x *ReadFileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadFileResponse.ProtoReflect.Descriptor instead.
 func (*ReadFileResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_files_proto_rawDescGZIP(), []int{7}
+	return file_inaba_v1_files_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ReadFileResponse) GetData() []byte {
@@ -465,6 +595,95 @@ func (x *ReadFileResponse) GetVersion() string {
 	return ""
 }
 
+type GrepFilesResponse_Match struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Relative to the thread's folder.
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// 1-based.
+	Line uint32 `protobuf:"varint,2,opt,name=line,proto3" json:"line,omitempty"`
+	// 1-based, in UTF-16 units of the whole line, as an editor counts.
+	Column uint32 `protobuf:"varint,3,opt,name=column,proto3" json:"column,omitempty"`
+	// The line, trimmed around the match when long.
+	Text string `protobuf:"bytes,4,opt,name=text,proto3" json:"text,omitempty"`
+	// Where the match is in text, in UTF-16 units.
+	MatchStart    uint32 `protobuf:"varint,5,opt,name=match_start,json=matchStart,proto3" json:"match_start,omitempty"`
+	MatchEnd      uint32 `protobuf:"varint,6,opt,name=match_end,json=matchEnd,proto3" json:"match_end,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GrepFilesResponse_Match) Reset() {
+	*x = GrepFilesResponse_Match{}
+	mi := &file_inaba_v1_files_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GrepFilesResponse_Match) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GrepFilesResponse_Match) ProtoMessage() {}
+
+func (x *GrepFilesResponse_Match) ProtoReflect() protoreflect.Message {
+	mi := &file_inaba_v1_files_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GrepFilesResponse_Match.ProtoReflect.Descriptor instead.
+func (*GrepFilesResponse_Match) Descriptor() ([]byte, []int) {
+	return file_inaba_v1_files_proto_rawDescGZIP(), []int{5, 0}
+}
+
+func (x *GrepFilesResponse_Match) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *GrepFilesResponse_Match) GetLine() uint32 {
+	if x != nil {
+		return x.Line
+	}
+	return 0
+}
+
+func (x *GrepFilesResponse_Match) GetColumn() uint32 {
+	if x != nil {
+		return x.Column
+	}
+	return 0
+}
+
+func (x *GrepFilesResponse_Match) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+func (x *GrepFilesResponse_Match) GetMatchStart() uint32 {
+	if x != nil {
+		return x.MatchStart
+	}
+	return 0
+}
+
+func (x *GrepFilesResponse_Match) GetMatchEnd() uint32 {
+	if x != nil {
+		return x.MatchEnd
+	}
+	return 0
+}
+
 type ListFolderResponse_Entry struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -476,7 +695,7 @@ type ListFolderResponse_Entry struct {
 
 func (x *ListFolderResponse_Entry) Reset() {
 	*x = ListFolderResponse_Entry{}
-	mi := &file_inaba_v1_files_proto_msgTypes[8]
+	mi := &file_inaba_v1_files_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -488,7 +707,7 @@ func (x *ListFolderResponse_Entry) String() string {
 func (*ListFolderResponse_Entry) ProtoMessage() {}
 
 func (x *ListFolderResponse_Entry) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_files_proto_msgTypes[8]
+	mi := &file_inaba_v1_files_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -501,7 +720,7 @@ func (x *ListFolderResponse_Entry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFolderResponse_Entry.ProtoReflect.Descriptor instead.
 func (*ListFolderResponse_Entry) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_files_proto_rawDescGZIP(), []int{5, 0}
+	return file_inaba_v1_files_proto_rawDescGZIP(), []int{7, 0}
 }
 
 func (x *ListFolderResponse_Entry) GetName() string {
@@ -541,7 +760,25 @@ const file_inaba_v1_files_proto_rawDesc = "" +
 	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12\x14\n" +
 	"\x05query\x18\x02 \x01(\tR\x05query\"+\n" +
 	"\x13SearchFilesResponse\x12\x14\n" +
-	"\x05paths\x18\x01 \x03(\tR\x05paths\"D\n" +
+	"\x05paths\x18\x01 \x03(\tR\x05paths\"\xa1\x01\n" +
+	"\x10GrepFilesRequest\x12\x1b\n" +
+	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12\x14\n" +
+	"\x05query\x18\x02 \x01(\tR\x05query\x12%\n" +
+	"\x0ecase_sensitive\x18\x03 \x01(\bR\rcaseSensitive\x12\x1d\n" +
+	"\n" +
+	"whole_word\x18\x04 \x01(\bR\twholeWord\x12\x14\n" +
+	"\x05regex\x18\x05 \x01(\bR\x05regex\"\x8a\x02\n" +
+	"\x11GrepFilesResponse\x12;\n" +
+	"\amatches\x18\x01 \x03(\v2!.inaba.v1.GrepFilesResponse.MatchR\amatches\x12\x1c\n" +
+	"\ttruncated\x18\x02 \x01(\bR\ttruncated\x1a\x99\x01\n" +
+	"\x05Match\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
+	"\x04line\x18\x02 \x01(\rR\x04line\x12\x16\n" +
+	"\x06column\x18\x03 \x01(\rR\x06column\x12\x12\n" +
+	"\x04text\x18\x04 \x01(\tR\x04text\x12\x1f\n" +
+	"\vmatch_start\x18\x05 \x01(\rR\n" +
+	"matchStart\x12\x1b\n" +
+	"\tmatch_end\x18\x06 \x01(\rR\bmatchEnd\"D\n" +
 	"\x11ListFolderRequest\x12\x1b\n" +
 	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\"\x9b\x01\n" +
@@ -559,9 +796,10 @@ const file_inaba_v1_files_proto_rawDesc = "" +
 	"\tmime_type\x18\x02 \x01(\tR\bmimeType\x12\x12\n" +
 	"\x04size\x18\x03 \x01(\x04R\x04size\x12\x1c\n" +
 	"\ttruncated\x18\x04 \x01(\bR\ttruncated\x12\x18\n" +
-	"\aversion\x18\x05 \x01(\tR\aversion2\xc7\x03\n" +
+	"\aversion\x18\x05 \x01(\tR\aversion2\xb3\x04\n" +
 	"\vFileService\x12q\n" +
-	"\vSearchFiles\x12\x1c.inaba.v1.SearchFilesRequest\x1a\x1d.inaba.v1.SearchFilesResponse\"%\x82\xd3\xe4\x93\x02\x1f\x12\x1d/v1/threads/{thread_id}/files\x12m\n" +
+	"\vSearchFiles\x12\x1c.inaba.v1.SearchFilesRequest\x1a\x1d.inaba.v1.SearchFilesResponse\"%\x82\xd3\xe4\x93\x02\x1f\x12\x1d/v1/threads/{thread_id}/files\x12j\n" +
+	"\tGrepFiles\x12\x1a.inaba.v1.GrepFilesRequest\x1a\x1b.inaba.v1.GrepFilesResponse\"$\x82\xd3\xe4\x93\x02\x1e\x12\x1c/v1/threads/{thread_id}/grep\x12m\n" +
 	"\n" +
 	"ListFolder\x12\x1b.inaba.v1.ListFolderRequest\x1a\x1c.inaba.v1.ListFolderResponse\"$\x82\xd3\xe4\x93\x02\x1e\x12\x1c/v1/threads/{thread_id}/tree\x12g\n" +
 	"\bReadFile\x12\x19.inaba.v1.ReadFileRequest\x1a\x1a.inaba.v1.ReadFileResponse\"$\x82\xd3\xe4\x93\x02\x1e\x12\x1c/v1/threads/{thread_id}/file\x12m\n" +
@@ -581,33 +819,39 @@ func file_inaba_v1_files_proto_rawDescGZIP() []byte {
 	return file_inaba_v1_files_proto_rawDescData
 }
 
-var file_inaba_v1_files_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_inaba_v1_files_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_inaba_v1_files_proto_goTypes = []any{
 	(*WriteFileRequest)(nil),         // 0: inaba.v1.WriteFileRequest
 	(*WriteFileResponse)(nil),        // 1: inaba.v1.WriteFileResponse
 	(*SearchFilesRequest)(nil),       // 2: inaba.v1.SearchFilesRequest
 	(*SearchFilesResponse)(nil),      // 3: inaba.v1.SearchFilesResponse
-	(*ListFolderRequest)(nil),        // 4: inaba.v1.ListFolderRequest
-	(*ListFolderResponse)(nil),       // 5: inaba.v1.ListFolderResponse
-	(*ReadFileRequest)(nil),          // 6: inaba.v1.ReadFileRequest
-	(*ReadFileResponse)(nil),         // 7: inaba.v1.ReadFileResponse
-	(*ListFolderResponse_Entry)(nil), // 8: inaba.v1.ListFolderResponse.Entry
+	(*GrepFilesRequest)(nil),         // 4: inaba.v1.GrepFilesRequest
+	(*GrepFilesResponse)(nil),        // 5: inaba.v1.GrepFilesResponse
+	(*ListFolderRequest)(nil),        // 6: inaba.v1.ListFolderRequest
+	(*ListFolderResponse)(nil),       // 7: inaba.v1.ListFolderResponse
+	(*ReadFileRequest)(nil),          // 8: inaba.v1.ReadFileRequest
+	(*ReadFileResponse)(nil),         // 9: inaba.v1.ReadFileResponse
+	(*GrepFilesResponse_Match)(nil),  // 10: inaba.v1.GrepFilesResponse.Match
+	(*ListFolderResponse_Entry)(nil), // 11: inaba.v1.ListFolderResponse.Entry
 }
 var file_inaba_v1_files_proto_depIdxs = []int32{
-	8, // 0: inaba.v1.ListFolderResponse.entries:type_name -> inaba.v1.ListFolderResponse.Entry
-	2, // 1: inaba.v1.FileService.SearchFiles:input_type -> inaba.v1.SearchFilesRequest
-	4, // 2: inaba.v1.FileService.ListFolder:input_type -> inaba.v1.ListFolderRequest
-	6, // 3: inaba.v1.FileService.ReadFile:input_type -> inaba.v1.ReadFileRequest
-	0, // 4: inaba.v1.FileService.WriteFile:input_type -> inaba.v1.WriteFileRequest
-	3, // 5: inaba.v1.FileService.SearchFiles:output_type -> inaba.v1.SearchFilesResponse
-	5, // 6: inaba.v1.FileService.ListFolder:output_type -> inaba.v1.ListFolderResponse
-	7, // 7: inaba.v1.FileService.ReadFile:output_type -> inaba.v1.ReadFileResponse
-	1, // 8: inaba.v1.FileService.WriteFile:output_type -> inaba.v1.WriteFileResponse
-	5, // [5:9] is the sub-list for method output_type
-	1, // [1:5] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	10, // 0: inaba.v1.GrepFilesResponse.matches:type_name -> inaba.v1.GrepFilesResponse.Match
+	11, // 1: inaba.v1.ListFolderResponse.entries:type_name -> inaba.v1.ListFolderResponse.Entry
+	2,  // 2: inaba.v1.FileService.SearchFiles:input_type -> inaba.v1.SearchFilesRequest
+	4,  // 3: inaba.v1.FileService.GrepFiles:input_type -> inaba.v1.GrepFilesRequest
+	6,  // 4: inaba.v1.FileService.ListFolder:input_type -> inaba.v1.ListFolderRequest
+	8,  // 5: inaba.v1.FileService.ReadFile:input_type -> inaba.v1.ReadFileRequest
+	0,  // 6: inaba.v1.FileService.WriteFile:input_type -> inaba.v1.WriteFileRequest
+	3,  // 7: inaba.v1.FileService.SearchFiles:output_type -> inaba.v1.SearchFilesResponse
+	5,  // 8: inaba.v1.FileService.GrepFiles:output_type -> inaba.v1.GrepFilesResponse
+	7,  // 9: inaba.v1.FileService.ListFolder:output_type -> inaba.v1.ListFolderResponse
+	9,  // 10: inaba.v1.FileService.ReadFile:output_type -> inaba.v1.ReadFileResponse
+	1,  // 11: inaba.v1.FileService.WriteFile:output_type -> inaba.v1.WriteFileResponse
+	7,  // [7:12] is the sub-list for method output_type
+	2,  // [2:7] is the sub-list for method input_type
+	2,  // [2:2] is the sub-list for extension type_name
+	2,  // [2:2] is the sub-list for extension extendee
+	0,  // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_inaba_v1_files_proto_init() }
@@ -621,7 +865,7 @@ func file_inaba_v1_files_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_inaba_v1_files_proto_rawDesc), len(file_inaba_v1_files_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -222,7 +222,7 @@ func TestInvitedPermissions(t *testing.T) {
 	h, secret, _ := s.store.AddHost("alice-mac", aliceID)
 	_ = s.store.AddMember(h.ID, bobID)
 
-	heard := make(chan string, 1)
+	heard, heardUser := make(chan string, 1), make(chan string, 1)
 	l, err := tunnel.Dial(ctx, srv.URL, secret)
 	if err != nil {
 		t.Fatal(err)
@@ -235,6 +235,7 @@ func TestInvitedPermissions(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
+		heardUser <- r.Header.Get(rpc.UserHeader)
 		heard <- r.Header.Get(rpc.PermissionsHeader)
 	}))
 	for online := false; !online; time.Sleep(10 * time.Millisecond) {
@@ -242,23 +243,30 @@ func TestInvitedPermissions(t *testing.T) {
 		online = s.links[h.ID] != nil
 		s.mu.Unlock()
 	}
+	var user string
 	granted := func(tok string) string {
 		t.Helper()
 		req, _ := http.NewRequest("GET", srv.URL+"/v1/hosts/"+h.ID+"/threads", nil)
 		req.Header.Set("Authorization", "Bearer "+tok)
+		// The host is told who calls by the server, not by the caller.
+		req.Header.Set(rpc.UserHeader, "someone-else")
 		if _, err := http.DefaultClient.Do(req); err != nil {
 			t.Fatal(err)
 		}
+		user = <-heardUser
 		return <-heard
 	}
 	if got := granted(alice); got != strings.Join(store.AllPermissions, ",")+","+rpc.PermHosts+","+rpc.PermRestart {
 		t.Errorf("the owner: %q", got)
 	}
+	if user != aliceID {
+		t.Errorf("the host is told the owner is %q, not %q", user, aliceID)
+	}
 	// A member uses the host's terminal anyway, so they are told everything about the host, and
 	// older hosts hear host settings and housekeeping by the old name too.
 	member := "projects,threads-anywhere,automations,host-settings,housekeeping,hosts"
-	if got := granted(bob); got != member {
-		t.Errorf("someone invited in, with permissions for shared hosts: %q", got)
+	if got := granted(bob); got != member || user != bobID {
+		t.Errorf("someone invited in, with permissions for shared hosts: %q, as %q", got, user)
 	}
 	if got := granted(root); !strings.Contains(got, store.PermHousekeeping) || !strings.Contains(got, rpc.PermHosts) || !strings.Contains(got, rpc.PermRestart) {
 		t.Errorf("an administrator: %q", got)

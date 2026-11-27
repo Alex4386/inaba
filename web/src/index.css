@@ -324,6 +324,37 @@
     }
 }
 
+/* Line breaking as each language is written, by the page's language. Korean breaks between words,
+   not inside them; a run too long for its line, such as a path, still breaks. */
+:root:lang(ko) {
+    word-break: keep-all;
+    overflow-wrap: break-word;
+}
+/* Japanese breaks between phrases where the browser can, and Japanese and Chinese keep closing
+   punctuation and small kana off the start of a line. */
+:root:lang(ja) {
+    word-break: auto-phrase;
+    line-break: strict;
+}
+:root:lang(zh) {
+    line-break: strict;
+}
+
+/* Han characters are drawn differently in Japan, mainland China and Taiwan: the UI font's fallback
+   takes a font of the page's language, before the system's, which draws them as its own locale does. */
+:root {
+    --cjk-font: system-ui;
+}
+:root:lang(ja) {
+    --cjk-font: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", Meiryo, "Noto Sans CJK JP", "Noto Sans JP";
+}
+:root:lang(zh-Hans) {
+    --cjk-font: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC";
+}
+:root:lang(zh-Hant) {
+    --cjk-font: "PingFang TC", "Microsoft JhengHei UI", "Microsoft JhengHei", "Noto Sans CJK TC", "Noto Sans TC";
+}
+
 /* While the sidebar's edge is dragged its width follows the pointer, without the folding animation. */
 [data-slot="sidebar-wrapper"][data-resizing] :is([data-slot="sidebar-gap"], [data-slot="sidebar-container"]) {
     transition: none;

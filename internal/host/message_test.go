@@ -97,17 +97,17 @@ func TestAttachmentsAreChecked(t *testing.T) {
 		{&inabav1.Attachment{Name: "big.png", MimeType: "image/png", Data: make([]byte, maxImageBytes+1)}, false},
 		{&inabav1.Attachment{}, false},
 	} {
-		if err := checkAttachments(dir, []*inabav1.Attachment{c.a}); (err == nil) != c.ok {
+		if err := checkAttachments(dir, nil, []*inabav1.Attachment{c.a}); (err == nil) != c.ok {
 			t.Errorf("%v: %v", c.a.Path+c.a.Name, err)
 		}
 	}
 	zip := &inabav1.Attachment{Name: "x.zip", MimeType: "application/zip", Data: []byte{1}}
 	big := &inabav1.Attachment{Name: "big.pdf", MimeType: "application/pdf", Data: make([]byte, maxFileBytes+1)}
-	if err := checkAttachments(dir, []*inabav1.Attachment{big}); err == nil {
+	if err := checkAttachments(dir, nil, []*inabav1.Attachment{big}); err == nil {
 		t.Error("a file over the per-file cap was taken")
 	}
 	half := &inabav1.Attachment{Name: "half.pdf", MimeType: "application/pdf", Data: make([]byte, maxFileBytes)}
-	if err := checkAttachments(dir, []*inabav1.Attachment{half, half, zip}); err == nil {
+	if err := checkAttachments(dir, nil, []*inabav1.Attachment{half, half, zip}); err == nil {
 		t.Error("files over the total cap were taken")
 	}
 }

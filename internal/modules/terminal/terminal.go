@@ -6,11 +6,14 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"connectrpc.com/connect/v2"
 	"go.uber.org/fx"
@@ -45,6 +48,14 @@ const maxTerminals = 32
 type entry struct {
 	info *inabav1.HostTerminal
 	term *ptyterm.Terminal
+	// owner is the account that opened it, the only one besides trusted calls to see it.
+	owner string
+}
+
+// mine reports whether the caller may see and use e.
+func mine(ctx context.Context, e *entry) bool {
+	user, trusted := rpc.Caller(ctx)
+	return trusted || e.owner == user
 }
 
 type service struct {
@@ -78,19 +89,21 @@ func size(cols, rows uint32) (uint16, uint16) {
 	return 0, 0
 }
 
-func (s *service) find(id string) *entry {
-	for _, e := range s.terminals {
-		if e.info.Id == id {
-			return e
+// find is the caller's terminal by id, and its index; another account's is not found, so
+// its id is not confirmed.
+func (s *service) find(ctx context.Context, id string) (int, *entry) {
+	for i, e := range s.terminals {
+		if e.info.Id == id && mine(ctx, e) {
+			return i, e
 		}
 	}
-	return nil
+	return -1, nil
 }
 
-func (s *service) get(id string) (*entry, error) {
+func (s *service) get(ctx context.Context, id string) (*entry, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if e := s.find(id); e != nil {
+	if _, e := s.find(ctx, id); e != nil {
 		return e, nil
 	}
 	return nil, connect.NewError(connect.CodeNotFound, "no terminal "+id)
@@ -98,7 +111,7 @@ func (s *service) get(id string) (*entry, error) {
 
 // view is a terminal as callers see it, with whether it has exited and its title now.
 func view(e *entry) *inabav1.HostTerminal {
-	return &inabav1.HostTerminal{Id: e.info.Id, Cwd: e.info.Cwd, StartedAt: e.info.StartedAt, Exited: e.term.Exited(), Title: e.term.Title()}
+	return &inabav1.HostTerminal{Id: e.info.Id, Cwd: e.info.Cwd, StartedAt: e.info.StartedAt, Exited: e.term.Exited(), Title: e.term.Title(), Name: e.info.Name}
 }
 
 func (s *service) ListHostTerminals(ctx context.Context, _ *inabav1.ListHostTerminalsRequest) (*inabav1.ListHostTerminalsResponse, error) {
@@ -109,7 +122,9 @@ func (s *service) ListHostTerminals(ctx context.Context, _ *inabav1.ListHostTerm
 	defer s.mu.Unlock()
 	res := &inabav1.ListHostTerminalsResponse{}
 	for _, e := range s.terminals {
-		res.Terminals = append(res.Terminals, view(e))
+		if mine(ctx, e) {
+			res.Terminals = append(res.Terminals, view(e))
+		}
 	}
 	return res, nil
 }
@@ -146,7 +161,8 @@ func (s *service) OpenHostTerminal(ctx context.Context, req *inabav1.OpenHostTer
 	if err != nil {
 		return nil, connect.NewError(connect.CodeUnavailable, "could not start "+argv[0]+": "+err.Error())
 	}
-	e := &entry{info: &inabav1.HostTerminal{Id: newID(), Cwd: dir, StartedAt: timestamppb.New(time.Now())}, term: t}
+	owner, _ := rpc.Caller(ctx)
+	e := &entry{info: &inabav1.HostTerminal{Id: newID(), Cwd: dir, StartedAt: timestamppb.New(time.Now())}, term: t, owner: owner}
 	s.terminals = append(s.terminals, e)
 	return view(e), nil
 }
@@ -155,7 +171,7 @@ func (s *service) AttachHostTerminal(ctx context.Context, req *inabav1.AttachHos
 	if err := rpc.May(ctx, rpc.PermThreadsAnywhere); err != nil {
 		return err
 	}
-	e, err := s.get(req.Id)
+	e, err := s.get(ctx, req.Id)
 	if err != nil {
 		return err
 	}
@@ -171,7 +187,7 @@ func (s *service) WriteHostTerminal(ctx context.Context, req *inabav1.WriteHostT
 	if err := rpc.May(ctx, rpc.PermThreadsAnywhere); err != nil {
 		return nil, err
 	}
-	e, err := s.get(req.Id)
+	e, err := s.get(ctx, req.Id)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +205,7 @@ func (s *service) ResizeHostTerminal(ctx context.Context, req *inabav1.ResizeHos
 	if cols == 0 {
 		return nil, connect.NewError(connect.CodeInvalidArgument, "cols and rows must be between 1 and 1000")
 	}
-	e, err := s.get(req.Id)
+	e, err := s.get(ctx, req.Id)
 	if err != nil {
 		return nil, err
 	}
@@ -199,23 +215,41 @@ func (s *service) ResizeHostTerminal(ctx context.Context, req *inabav1.ResizeHos
 	return &inabav1.ResizeHostTerminalResponse{}, nil
 }
 
+// maxName bounds a terminal's name, in characters.
+const maxName = 200
+
+func (s *service) RenameHostTerminal(ctx context.Context, req *inabav1.RenameHostTerminalRequest) (*inabav1.HostTerminal, error) {
+	if err := rpc.May(ctx, rpc.PermThreadsAnywhere); err != nil {
+		return nil, err
+	}
+	name := strings.TrimSpace(req.Name)
+	if utf8.RuneCountInString(name) > maxName {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Sprintf("a terminal's name is at most %d characters", maxName))
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, e := s.find(ctx, req.Id)
+	if e == nil {
+		return nil, connect.NewError(connect.CodeNotFound, "no terminal "+req.Id)
+	}
+	e.info.Name = name
+	return view(e), nil
+}
+
 func (s *service) CloseHostTerminal(ctx context.Context, req *inabav1.CloseHostTerminalRequest) (*inabav1.CloseHostTerminalResponse, error) {
 	if err := rpc.May(ctx, rpc.PermThreadsAnywhere); err != nil {
 		return nil, err
 	}
 	s.mu.Lock()
-	var gone *entry
-	for i, e := range s.terminals {
-		if e.info.Id == req.Id {
-			gone = e
-			s.terminals = append(s.terminals[:i:i], s.terminals[i+1:]...)
-			break
-		}
+	i, gone := s.find(ctx, req.Id)
+	if gone == nil {
+		s.mu.Unlock()
+		// Already gone, or not the caller's: closing it is done either way, and confirms nothing.
+		return &inabav1.CloseHostTerminalResponse{}, nil
 	}
+	s.terminals = append(s.terminals[:i:i], s.terminals[i+1:]...)
 	s.mu.Unlock()
-	if gone != nil {
-		gone.term.Close()
-	}
+	gone.term.Close()
 	return &inabav1.CloseHostTerminalResponse{}, nil
 }
 

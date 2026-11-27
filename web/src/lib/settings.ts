@@ -19,6 +19,62 @@ export function useNotify(): boolean {
   }, notifyEnabled);
 }
 
+// The column of ticks beside a thread's chat, one per message of the user's. On unless turned off.
+const CHAT_MAP_KEY = "inaba.chatMap";
+const chatMapListeners = new Set<() => void>();
+
+export function setChatMap(on: boolean) {
+  localStorage.setItem(CHAT_MAP_KEY, on ? "on" : "off");
+  for (const listener of chatMapListeners) listener();
+}
+
+export const chatMapEnabled = () => localStorage.getItem(CHAT_MAP_KEY) !== "off";
+
+export function useChatMap(): boolean {
+  return useSyncExternalStore((listener) => {
+    chatMapListeners.add(listener);
+    return () => chatMapListeners.delete(listener);
+  }, chatMapEnabled);
+}
+
+// The terminals' text size, in pixels.
+const TERMINAL_SIZE_KEY = "inaba.terminalFontSize";
+export const terminalFontSizes = [10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24];
+const terminalSizeListeners = new Set<() => void>();
+
+export function terminalFontSize(): number {
+  const size = Number(localStorage.getItem(TERMINAL_SIZE_KEY));
+  return terminalFontSizes.includes(size) ? size : 13;
+}
+
+export function setTerminalFontSize(size: number) {
+  localStorage.setItem(TERMINAL_SIZE_KEY, String(size));
+  for (const listener of terminalSizeListeners) listener();
+}
+
+export function useTerminalFontSize(): number {
+  return useSyncExternalStore((listener) => {
+    terminalSizeListeners.add(listener);
+    return () => terminalSizeListeners.delete(listener);
+  }, terminalFontSize);
+}
+
+// Whether the file editor wraps long lines. Off unless turned on.
+const WRAP_KEY = "inaba.files.wrap";
+const wrapListeners = new Set<() => void>();
+
+export function setWordWrap(on: boolean) {
+  localStorage.setItem(WRAP_KEY, on ? "on" : "off");
+  for (const listener of wrapListeners) listener();
+}
+
+export function useWordWrap(): boolean {
+  return useSyncExternalStore((listener) => {
+    wrapListeners.add(listener);
+    return () => wrapListeners.delete(listener);
+  }, () => localStorage.getItem(WRAP_KEY) === "on");
+}
+
 // The font code is shown in: the editor, terminals, diffs and code in messages. Empty is JetBrains Mono, which inaba carries.
 const CODE_FONT_KEY = "inaba.codeFont";
 // Hangul is in no code font here: it falls to Pretendard rather than the generic monospace, GulimChe in Korean Windows.
@@ -86,7 +142,8 @@ export const builtInUiFonts = [
   { family: "Geist Variable", label: "Geist" },
   { family: "system-ui", label: "" },
 ] as const;
-const uiFallback = "system-ui, -apple-system, sans-serif";
+// --cjk-font is a font for Han characters in the page's language; see index.css.
+const uiFallback = "var(--cjk-font), system-ui, -apple-system, sans-serif";
 
 /** The chosen UI font's family: "" for Pretendard, "system-ui" for the system's own. */
 export function uiFont(): string {

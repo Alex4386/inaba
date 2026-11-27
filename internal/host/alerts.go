@@ -81,6 +81,9 @@ func (h *Host) alertFor(te module.ThreadEvent) *inabav1.Alert {
 		case ended.StopReason == "cancelled":
 			// Someone stopped it on purpose; telling everyone it finished is only noise.
 			return nil
+		case ended.StopReason == hostRestarted:
+			// Cut short by a restart and going on by itself; it has not finished.
+			return nil
 		}
 	case te.Event.GetPermissionRequest() != nil:
 		al.Event = "input.needed"

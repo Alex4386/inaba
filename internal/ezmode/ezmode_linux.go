@@ -75,6 +75,8 @@ Environment="PATH=%[4]s"
 EnvironmentFile=-%[2]s
 Restart=on-failure
 RestartSec=5
+# Stopping signals only the host, which ends its agents itself and so knows their turns were cut short.
+KillMode=mixed
 
 [Install]
 WantedBy=default.target

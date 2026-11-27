@@ -8,8 +8,11 @@ import type { BrowserPage } from "@/gen/inaba/v1/browser_pb";
 import { errorText, showError } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
 import { type Heard, modifierBits, translator } from "./ime";
+import { inputLine } from "./input-line";
 
 const buttons = ["left", "middle", "right"];
+// What one Input call carries to the page: a mouse event, a key, text or a composition.
+type PageInput = NonNullable<Parameters<HostLink["browser"]["input"]>[0]["event"]>;
 
 // The window a desktop page expects, for pages that will not fit a narrow panel.
 const desktop = { width: 1280, height: 800 };
@@ -32,6 +35,7 @@ export function BrowserPanel({
   onBind,
   onGone,
   onPages,
+  onTitle,
   driving = true,
 }: {
   link: HostLink;
@@ -46,12 +50,20 @@ export function BrowserPanel({
   onGone: () => void;
   /** The pages there are, so any the agent opened get tabs of their own. */
   onPages: (pageIds: string[]) => void;
+  /** What the page shown is called now, for the tab: its title, else its address. */
+  onTitle?: (title: string | undefined) => void;
   /** This browser holds the thread's driver seat: its size is the window's, and its hands are on the page. Others watch. */
   driving?: boolean;
 }) {
   const { t } = useI18n();
   const [pages, setPages] = useState<BrowserPage[]>();
   const [pageId, setPageId] = useState("");
+  const shownPage = pages?.find((p) => p.id === pageId);
+  const title = shownPage && (shownPage.title || shownPage.url);
+  useEffect(() => {
+    onTitle?.(title);
+    // Only when the name changes; the callback is new each render.
+  }, [title]);
   const [address, setAddress] = useState("");
   const editing = useRef(false);
   const [image, setImage] = useState<string>();
@@ -161,12 +173,24 @@ export function BrowserPanel({
   }, [link, threadId, pageId, refresh, fit, area, driving]);
 
   // Inputs are separate calls; chained, they reach the page in the order they were made.
-  const queue = useRef(Promise.resolve());
-  const send = (event: Parameters<typeof link.browser.input>[0]["event"]) => {
-    if (!driving) return queue.current;
-    queue.current = queue.current.then(() => link.browser.input({ threadId, pageId, event }).then(() => {}, () => {}));
-    return queue.current;
-  };
+  const line = useRef<(event: PageInput) => Promise<unknown>>(undefined);
+  line.current ??= inputLine<PageInput>(
+    (event) => ids.current.link.browser.input({ threadId: ids.current.threadId, pageId: ids.current.pageId, event }),
+    // Only the latest position of a move counts; a scroll adds up.
+    (a, b) =>
+      a.case !== "mouse" || b.case !== "mouse" || a.value.type !== b.value.type
+        ? undefined
+        : b.value.type === "moved"
+          ? b
+          : b.value.type === "wheel"
+            ? { case: "mouse", value: { ...b.value, deltaX: (a.value.deltaX ?? 0) + (b.value.deltaX ?? 0), deltaY: (a.value.deltaY ?? 0) + (b.value.deltaY ?? 0) } }
+            : undefined,
+    (e) => e.case === "mouse" && (e.value.type === "moved" || e.value.type === "wheel"),
+  );
+  // The line outlives renders; it posts to the page shown now.
+  const ids = useRef({ link, threadId, pageId });
+  ids.current = { link, threadId, pageId };
+  const send = (event: PageInput) => (driving ? line.current!(event) : Promise.resolve());
   /** Passes what the catcher heard to the page, and says whether a key went. */
   const heard = (e: Heard) => {
     const out = translate.current(e);

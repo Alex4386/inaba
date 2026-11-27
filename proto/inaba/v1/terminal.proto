@@ -37,6 +37,13 @@ service HostTerminalService {
     };
   }
   // Ends a terminal and its process.
+  // Names a terminal; an empty name goes back to the title its shell sets.
+  rpc RenameHostTerminal(RenameHostTerminalRequest) returns (HostTerminal) {
+    option (google.api.http) = {
+      patch: "/v1/terminals/{id}"
+      body: "*"
+    };
+  }
   rpc CloseHostTerminal(CloseHostTerminalRequest) returns (CloseHostTerminalResponse) {
     option (google.api.http) = {delete: "/v1/terminals/{id}"};
   }
@@ -52,6 +59,8 @@ message HostTerminal {
   // The window title its program last set, as a shell prompt does with user@host: folder,
   // or ssh's remote shell; empty until one is set.
   string title = 5;
+  // Set by a person; shown instead of the title while it is set.
+  string name = 6;
 }
 
 message ListHostTerminalsRequest {}
@@ -82,6 +91,10 @@ message ResizeHostTerminalRequest {
   uint32 rows = 3;
 }
 message ResizeHostTerminalResponse {}
+message RenameHostTerminalRequest {
+  string id = 1;
+  string name = 2;
+}
 message CloseHostTerminalRequest {
   string id = 1;
 }

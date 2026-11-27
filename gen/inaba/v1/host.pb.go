@@ -1031,10 +1031,12 @@ func (x *SessionOption) GetChoices() []*SessionOption_Choice {
 }
 
 type QueuedMessage struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Text          string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
-	Attachments   []*Attachment          `protobuf:"bytes,3,rep,name=attachments,proto3" json:"attachments,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Id          string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Text        string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	Attachments []*Attachment          `protobuf:"bytes,3,rep,name=attachments,proto3" json:"attachments,omitempty"`
+	// As UserMessage.resume.
+	Resume        bool `protobuf:"varint,4,opt,name=resume,proto3" json:"resume,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1088,6 +1090,13 @@ func (x *QueuedMessage) GetAttachments() []*Attachment {
 		return x.Attachments
 	}
 	return nil
+}
+
+func (x *QueuedMessage) GetResume() bool {
+	if x != nil {
+		return x.Resume
+	}
+	return false
 }
 
 // A folder on the host that threads are grouped under.
@@ -1840,9 +1849,11 @@ func (x *OptionsChanged) GetOptions() []*SessionOption {
 }
 
 type UserMessage struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Text          string                 `protobuf:"bytes,1,opt,name=text,proto3" json:"text,omitempty"`
-	Attachments   []*Attachment          `protobuf:"bytes,2,rep,name=attachments,proto3" json:"attachments,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Text        string                 `protobuf:"bytes,1,opt,name=text,proto3" json:"text,omitempty"`
+	Attachments []*Attachment          `protobuf:"bytes,2,rep,name=attachments,proto3" json:"attachments,omitempty"`
+	// Written by inaba, not a person: it carries on a turn the host's restart cut short.
+	Resume        bool `protobuf:"varint,3,opt,name=resume,proto3" json:"resume,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1889,6 +1900,13 @@ func (x *UserMessage) GetAttachments() []*Attachment {
 		return x.Attachments
 	}
 	return nil
+}
+
+func (x *UserMessage) GetResume() bool {
+	if x != nil {
+		return x.Resume
+	}
+	return false
 }
 
 // The agent's plan for the turn, whole each time it changes.
@@ -4089,10 +4107,12 @@ func (x *CancelQueuedRequest) GetQueuedId() string {
 }
 
 type EditQueuedRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
-	QueuedId      string                 `protobuf:"bytes,2,opt,name=queued_id,json=queuedId,proto3" json:"queued_id,omitempty"`
-	Text          string                 `protobuf:"bytes,3,opt,name=text,proto3" json:"text,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	ThreadId string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
+	QueuedId string                 `protobuf:"bytes,2,opt,name=queued_id,json=queuedId,proto3" json:"queued_id,omitempty"`
+	Text     string                 `protobuf:"bytes,3,opt,name=text,proto3" json:"text,omitempty"`
+	// Unset leaves the message's attachments as they are.
+	Attachments   *QueuedAttachmentsEdit `protobuf:"bytes,4,opt,name=attachments,proto3" json:"attachments,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4148,6 +4168,79 @@ func (x *EditQueuedRequest) GetText() string {
 	return ""
 }
 
+func (x *EditQueuedRequest) GetAttachments() *QueuedAttachmentsEdit {
+	if x != nil {
+		return x.Attachments
+	}
+	return nil
+}
+
+// What a queued message's attachments become: those of its current ones it keeps, then
+// new ones. The kept ones go by index, so a client never has to send back bytes it holds.
+type QueuedAttachmentsEdit struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Indexes into the message's current attachments, in increasing order.
+	Keep []uint32 `protobuf:"varint,1,rep,packed,name=keep,proto3" json:"keep,omitempty"`
+	// New attachments, checked and stored as StartTurn's are.
+	Add []*Attachment `protobuf:"bytes,2,rep,name=add,proto3" json:"add,omitempty"`
+	// The names of the message's attachments that keep indexes into, as the client saw
+	// them; the edit is refused if the message's attachments have changed since.
+	Seen          []string `protobuf:"bytes,3,rep,name=seen,proto3" json:"seen,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QueuedAttachmentsEdit) Reset() {
+	*x = QueuedAttachmentsEdit{}
+	mi := &file_inaba_v1_host_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QueuedAttachmentsEdit) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QueuedAttachmentsEdit) ProtoMessage() {}
+
+func (x *QueuedAttachmentsEdit) ProtoReflect() protoreflect.Message {
+	mi := &file_inaba_v1_host_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QueuedAttachmentsEdit.ProtoReflect.Descriptor instead.
+func (*QueuedAttachmentsEdit) Descriptor() ([]byte, []int) {
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{56}
+}
+
+func (x *QueuedAttachmentsEdit) GetKeep() []uint32 {
+	if x != nil {
+		return x.Keep
+	}
+	return nil
+}
+
+func (x *QueuedAttachmentsEdit) GetAdd() []*Attachment {
+	if x != nil {
+		return x.Add
+	}
+	return nil
+}
+
+func (x *QueuedAttachmentsEdit) GetSeen() []string {
+	if x != nil {
+		return x.Seen
+	}
+	return nil
+}
+
 type MoveQueuedRequest struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
@@ -4160,7 +4253,7 @@ type MoveQueuedRequest struct {
 
 func (x *MoveQueuedRequest) Reset() {
 	*x = MoveQueuedRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[56]
+	mi := &file_inaba_v1_host_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4172,7 +4265,7 @@ func (x *MoveQueuedRequest) String() string {
 func (*MoveQueuedRequest) ProtoMessage() {}
 
 func (x *MoveQueuedRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[56]
+	mi := &file_inaba_v1_host_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4185,7 +4278,7 @@ func (x *MoveQueuedRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveQueuedRequest.ProtoReflect.Descriptor instead.
 func (*MoveQueuedRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{56}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *MoveQueuedRequest) GetThreadId() string {
@@ -4219,7 +4312,7 @@ type SendQueuedNowRequest struct {
 
 func (x *SendQueuedNowRequest) Reset() {
 	*x = SendQueuedNowRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[57]
+	mi := &file_inaba_v1_host_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4231,7 +4324,7 @@ func (x *SendQueuedNowRequest) String() string {
 func (*SendQueuedNowRequest) ProtoMessage() {}
 
 func (x *SendQueuedNowRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[57]
+	mi := &file_inaba_v1_host_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4244,7 +4337,7 @@ func (x *SendQueuedNowRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendQueuedNowRequest.ProtoReflect.Descriptor instead.
 func (*SendQueuedNowRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{57}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *SendQueuedNowRequest) GetThreadId() string {
@@ -4270,7 +4363,7 @@ type ResumeQueueRequest struct {
 
 func (x *ResumeQueueRequest) Reset() {
 	*x = ResumeQueueRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[58]
+	mi := &file_inaba_v1_host_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4282,7 +4375,7 @@ func (x *ResumeQueueRequest) String() string {
 func (*ResumeQueueRequest) ProtoMessage() {}
 
 func (x *ResumeQueueRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[58]
+	mi := &file_inaba_v1_host_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4295,7 +4388,7 @@ func (x *ResumeQueueRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResumeQueueRequest.ProtoReflect.Descriptor instead.
 func (*ResumeQueueRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{58}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *ResumeQueueRequest) GetThreadId() string {
@@ -4317,7 +4410,7 @@ type InterruptRequest struct {
 
 func (x *InterruptRequest) Reset() {
 	*x = InterruptRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[59]
+	mi := &file_inaba_v1_host_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4329,7 +4422,7 @@ func (x *InterruptRequest) String() string {
 func (*InterruptRequest) ProtoMessage() {}
 
 func (x *InterruptRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[59]
+	mi := &file_inaba_v1_host_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4342,7 +4435,7 @@ func (x *InterruptRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InterruptRequest.ProtoReflect.Descriptor instead.
 func (*InterruptRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{59}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *InterruptRequest) GetThreadId() string {
@@ -4367,7 +4460,7 @@ type InterruptResponse struct {
 
 func (x *InterruptResponse) Reset() {
 	*x = InterruptResponse{}
-	mi := &file_inaba_v1_host_proto_msgTypes[60]
+	mi := &file_inaba_v1_host_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4379,7 +4472,7 @@ func (x *InterruptResponse) String() string {
 func (*InterruptResponse) ProtoMessage() {}
 
 func (x *InterruptResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[60]
+	mi := &file_inaba_v1_host_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4392,7 +4485,7 @@ func (x *InterruptResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InterruptResponse.ProtoReflect.Descriptor instead.
 func (*InterruptResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{60}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{61}
 }
 
 type RespondRequest struct {
@@ -4407,7 +4500,7 @@ type RespondRequest struct {
 
 func (x *RespondRequest) Reset() {
 	*x = RespondRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[61]
+	mi := &file_inaba_v1_host_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4419,7 +4512,7 @@ func (x *RespondRequest) String() string {
 func (*RespondRequest) ProtoMessage() {}
 
 func (x *RespondRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[61]
+	mi := &file_inaba_v1_host_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4432,7 +4525,7 @@ func (x *RespondRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RespondRequest.ProtoReflect.Descriptor instead.
 func (*RespondRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{61}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *RespondRequest) GetThreadId() string {
@@ -4464,7 +4557,7 @@ type RespondResponse struct {
 
 func (x *RespondResponse) Reset() {
 	*x = RespondResponse{}
-	mi := &file_inaba_v1_host_proto_msgTypes[62]
+	mi := &file_inaba_v1_host_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4476,7 +4569,7 @@ func (x *RespondResponse) String() string {
 func (*RespondResponse) ProtoMessage() {}
 
 func (x *RespondResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[62]
+	mi := &file_inaba_v1_host_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4489,7 +4582,7 @@ func (x *RespondResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RespondResponse.ProtoReflect.Descriptor instead.
 func (*RespondResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{62}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{63}
 }
 
 type SetModeRequest struct {
@@ -4502,7 +4595,7 @@ type SetModeRequest struct {
 
 func (x *SetModeRequest) Reset() {
 	*x = SetModeRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[63]
+	mi := &file_inaba_v1_host_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4514,7 +4607,7 @@ func (x *SetModeRequest) String() string {
 func (*SetModeRequest) ProtoMessage() {}
 
 func (x *SetModeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[63]
+	mi := &file_inaba_v1_host_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4527,7 +4620,7 @@ func (x *SetModeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetModeRequest.ProtoReflect.Descriptor instead.
 func (*SetModeRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{63}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *SetModeRequest) GetThreadId() string {
@@ -4555,7 +4648,7 @@ type RawRequest struct {
 
 func (x *RawRequest) Reset() {
 	*x = RawRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[64]
+	mi := &file_inaba_v1_host_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4567,7 +4660,7 @@ func (x *RawRequest) String() string {
 func (*RawRequest) ProtoMessage() {}
 
 func (x *RawRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[64]
+	mi := &file_inaba_v1_host_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4580,7 +4673,7 @@ func (x *RawRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RawRequest.ProtoReflect.Descriptor instead.
 func (*RawRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{64}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *RawRequest) GetThreadId() string {
@@ -4613,7 +4706,7 @@ type RawResponse struct {
 
 func (x *RawResponse) Reset() {
 	*x = RawResponse{}
-	mi := &file_inaba_v1_host_proto_msgTypes[65]
+	mi := &file_inaba_v1_host_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4625,7 +4718,7 @@ func (x *RawResponse) String() string {
 func (*RawResponse) ProtoMessage() {}
 
 func (x *RawResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[65]
+	mi := &file_inaba_v1_host_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4638,7 +4731,7 @@ func (x *RawResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RawResponse.ProtoReflect.Descriptor instead.
 func (*RawResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{65}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *RawResponse) GetResult() *structpb.Value {
@@ -4660,7 +4753,7 @@ type ListEventsRequest struct {
 
 func (x *ListEventsRequest) Reset() {
 	*x = ListEventsRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[66]
+	mi := &file_inaba_v1_host_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4672,7 +4765,7 @@ func (x *ListEventsRequest) String() string {
 func (*ListEventsRequest) ProtoMessage() {}
 
 func (x *ListEventsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[66]
+	mi := &file_inaba_v1_host_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4685,7 +4778,7 @@ func (x *ListEventsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListEventsRequest.ProtoReflect.Descriptor instead.
 func (*ListEventsRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{66}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *ListEventsRequest) GetThreadId() string {
@@ -4718,7 +4811,7 @@ type ListEventsResponse struct {
 
 func (x *ListEventsResponse) Reset() {
 	*x = ListEventsResponse{}
-	mi := &file_inaba_v1_host_proto_msgTypes[67]
+	mi := &file_inaba_v1_host_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4730,7 +4823,7 @@ func (x *ListEventsResponse) String() string {
 func (*ListEventsResponse) ProtoMessage() {}
 
 func (x *ListEventsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[67]
+	mi := &file_inaba_v1_host_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4743,7 +4836,7 @@ func (x *ListEventsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListEventsResponse.ProtoReflect.Descriptor instead.
 func (*ListEventsResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{67}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *ListEventsResponse) GetEvents() []*Event {
@@ -4766,7 +4859,7 @@ type GetAttachmentRequest struct {
 
 func (x *GetAttachmentRequest) Reset() {
 	*x = GetAttachmentRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[68]
+	mi := &file_inaba_v1_host_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4778,7 +4871,7 @@ func (x *GetAttachmentRequest) String() string {
 func (*GetAttachmentRequest) ProtoMessage() {}
 
 func (x *GetAttachmentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[68]
+	mi := &file_inaba_v1_host_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4791,7 +4884,7 @@ func (x *GetAttachmentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAttachmentRequest.ProtoReflect.Descriptor instead.
 func (*GetAttachmentRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{68}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *GetAttachmentRequest) GetThreadId() string {
@@ -4825,7 +4918,7 @@ type SubscribeRequest struct {
 
 func (x *SubscribeRequest) Reset() {
 	*x = SubscribeRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[69]
+	mi := &file_inaba_v1_host_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4837,7 +4930,7 @@ func (x *SubscribeRequest) String() string {
 func (*SubscribeRequest) ProtoMessage() {}
 
 func (x *SubscribeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[69]
+	mi := &file_inaba_v1_host_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4850,7 +4943,7 @@ func (x *SubscribeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubscribeRequest.ProtoReflect.Descriptor instead.
 func (*SubscribeRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{69}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *SubscribeRequest) GetThreadId() string {
@@ -4878,7 +4971,7 @@ type CreateProjectRequest struct {
 
 func (x *CreateProjectRequest) Reset() {
 	*x = CreateProjectRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[70]
+	mi := &file_inaba_v1_host_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4890,7 +4983,7 @@ func (x *CreateProjectRequest) String() string {
 func (*CreateProjectRequest) ProtoMessage() {}
 
 func (x *CreateProjectRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[70]
+	mi := &file_inaba_v1_host_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4903,7 +4996,7 @@ func (x *CreateProjectRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateProjectRequest.ProtoReflect.Descriptor instead.
 func (*CreateProjectRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{70}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *CreateProjectRequest) GetName() string {
@@ -4928,7 +5021,7 @@ type ListProjectsRequest struct {
 
 func (x *ListProjectsRequest) Reset() {
 	*x = ListProjectsRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[71]
+	mi := &file_inaba_v1_host_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4940,7 +5033,7 @@ func (x *ListProjectsRequest) String() string {
 func (*ListProjectsRequest) ProtoMessage() {}
 
 func (x *ListProjectsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[71]
+	mi := &file_inaba_v1_host_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4953,7 +5046,7 @@ func (x *ListProjectsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListProjectsRequest.ProtoReflect.Descriptor instead.
 func (*ListProjectsRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{71}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{72}
 }
 
 type ListProjectsResponse struct {
@@ -4965,7 +5058,7 @@ type ListProjectsResponse struct {
 
 func (x *ListProjectsResponse) Reset() {
 	*x = ListProjectsResponse{}
-	mi := &file_inaba_v1_host_proto_msgTypes[72]
+	mi := &file_inaba_v1_host_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4977,7 +5070,7 @@ func (x *ListProjectsResponse) String() string {
 func (*ListProjectsResponse) ProtoMessage() {}
 
 func (x *ListProjectsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[72]
+	mi := &file_inaba_v1_host_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4990,7 +5083,7 @@ func (x *ListProjectsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListProjectsResponse.ProtoReflect.Descriptor instead.
 func (*ListProjectsResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{72}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *ListProjectsResponse) GetProjects() []*Project {
@@ -5010,7 +5103,7 @@ type ListDirectoryRequest struct {
 
 func (x *ListDirectoryRequest) Reset() {
 	*x = ListDirectoryRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[73]
+	mi := &file_inaba_v1_host_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5022,7 +5115,7 @@ func (x *ListDirectoryRequest) String() string {
 func (*ListDirectoryRequest) ProtoMessage() {}
 
 func (x *ListDirectoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[73]
+	mi := &file_inaba_v1_host_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5035,7 +5128,7 @@ func (x *ListDirectoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDirectoryRequest.ProtoReflect.Descriptor instead.
 func (*ListDirectoryRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{73}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *ListDirectoryRequest) GetPath() string {
@@ -5059,7 +5152,7 @@ type ListDirectoryResponse struct {
 
 func (x *ListDirectoryResponse) Reset() {
 	*x = ListDirectoryResponse{}
-	mi := &file_inaba_v1_host_proto_msgTypes[74]
+	mi := &file_inaba_v1_host_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5071,7 +5164,7 @@ func (x *ListDirectoryResponse) String() string {
 func (*ListDirectoryResponse) ProtoMessage() {}
 
 func (x *ListDirectoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[74]
+	mi := &file_inaba_v1_host_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5084,7 +5177,7 @@ func (x *ListDirectoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDirectoryResponse.ProtoReflect.Descriptor instead.
 func (*ListDirectoryResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{74}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *ListDirectoryResponse) GetPath() string {
@@ -5122,7 +5215,7 @@ type UpdateProjectRequest struct {
 
 func (x *UpdateProjectRequest) Reset() {
 	*x = UpdateProjectRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[75]
+	mi := &file_inaba_v1_host_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5134,7 +5227,7 @@ func (x *UpdateProjectRequest) String() string {
 func (*UpdateProjectRequest) ProtoMessage() {}
 
 func (x *UpdateProjectRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[75]
+	mi := &file_inaba_v1_host_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5147,7 +5240,7 @@ func (x *UpdateProjectRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateProjectRequest.ProtoReflect.Descriptor instead.
 func (*UpdateProjectRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{75}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *UpdateProjectRequest) GetProjectId() string {
@@ -5201,7 +5294,7 @@ type DeleteProjectRequest struct {
 
 func (x *DeleteProjectRequest) Reset() {
 	*x = DeleteProjectRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[76]
+	mi := &file_inaba_v1_host_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5213,7 +5306,7 @@ func (x *DeleteProjectRequest) String() string {
 func (*DeleteProjectRequest) ProtoMessage() {}
 
 func (x *DeleteProjectRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[76]
+	mi := &file_inaba_v1_host_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5226,7 +5319,7 @@ func (x *DeleteProjectRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteProjectRequest.ProtoReflect.Descriptor instead.
 func (*DeleteProjectRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{76}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *DeleteProjectRequest) GetProjectId() string {
@@ -5244,7 +5337,7 @@ type DeleteProjectResponse struct {
 
 func (x *DeleteProjectResponse) Reset() {
 	*x = DeleteProjectResponse{}
-	mi := &file_inaba_v1_host_proto_msgTypes[77]
+	mi := &file_inaba_v1_host_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5256,7 +5349,7 @@ func (x *DeleteProjectResponse) String() string {
 func (*DeleteProjectResponse) ProtoMessage() {}
 
 func (x *DeleteProjectResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[77]
+	mi := &file_inaba_v1_host_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5269,7 +5362,7 @@ func (x *DeleteProjectResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteProjectResponse.ProtoReflect.Descriptor instead.
 func (*DeleteProjectResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{77}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{78}
 }
 
 type ListBranchesRequest struct {
@@ -5282,7 +5375,7 @@ type ListBranchesRequest struct {
 
 func (x *ListBranchesRequest) Reset() {
 	*x = ListBranchesRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[78]
+	mi := &file_inaba_v1_host_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5294,7 +5387,7 @@ func (x *ListBranchesRequest) String() string {
 func (*ListBranchesRequest) ProtoMessage() {}
 
 func (x *ListBranchesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[78]
+	mi := &file_inaba_v1_host_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5307,7 +5400,7 @@ func (x *ListBranchesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListBranchesRequest.ProtoReflect.Descriptor instead.
 func (*ListBranchesRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{78}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *ListBranchesRequest) GetProjectId() string {
@@ -5335,7 +5428,7 @@ type ListBranchesResponse struct {
 
 func (x *ListBranchesResponse) Reset() {
 	*x = ListBranchesResponse{}
-	mi := &file_inaba_v1_host_proto_msgTypes[79]
+	mi := &file_inaba_v1_host_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5347,7 +5440,7 @@ func (x *ListBranchesResponse) String() string {
 func (*ListBranchesResponse) ProtoMessage() {}
 
 func (x *ListBranchesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[79]
+	mi := &file_inaba_v1_host_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5360,7 +5453,7 @@ func (x *ListBranchesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListBranchesResponse.ProtoReflect.Descriptor instead.
 func (*ListBranchesResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{79}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *ListBranchesResponse) GetBranches() []string {
@@ -5390,7 +5483,7 @@ type GitCheckoutRequest struct {
 
 func (x *GitCheckoutRequest) Reset() {
 	*x = GitCheckoutRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[80]
+	mi := &file_inaba_v1_host_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5402,7 +5495,7 @@ func (x *GitCheckoutRequest) String() string {
 func (*GitCheckoutRequest) ProtoMessage() {}
 
 func (x *GitCheckoutRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[80]
+	mi := &file_inaba_v1_host_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5415,7 +5508,7 @@ func (x *GitCheckoutRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitCheckoutRequest.ProtoReflect.Descriptor instead.
 func (*GitCheckoutRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{80}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *GitCheckoutRequest) GetProjectId() string {
@@ -5457,7 +5550,7 @@ type GitRestoreRequest struct {
 
 func (x *GitRestoreRequest) Reset() {
 	*x = GitRestoreRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[81]
+	mi := &file_inaba_v1_host_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5469,7 +5562,7 @@ func (x *GitRestoreRequest) String() string {
 func (*GitRestoreRequest) ProtoMessage() {}
 
 func (x *GitRestoreRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[81]
+	mi := &file_inaba_v1_host_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5482,7 +5575,7 @@ func (x *GitRestoreRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitRestoreRequest.ProtoReflect.Descriptor instead.
 func (*GitRestoreRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{81}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *GitRestoreRequest) GetThreadId() string {
@@ -5510,7 +5603,7 @@ type GitRestoreResponse struct {
 
 func (x *GitRestoreResponse) Reset() {
 	*x = GitRestoreResponse{}
-	mi := &file_inaba_v1_host_proto_msgTypes[82]
+	mi := &file_inaba_v1_host_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5522,7 +5615,7 @@ func (x *GitRestoreResponse) String() string {
 func (*GitRestoreResponse) ProtoMessage() {}
 
 func (x *GitRestoreResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[82]
+	mi := &file_inaba_v1_host_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5535,7 +5628,7 @@ func (x *GitRestoreResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitRestoreResponse.ProtoReflect.Descriptor instead.
 func (*GitRestoreResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{82}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *GitRestoreResponse) GetStatus() *GitStatus {
@@ -5562,7 +5655,7 @@ type GitPushRequest struct {
 
 func (x *GitPushRequest) Reset() {
 	*x = GitPushRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[83]
+	mi := &file_inaba_v1_host_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5574,7 +5667,7 @@ func (x *GitPushRequest) String() string {
 func (*GitPushRequest) ProtoMessage() {}
 
 func (x *GitPushRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[83]
+	mi := &file_inaba_v1_host_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5587,7 +5680,7 @@ func (x *GitPushRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitPushRequest.ProtoReflect.Descriptor instead.
 func (*GitPushRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{83}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *GitPushRequest) GetProjectId() string {
@@ -5614,7 +5707,7 @@ type GitFetchRequest struct {
 
 func (x *GitFetchRequest) Reset() {
 	*x = GitFetchRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[84]
+	mi := &file_inaba_v1_host_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5626,7 +5719,7 @@ func (x *GitFetchRequest) String() string {
 func (*GitFetchRequest) ProtoMessage() {}
 
 func (x *GitFetchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[84]
+	mi := &file_inaba_v1_host_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5639,7 +5732,7 @@ func (x *GitFetchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitFetchRequest.ProtoReflect.Descriptor instead.
 func (*GitFetchRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{84}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *GitFetchRequest) GetProjectId() string {
@@ -5666,7 +5759,7 @@ type GitPullBranchRequest struct {
 
 func (x *GitPullBranchRequest) Reset() {
 	*x = GitPullBranchRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[85]
+	mi := &file_inaba_v1_host_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5678,7 +5771,7 @@ func (x *GitPullBranchRequest) String() string {
 func (*GitPullBranchRequest) ProtoMessage() {}
 
 func (x *GitPullBranchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[85]
+	mi := &file_inaba_v1_host_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5691,7 +5784,7 @@ func (x *GitPullBranchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitPullBranchRequest.ProtoReflect.Descriptor instead.
 func (*GitPullBranchRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{85}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *GitPullBranchRequest) GetProjectId() string {
@@ -5718,7 +5811,7 @@ type GetGitStatusRequest struct {
 
 func (x *GetGitStatusRequest) Reset() {
 	*x = GetGitStatusRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[86]
+	mi := &file_inaba_v1_host_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5730,7 +5823,7 @@ func (x *GetGitStatusRequest) String() string {
 func (*GetGitStatusRequest) ProtoMessage() {}
 
 func (x *GetGitStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[86]
+	mi := &file_inaba_v1_host_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5743,7 +5836,7 @@ func (x *GetGitStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetGitStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetGitStatusRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{86}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *GetGitStatusRequest) GetProjectId() string {
@@ -5780,7 +5873,7 @@ type GitStatus struct {
 
 func (x *GitStatus) Reset() {
 	*x = GitStatus{}
-	mi := &file_inaba_v1_host_proto_msgTypes[87]
+	mi := &file_inaba_v1_host_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5792,7 +5885,7 @@ func (x *GitStatus) String() string {
 func (*GitStatus) ProtoMessage() {}
 
 func (x *GitStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[87]
+	mi := &file_inaba_v1_host_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5805,7 +5898,7 @@ func (x *GitStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitStatus.ProtoReflect.Descriptor instead.
 func (*GitStatus) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{87}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *GitStatus) GetRepository() bool {
@@ -5882,7 +5975,7 @@ type GetGitDiffRequest struct {
 
 func (x *GetGitDiffRequest) Reset() {
 	*x = GetGitDiffRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[88]
+	mi := &file_inaba_v1_host_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5894,7 +5987,7 @@ func (x *GetGitDiffRequest) String() string {
 func (*GetGitDiffRequest) ProtoMessage() {}
 
 func (x *GetGitDiffRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[88]
+	mi := &file_inaba_v1_host_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5907,7 +6000,7 @@ func (x *GetGitDiffRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetGitDiffRequest.ProtoReflect.Descriptor instead.
 func (*GetGitDiffRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{88}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *GetGitDiffRequest) GetProjectId() string {
@@ -5969,7 +6062,7 @@ type GetGitDiffResponse struct {
 
 func (x *GetGitDiffResponse) Reset() {
 	*x = GetGitDiffResponse{}
-	mi := &file_inaba_v1_host_proto_msgTypes[89]
+	mi := &file_inaba_v1_host_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5981,7 +6074,7 @@ func (x *GetGitDiffResponse) String() string {
 func (*GetGitDiffResponse) ProtoMessage() {}
 
 func (x *GetGitDiffResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[89]
+	mi := &file_inaba_v1_host_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5994,7 +6087,7 @@ func (x *GetGitDiffResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetGitDiffResponse.ProtoReflect.Descriptor instead.
 func (*GetGitDiffResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{89}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *GetGitDiffResponse) GetDiff() string {
@@ -6045,7 +6138,7 @@ type GitCommitRequest struct {
 
 func (x *GitCommitRequest) Reset() {
 	*x = GitCommitRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[90]
+	mi := &file_inaba_v1_host_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6057,7 +6150,7 @@ func (x *GitCommitRequest) String() string {
 func (*GitCommitRequest) ProtoMessage() {}
 
 func (x *GitCommitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[90]
+	mi := &file_inaba_v1_host_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6070,7 +6163,7 @@ func (x *GitCommitRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitCommitRequest.ProtoReflect.Descriptor instead.
 func (*GitCommitRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{90}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{91}
 }
 
 func (x *GitCommitRequest) GetProjectId() string {
@@ -6117,7 +6210,7 @@ type GitPullRequestRequest struct {
 
 func (x *GitPullRequestRequest) Reset() {
 	*x = GitPullRequestRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[91]
+	mi := &file_inaba_v1_host_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6129,7 +6222,7 @@ func (x *GitPullRequestRequest) String() string {
 func (*GitPullRequestRequest) ProtoMessage() {}
 
 func (x *GitPullRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[91]
+	mi := &file_inaba_v1_host_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6142,7 +6235,7 @@ func (x *GitPullRequestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitPullRequestRequest.ProtoReflect.Descriptor instead.
 func (*GitPullRequestRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{91}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *GitPullRequestRequest) GetProjectId() string {
@@ -6199,7 +6292,7 @@ type GitPullRequestResponse struct {
 
 func (x *GitPullRequestResponse) Reset() {
 	*x = GitPullRequestResponse{}
-	mi := &file_inaba_v1_host_proto_msgTypes[92]
+	mi := &file_inaba_v1_host_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6211,7 +6304,7 @@ func (x *GitPullRequestResponse) String() string {
 func (*GitPullRequestResponse) ProtoMessage() {}
 
 func (x *GitPullRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[92]
+	mi := &file_inaba_v1_host_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6224,7 +6317,7 @@ func (x *GitPullRequestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitPullRequestResponse.ProtoReflect.Descriptor instead.
 func (*GitPullRequestResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{92}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *GitPullRequestResponse) GetUrl() string {
@@ -6259,7 +6352,7 @@ type GitCommitResponse struct {
 
 func (x *GitCommitResponse) Reset() {
 	*x = GitCommitResponse{}
-	mi := &file_inaba_v1_host_proto_msgTypes[93]
+	mi := &file_inaba_v1_host_proto_msgTypes[94]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6271,7 +6364,7 @@ func (x *GitCommitResponse) String() string {
 func (*GitCommitResponse) ProtoMessage() {}
 
 func (x *GitCommitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[93]
+	mi := &file_inaba_v1_host_proto_msgTypes[94]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6284,7 +6377,7 @@ func (x *GitCommitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitCommitResponse.ProtoReflect.Descriptor instead.
 func (*GitCommitResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{93}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{94}
 }
 
 func (x *GitCommitResponse) GetOutput() string {
@@ -6315,7 +6408,7 @@ type Module struct {
 
 func (x *Module) Reset() {
 	*x = Module{}
-	mi := &file_inaba_v1_host_proto_msgTypes[94]
+	mi := &file_inaba_v1_host_proto_msgTypes[95]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6327,7 +6420,7 @@ func (x *Module) String() string {
 func (*Module) ProtoMessage() {}
 
 func (x *Module) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[94]
+	mi := &file_inaba_v1_host_proto_msgTypes[95]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6340,7 +6433,7 @@ func (x *Module) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Module.ProtoReflect.Descriptor instead.
 func (*Module) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{94}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{95}
 }
 
 func (x *Module) GetName() string {
@@ -6386,7 +6479,7 @@ type ListModulesRequest struct {
 
 func (x *ListModulesRequest) Reset() {
 	*x = ListModulesRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[95]
+	mi := &file_inaba_v1_host_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6398,7 +6491,7 @@ func (x *ListModulesRequest) String() string {
 func (*ListModulesRequest) ProtoMessage() {}
 
 func (x *ListModulesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[95]
+	mi := &file_inaba_v1_host_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6411,7 +6504,7 @@ func (x *ListModulesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListModulesRequest.ProtoReflect.Descriptor instead.
 func (*ListModulesRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{95}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{96}
 }
 
 type ListModulesResponse struct {
@@ -6423,7 +6516,7 @@ type ListModulesResponse struct {
 
 func (x *ListModulesResponse) Reset() {
 	*x = ListModulesResponse{}
-	mi := &file_inaba_v1_host_proto_msgTypes[96]
+	mi := &file_inaba_v1_host_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6435,7 +6528,7 @@ func (x *ListModulesResponse) String() string {
 func (*ListModulesResponse) ProtoMessage() {}
 
 func (x *ListModulesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[96]
+	mi := &file_inaba_v1_host_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6448,7 +6541,7 @@ func (x *ListModulesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListModulesResponse.ProtoReflect.Descriptor instead.
 func (*ListModulesResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{96}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *ListModulesResponse) GetModules() []*Module {
@@ -6468,7 +6561,7 @@ type SetModuleRequest struct {
 
 func (x *SetModuleRequest) Reset() {
 	*x = SetModuleRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[97]
+	mi := &file_inaba_v1_host_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6480,7 +6573,7 @@ func (x *SetModuleRequest) String() string {
 func (*SetModuleRequest) ProtoMessage() {}
 
 func (x *SetModuleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[97]
+	mi := &file_inaba_v1_host_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6493,7 +6586,7 @@ func (x *SetModuleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetModuleRequest.ProtoReflect.Descriptor instead.
 func (*SetModuleRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{97}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{98}
 }
 
 func (x *SetModuleRequest) GetName() string {
@@ -6518,7 +6611,7 @@ type GetHousekeepingRequest struct {
 
 func (x *GetHousekeepingRequest) Reset() {
 	*x = GetHousekeepingRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[98]
+	mi := &file_inaba_v1_host_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6530,7 +6623,7 @@ func (x *GetHousekeepingRequest) String() string {
 func (*GetHousekeepingRequest) ProtoMessage() {}
 
 func (x *GetHousekeepingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[98]
+	mi := &file_inaba_v1_host_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6543,7 +6636,7 @@ func (x *GetHousekeepingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHousekeepingRequest.ProtoReflect.Descriptor instead.
 func (*GetHousekeepingRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{98}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{99}
 }
 
 type Housekeeping struct {
@@ -6558,7 +6651,7 @@ type Housekeeping struct {
 
 func (x *Housekeeping) Reset() {
 	*x = Housekeeping{}
-	mi := &file_inaba_v1_host_proto_msgTypes[99]
+	mi := &file_inaba_v1_host_proto_msgTypes[100]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6570,7 +6663,7 @@ func (x *Housekeeping) String() string {
 func (*Housekeeping) ProtoMessage() {}
 
 func (x *Housekeeping) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[99]
+	mi := &file_inaba_v1_host_proto_msgTypes[100]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6583,7 +6676,7 @@ func (x *Housekeeping) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Housekeeping.ProtoReflect.Descriptor instead.
 func (*Housekeeping) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{99}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{100}
 }
 
 func (x *Housekeeping) GetDatabaseBytes() uint64 {
@@ -6623,7 +6716,7 @@ type CleanUpRequest struct {
 
 func (x *CleanUpRequest) Reset() {
 	*x = CleanUpRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[100]
+	mi := &file_inaba_v1_host_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6635,7 +6728,7 @@ func (x *CleanUpRequest) String() string {
 func (*CleanUpRequest) ProtoMessage() {}
 
 func (x *CleanUpRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[100]
+	mi := &file_inaba_v1_host_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6648,7 +6741,7 @@ func (x *CleanUpRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CleanUpRequest.ProtoReflect.Descriptor instead.
 func (*CleanUpRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{100}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *CleanUpRequest) GetLeftoverWorktrees() bool {
@@ -6687,7 +6780,7 @@ type GetArchivePolicyRequest struct {
 
 func (x *GetArchivePolicyRequest) Reset() {
 	*x = GetArchivePolicyRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[101]
+	mi := &file_inaba_v1_host_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6699,7 +6792,7 @@ func (x *GetArchivePolicyRequest) String() string {
 func (*GetArchivePolicyRequest) ProtoMessage() {}
 
 func (x *GetArchivePolicyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[101]
+	mi := &file_inaba_v1_host_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6712,7 +6805,7 @@ func (x *GetArchivePolicyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetArchivePolicyRequest.ProtoReflect.Descriptor instead.
 func (*GetArchivePolicyRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{101}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{102}
 }
 
 // A thread nothing happened in for this many days is archived, unless it is pinned or
@@ -6727,7 +6820,7 @@ type ArchivePolicy struct {
 
 func (x *ArchivePolicy) Reset() {
 	*x = ArchivePolicy{}
-	mi := &file_inaba_v1_host_proto_msgTypes[102]
+	mi := &file_inaba_v1_host_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6739,7 +6832,7 @@ func (x *ArchivePolicy) String() string {
 func (*ArchivePolicy) ProtoMessage() {}
 
 func (x *ArchivePolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[102]
+	mi := &file_inaba_v1_host_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6752,7 +6845,7 @@ func (x *ArchivePolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArchivePolicy.ProtoReflect.Descriptor instead.
 func (*ArchivePolicy) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{102}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *ArchivePolicy) GetAfterDays() uint32 {
@@ -6773,7 +6866,7 @@ type CleanUpResponse struct {
 
 func (x *CleanUpResponse) Reset() {
 	*x = CleanUpResponse{}
-	mi := &file_inaba_v1_host_proto_msgTypes[103]
+	mi := &file_inaba_v1_host_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6785,7 +6878,7 @@ func (x *CleanUpResponse) String() string {
 func (*CleanUpResponse) ProtoMessage() {}
 
 func (x *CleanUpResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[103]
+	mi := &file_inaba_v1_host_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6798,7 +6891,7 @@ func (x *CleanUpResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CleanUpResponse.ProtoReflect.Descriptor instead.
 func (*CleanUpResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{103}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *CleanUpResponse) GetHousekeeping() *Housekeeping {
@@ -6828,7 +6921,7 @@ type AttachRequest struct {
 
 func (x *AttachRequest) Reset() {
 	*x = AttachRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[104]
+	mi := &file_inaba_v1_host_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6840,7 +6933,7 @@ func (x *AttachRequest) String() string {
 func (*AttachRequest) ProtoMessage() {}
 
 func (x *AttachRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[104]
+	mi := &file_inaba_v1_host_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6853,7 +6946,7 @@ func (x *AttachRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttachRequest.ProtoReflect.Descriptor instead.
 func (*AttachRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{104}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{105}
 }
 
 func (x *AttachRequest) GetThreadId() string {
@@ -6890,7 +6983,7 @@ type TerminalOutput struct {
 
 func (x *TerminalOutput) Reset() {
 	*x = TerminalOutput{}
-	mi := &file_inaba_v1_host_proto_msgTypes[105]
+	mi := &file_inaba_v1_host_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6902,7 +6995,7 @@ func (x *TerminalOutput) String() string {
 func (*TerminalOutput) ProtoMessage() {}
 
 func (x *TerminalOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[105]
+	mi := &file_inaba_v1_host_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6915,7 +7008,7 @@ func (x *TerminalOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminalOutput.ProtoReflect.Descriptor instead.
 func (*TerminalOutput) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{105}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{106}
 }
 
 func (x *TerminalOutput) GetData() []byte {
@@ -6949,7 +7042,7 @@ type WriteRequest struct {
 
 func (x *WriteRequest) Reset() {
 	*x = WriteRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[106]
+	mi := &file_inaba_v1_host_proto_msgTypes[107]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6961,7 +7054,7 @@ func (x *WriteRequest) String() string {
 func (*WriteRequest) ProtoMessage() {}
 
 func (x *WriteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[106]
+	mi := &file_inaba_v1_host_proto_msgTypes[107]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6974,7 +7067,7 @@ func (x *WriteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteRequest.ProtoReflect.Descriptor instead.
 func (*WriteRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{106}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *WriteRequest) GetThreadId() string {
@@ -6999,7 +7092,7 @@ type WriteResponse struct {
 
 func (x *WriteResponse) Reset() {
 	*x = WriteResponse{}
-	mi := &file_inaba_v1_host_proto_msgTypes[107]
+	mi := &file_inaba_v1_host_proto_msgTypes[108]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7011,7 +7104,7 @@ func (x *WriteResponse) String() string {
 func (*WriteResponse) ProtoMessage() {}
 
 func (x *WriteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[107]
+	mi := &file_inaba_v1_host_proto_msgTypes[108]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7024,7 +7117,7 @@ func (x *WriteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteResponse.ProtoReflect.Descriptor instead.
 func (*WriteResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{107}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{108}
 }
 
 type ResizeRequest struct {
@@ -7038,7 +7131,7 @@ type ResizeRequest struct {
 
 func (x *ResizeRequest) Reset() {
 	*x = ResizeRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[108]
+	mi := &file_inaba_v1_host_proto_msgTypes[109]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7050,7 +7143,7 @@ func (x *ResizeRequest) String() string {
 func (*ResizeRequest) ProtoMessage() {}
 
 func (x *ResizeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[108]
+	mi := &file_inaba_v1_host_proto_msgTypes[109]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7063,7 +7156,7 @@ func (x *ResizeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResizeRequest.ProtoReflect.Descriptor instead.
 func (*ResizeRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{108}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *ResizeRequest) GetThreadId() string {
@@ -7095,7 +7188,7 @@ type ResizeResponse struct {
 
 func (x *ResizeResponse) Reset() {
 	*x = ResizeResponse{}
-	mi := &file_inaba_v1_host_proto_msgTypes[109]
+	mi := &file_inaba_v1_host_proto_msgTypes[110]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7107,7 +7200,7 @@ func (x *ResizeResponse) String() string {
 func (*ResizeResponse) ProtoMessage() {}
 
 func (x *ResizeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[109]
+	mi := &file_inaba_v1_host_proto_msgTypes[110]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7120,7 +7213,7 @@ func (x *ResizeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResizeResponse.ProtoReflect.Descriptor instead.
 func (*ResizeResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{109}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{110}
 }
 
 type ConnectRequest struct {
@@ -7133,7 +7226,7 @@ type ConnectRequest struct {
 
 func (x *ConnectRequest) Reset() {
 	*x = ConnectRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[110]
+	mi := &file_inaba_v1_host_proto_msgTypes[111]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7145,7 +7238,7 @@ func (x *ConnectRequest) String() string {
 func (*ConnectRequest) ProtoMessage() {}
 
 func (x *ConnectRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[110]
+	mi := &file_inaba_v1_host_proto_msgTypes[111]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7158,7 +7251,7 @@ func (x *ConnectRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectRequest.ProtoReflect.Descriptor instead.
 func (*ConnectRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{110}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{111}
 }
 
 func (x *ConnectRequest) GetOfferSdp() string {
@@ -7184,7 +7277,7 @@ type ConnectResponse struct {
 
 func (x *ConnectResponse) Reset() {
 	*x = ConnectResponse{}
-	mi := &file_inaba_v1_host_proto_msgTypes[111]
+	mi := &file_inaba_v1_host_proto_msgTypes[112]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7196,7 +7289,7 @@ func (x *ConnectResponse) String() string {
 func (*ConnectResponse) ProtoMessage() {}
 
 func (x *ConnectResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[111]
+	mi := &file_inaba_v1_host_proto_msgTypes[112]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7209,7 +7302,7 @@ func (x *ConnectResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectResponse.ProtoReflect.Descriptor instead.
 func (*ConnectResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{111}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{112}
 }
 
 func (x *ConnectResponse) GetAnswerSdp() string {
@@ -7227,7 +7320,7 @@ type ListAcpAgentsRequest struct {
 
 func (x *ListAcpAgentsRequest) Reset() {
 	*x = ListAcpAgentsRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[112]
+	mi := &file_inaba_v1_host_proto_msgTypes[113]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7239,7 +7332,7 @@ func (x *ListAcpAgentsRequest) String() string {
 func (*ListAcpAgentsRequest) ProtoMessage() {}
 
 func (x *ListAcpAgentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[112]
+	mi := &file_inaba_v1_host_proto_msgTypes[113]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7252,7 +7345,7 @@ func (x *ListAcpAgentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAcpAgentsRequest.ProtoReflect.Descriptor instead.
 func (*ListAcpAgentsRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{112}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{113}
 }
 
 type ListAcpAgentsResponse struct {
@@ -7264,7 +7357,7 @@ type ListAcpAgentsResponse struct {
 
 func (x *ListAcpAgentsResponse) Reset() {
 	*x = ListAcpAgentsResponse{}
-	mi := &file_inaba_v1_host_proto_msgTypes[113]
+	mi := &file_inaba_v1_host_proto_msgTypes[114]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7276,7 +7369,7 @@ func (x *ListAcpAgentsResponse) String() string {
 func (*ListAcpAgentsResponse) ProtoMessage() {}
 
 func (x *ListAcpAgentsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[113]
+	mi := &file_inaba_v1_host_proto_msgTypes[114]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7289,7 +7382,7 @@ func (x *ListAcpAgentsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAcpAgentsResponse.ProtoReflect.Descriptor instead.
 func (*ListAcpAgentsResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{113}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{114}
 }
 
 func (x *ListAcpAgentsResponse) GetAgents() []*AcpAgent {
@@ -7318,7 +7411,7 @@ type AcpAgent struct {
 
 func (x *AcpAgent) Reset() {
 	*x = AcpAgent{}
-	mi := &file_inaba_v1_host_proto_msgTypes[114]
+	mi := &file_inaba_v1_host_proto_msgTypes[115]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7330,7 +7423,7 @@ func (x *AcpAgent) String() string {
 func (*AcpAgent) ProtoMessage() {}
 
 func (x *AcpAgent) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[114]
+	mi := &file_inaba_v1_host_proto_msgTypes[115]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7343,7 +7436,7 @@ func (x *AcpAgent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AcpAgent.ProtoReflect.Descriptor instead.
 func (*AcpAgent) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{114}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{115}
 }
 
 func (x *AcpAgent) GetId() string {
@@ -7434,7 +7527,7 @@ type ProviderConfig struct {
 
 func (x *ProviderConfig) Reset() {
 	*x = ProviderConfig{}
-	mi := &file_inaba_v1_host_proto_msgTypes[115]
+	mi := &file_inaba_v1_host_proto_msgTypes[116]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7446,7 +7539,7 @@ func (x *ProviderConfig) String() string {
 func (*ProviderConfig) ProtoMessage() {}
 
 func (x *ProviderConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[115]
+	mi := &file_inaba_v1_host_proto_msgTypes[116]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7459,7 +7552,7 @@ func (x *ProviderConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProviderConfig.ProtoReflect.Descriptor instead.
 func (*ProviderConfig) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{115}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{116}
 }
 
 func (x *ProviderConfig) GetId() string {
@@ -7562,7 +7655,7 @@ type ProviderStatus struct {
 
 func (x *ProviderStatus) Reset() {
 	*x = ProviderStatus{}
-	mi := &file_inaba_v1_host_proto_msgTypes[116]
+	mi := &file_inaba_v1_host_proto_msgTypes[117]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7574,7 +7667,7 @@ func (x *ProviderStatus) String() string {
 func (*ProviderStatus) ProtoMessage() {}
 
 func (x *ProviderStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[116]
+	mi := &file_inaba_v1_host_proto_msgTypes[117]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7587,7 +7680,7 @@ func (x *ProviderStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProviderStatus.ProtoReflect.Descriptor instead.
 func (*ProviderStatus) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{116}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{117}
 }
 
 func (x *ProviderStatus) GetOk() bool {
@@ -7633,7 +7726,7 @@ type CheckProvidersRequest struct {
 
 func (x *CheckProvidersRequest) Reset() {
 	*x = CheckProvidersRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[117]
+	mi := &file_inaba_v1_host_proto_msgTypes[118]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7645,7 +7738,7 @@ func (x *CheckProvidersRequest) String() string {
 func (*CheckProvidersRequest) ProtoMessage() {}
 
 func (x *CheckProvidersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[117]
+	mi := &file_inaba_v1_host_proto_msgTypes[118]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7658,7 +7751,7 @@ func (x *CheckProvidersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckProvidersRequest.ProtoReflect.Descriptor instead.
 func (*CheckProvidersRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{117}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{118}
 }
 
 type ListProviderConfigsRequest struct {
@@ -7669,7 +7762,7 @@ type ListProviderConfigsRequest struct {
 
 func (x *ListProviderConfigsRequest) Reset() {
 	*x = ListProviderConfigsRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[118]
+	mi := &file_inaba_v1_host_proto_msgTypes[119]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7681,7 +7774,7 @@ func (x *ListProviderConfigsRequest) String() string {
 func (*ListProviderConfigsRequest) ProtoMessage() {}
 
 func (x *ListProviderConfigsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[118]
+	mi := &file_inaba_v1_host_proto_msgTypes[119]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7694,7 +7787,7 @@ func (x *ListProviderConfigsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListProviderConfigsRequest.ProtoReflect.Descriptor instead.
 func (*ListProviderConfigsRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{118}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{119}
 }
 
 type ListProviderConfigsResponse struct {
@@ -7708,7 +7801,7 @@ type ListProviderConfigsResponse struct {
 
 func (x *ListProviderConfigsResponse) Reset() {
 	*x = ListProviderConfigsResponse{}
-	mi := &file_inaba_v1_host_proto_msgTypes[119]
+	mi := &file_inaba_v1_host_proto_msgTypes[120]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7720,7 +7813,7 @@ func (x *ListProviderConfigsResponse) String() string {
 func (*ListProviderConfigsResponse) ProtoMessage() {}
 
 func (x *ListProviderConfigsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[119]
+	mi := &file_inaba_v1_host_proto_msgTypes[120]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7733,7 +7826,7 @@ func (x *ListProviderConfigsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListProviderConfigsResponse.ProtoReflect.Descriptor instead.
 func (*ListProviderConfigsResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{119}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{120}
 }
 
 func (x *ListProviderConfigsResponse) GetConfigs() []*ProviderConfig {
@@ -7759,7 +7852,7 @@ type SaveProviderConfigRequest struct {
 
 func (x *SaveProviderConfigRequest) Reset() {
 	*x = SaveProviderConfigRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[120]
+	mi := &file_inaba_v1_host_proto_msgTypes[121]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7771,7 +7864,7 @@ func (x *SaveProviderConfigRequest) String() string {
 func (*SaveProviderConfigRequest) ProtoMessage() {}
 
 func (x *SaveProviderConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[120]
+	mi := &file_inaba_v1_host_proto_msgTypes[121]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7784,7 +7877,7 @@ func (x *SaveProviderConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveProviderConfigRequest.ProtoReflect.Descriptor instead.
 func (*SaveProviderConfigRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{120}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{121}
 }
 
 func (x *SaveProviderConfigRequest) GetConfig() *ProviderConfig {
@@ -7803,7 +7896,7 @@ type DeleteProviderConfigRequest struct {
 
 func (x *DeleteProviderConfigRequest) Reset() {
 	*x = DeleteProviderConfigRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[121]
+	mi := &file_inaba_v1_host_proto_msgTypes[122]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7815,7 +7908,7 @@ func (x *DeleteProviderConfigRequest) String() string {
 func (*DeleteProviderConfigRequest) ProtoMessage() {}
 
 func (x *DeleteProviderConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[121]
+	mi := &file_inaba_v1_host_proto_msgTypes[122]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7828,7 +7921,7 @@ func (x *DeleteProviderConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteProviderConfigRequest.ProtoReflect.Descriptor instead.
 func (*DeleteProviderConfigRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{121}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{122}
 }
 
 func (x *DeleteProviderConfigRequest) GetId() string {
@@ -7846,7 +7939,7 @@ type DeleteProviderConfigResponse struct {
 
 func (x *DeleteProviderConfigResponse) Reset() {
 	*x = DeleteProviderConfigResponse{}
-	mi := &file_inaba_v1_host_proto_msgTypes[122]
+	mi := &file_inaba_v1_host_proto_msgTypes[123]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7858,7 +7951,7 @@ func (x *DeleteProviderConfigResponse) String() string {
 func (*DeleteProviderConfigResponse) ProtoMessage() {}
 
 func (x *DeleteProviderConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[122]
+	mi := &file_inaba_v1_host_proto_msgTypes[123]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7871,7 +7964,7 @@ func (x *DeleteProviderConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteProviderConfigResponse.ProtoReflect.Descriptor instead.
 func (*DeleteProviderConfigResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{122}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{123}
 }
 
 type GetSystemInfoRequest struct {
@@ -7882,7 +7975,7 @@ type GetSystemInfoRequest struct {
 
 func (x *GetSystemInfoRequest) Reset() {
 	*x = GetSystemInfoRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[123]
+	mi := &file_inaba_v1_host_proto_msgTypes[124]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7894,7 +7987,7 @@ func (x *GetSystemInfoRequest) String() string {
 func (*GetSystemInfoRequest) ProtoMessage() {}
 
 func (x *GetSystemInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[123]
+	mi := &file_inaba_v1_host_proto_msgTypes[124]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7907,7 +8000,7 @@ func (x *GetSystemInfoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSystemInfoRequest.ProtoReflect.Descriptor instead.
 func (*GetSystemInfoRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{123}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{124}
 }
 
 type RestartHostRequest struct {
@@ -7918,7 +8011,7 @@ type RestartHostRequest struct {
 
 func (x *RestartHostRequest) Reset() {
 	*x = RestartHostRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[124]
+	mi := &file_inaba_v1_host_proto_msgTypes[125]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7930,7 +8023,7 @@ func (x *RestartHostRequest) String() string {
 func (*RestartHostRequest) ProtoMessage() {}
 
 func (x *RestartHostRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[124]
+	mi := &file_inaba_v1_host_proto_msgTypes[125]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7943,7 +8036,7 @@ func (x *RestartHostRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestartHostRequest.ProtoReflect.Descriptor instead.
 func (*RestartHostRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{124}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{125}
 }
 
 type RestartHostResponse struct {
@@ -7954,7 +8047,7 @@ type RestartHostResponse struct {
 
 func (x *RestartHostResponse) Reset() {
 	*x = RestartHostResponse{}
-	mi := &file_inaba_v1_host_proto_msgTypes[125]
+	mi := &file_inaba_v1_host_proto_msgTypes[126]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7966,7 +8059,7 @@ func (x *RestartHostResponse) String() string {
 func (*RestartHostResponse) ProtoMessage() {}
 
 func (x *RestartHostResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[125]
+	mi := &file_inaba_v1_host_proto_msgTypes[126]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7979,7 +8072,7 @@ func (x *RestartHostResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestartHostResponse.ProtoReflect.Descriptor instead.
 func (*RestartHostResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{125}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{126}
 }
 
 type UpgradeHostRequest struct {
@@ -7996,7 +8089,7 @@ type UpgradeHostRequest struct {
 
 func (x *UpgradeHostRequest) Reset() {
 	*x = UpgradeHostRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[126]
+	mi := &file_inaba_v1_host_proto_msgTypes[127]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8008,7 +8101,7 @@ func (x *UpgradeHostRequest) String() string {
 func (*UpgradeHostRequest) ProtoMessage() {}
 
 func (x *UpgradeHostRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[126]
+	mi := &file_inaba_v1_host_proto_msgTypes[127]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8021,7 +8114,7 @@ func (x *UpgradeHostRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpgradeHostRequest.ProtoReflect.Descriptor instead.
 func (*UpgradeHostRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{126}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{127}
 }
 
 func (x *UpgradeHostRequest) GetChannel() string {
@@ -8052,7 +8145,7 @@ type UpgradeHostResponse struct {
 
 func (x *UpgradeHostResponse) Reset() {
 	*x = UpgradeHostResponse{}
-	mi := &file_inaba_v1_host_proto_msgTypes[127]
+	mi := &file_inaba_v1_host_proto_msgTypes[128]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8064,7 +8157,7 @@ func (x *UpgradeHostResponse) String() string {
 func (*UpgradeHostResponse) ProtoMessage() {}
 
 func (x *UpgradeHostResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[127]
+	mi := &file_inaba_v1_host_proto_msgTypes[128]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8077,7 +8170,7 @@ func (x *UpgradeHostResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpgradeHostResponse.ProtoReflect.Descriptor instead.
 func (*UpgradeHostResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{127}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{128}
 }
 
 func (x *UpgradeHostResponse) GetFrom() string {
@@ -8139,7 +8232,7 @@ type SystemInfo struct {
 
 func (x *SystemInfo) Reset() {
 	*x = SystemInfo{}
-	mi := &file_inaba_v1_host_proto_msgTypes[128]
+	mi := &file_inaba_v1_host_proto_msgTypes[129]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8151,7 +8244,7 @@ func (x *SystemInfo) String() string {
 func (*SystemInfo) ProtoMessage() {}
 
 func (x *SystemInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[128]
+	mi := &file_inaba_v1_host_proto_msgTypes[129]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8164,7 +8257,7 @@ func (x *SystemInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SystemInfo.ProtoReflect.Descriptor instead.
 func (*SystemInfo) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{128}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{129}
 }
 
 func (x *SystemInfo) GetHostname() string {
@@ -8305,7 +8398,7 @@ type GetUsageSummaryRequest struct {
 
 func (x *GetUsageSummaryRequest) Reset() {
 	*x = GetUsageSummaryRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[129]
+	mi := &file_inaba_v1_host_proto_msgTypes[130]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8317,7 +8410,7 @@ func (x *GetUsageSummaryRequest) String() string {
 func (*GetUsageSummaryRequest) ProtoMessage() {}
 
 func (x *GetUsageSummaryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[129]
+	mi := &file_inaba_v1_host_proto_msgTypes[130]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8330,7 +8423,7 @@ func (x *GetUsageSummaryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUsageSummaryRequest.ProtoReflect.Descriptor instead.
 func (*GetUsageSummaryRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{129}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{130}
 }
 
 func (x *GetUsageSummaryRequest) GetFrom() *timestamppb.Timestamp {
@@ -8367,7 +8460,7 @@ type UsageTotals struct {
 
 func (x *UsageTotals) Reset() {
 	*x = UsageTotals{}
-	mi := &file_inaba_v1_host_proto_msgTypes[130]
+	mi := &file_inaba_v1_host_proto_msgTypes[131]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8379,7 +8472,7 @@ func (x *UsageTotals) String() string {
 func (*UsageTotals) ProtoMessage() {}
 
 func (x *UsageTotals) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[130]
+	mi := &file_inaba_v1_host_proto_msgTypes[131]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8392,7 +8485,7 @@ func (x *UsageTotals) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageTotals.ProtoReflect.Descriptor instead.
 func (*UsageTotals) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{130}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{131}
 }
 
 func (x *UsageTotals) GetCost() float64 {
@@ -8481,7 +8574,7 @@ type UsageSummary struct {
 
 func (x *UsageSummary) Reset() {
 	*x = UsageSummary{}
-	mi := &file_inaba_v1_host_proto_msgTypes[131]
+	mi := &file_inaba_v1_host_proto_msgTypes[132]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8493,7 +8586,7 @@ func (x *UsageSummary) String() string {
 func (*UsageSummary) ProtoMessage() {}
 
 func (x *UsageSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[131]
+	mi := &file_inaba_v1_host_proto_msgTypes[132]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8506,7 +8599,7 @@ func (x *UsageSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageSummary.ProtoReflect.Descriptor instead.
 func (*UsageSummary) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{131}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{132}
 }
 
 func (x *UsageSummary) GetFrom() *timestamppb.Timestamp {
@@ -8580,7 +8673,7 @@ type WatchAlertsRequest struct {
 
 func (x *WatchAlertsRequest) Reset() {
 	*x = WatchAlertsRequest{}
-	mi := &file_inaba_v1_host_proto_msgTypes[132]
+	mi := &file_inaba_v1_host_proto_msgTypes[133]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8592,7 +8685,7 @@ func (x *WatchAlertsRequest) String() string {
 func (*WatchAlertsRequest) ProtoMessage() {}
 
 func (x *WatchAlertsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[132]
+	mi := &file_inaba_v1_host_proto_msgTypes[133]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8605,7 +8698,7 @@ func (x *WatchAlertsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchAlertsRequest.ProtoReflect.Descriptor instead.
 func (*WatchAlertsRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{132}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{133}
 }
 
 type Alert struct {
@@ -8628,7 +8721,7 @@ type Alert struct {
 
 func (x *Alert) Reset() {
 	*x = Alert{}
-	mi := &file_inaba_v1_host_proto_msgTypes[133]
+	mi := &file_inaba_v1_host_proto_msgTypes[134]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8640,7 +8733,7 @@ func (x *Alert) String() string {
 func (*Alert) ProtoMessage() {}
 
 func (x *Alert) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[133]
+	mi := &file_inaba_v1_host_proto_msgTypes[134]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8653,7 +8746,7 @@ func (x *Alert) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Alert.ProtoReflect.Descriptor instead.
 func (*Alert) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{133}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{134}
 }
 
 func (x *Alert) GetEvent() string {
@@ -8725,7 +8818,7 @@ type SessionOption_Choice struct {
 
 func (x *SessionOption_Choice) Reset() {
 	*x = SessionOption_Choice{}
-	mi := &file_inaba_v1_host_proto_msgTypes[135]
+	mi := &file_inaba_v1_host_proto_msgTypes[136]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8737,7 +8830,7 @@ func (x *SessionOption_Choice) String() string {
 func (*SessionOption_Choice) ProtoMessage() {}
 
 func (x *SessionOption_Choice) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[135]
+	mi := &file_inaba_v1_host_proto_msgTypes[136]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8794,7 +8887,7 @@ type Plan_Entry struct {
 
 func (x *Plan_Entry) Reset() {
 	*x = Plan_Entry{}
-	mi := &file_inaba_v1_host_proto_msgTypes[137]
+	mi := &file_inaba_v1_host_proto_msgTypes[138]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8806,7 +8899,7 @@ func (x *Plan_Entry) String() string {
 func (*Plan_Entry) ProtoMessage() {}
 
 func (x *Plan_Entry) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[137]
+	mi := &file_inaba_v1_host_proto_msgTypes[138]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8855,7 +8948,7 @@ type PermissionRequest_Option struct {
 
 func (x *PermissionRequest_Option) Reset() {
 	*x = PermissionRequest_Option{}
-	mi := &file_inaba_v1_host_proto_msgTypes[138]
+	mi := &file_inaba_v1_host_proto_msgTypes[139]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8867,7 +8960,7 @@ func (x *PermissionRequest_Option) String() string {
 func (*PermissionRequest_Option) ProtoMessage() {}
 
 func (x *PermissionRequest_Option) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[138]
+	mi := &file_inaba_v1_host_proto_msgTypes[139]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8915,7 +9008,7 @@ type ListDirectoryResponse_Entry struct {
 
 func (x *ListDirectoryResponse_Entry) Reset() {
 	*x = ListDirectoryResponse_Entry{}
-	mi := &file_inaba_v1_host_proto_msgTypes[140]
+	mi := &file_inaba_v1_host_proto_msgTypes[141]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8927,7 +9020,7 @@ func (x *ListDirectoryResponse_Entry) String() string {
 func (*ListDirectoryResponse_Entry) ProtoMessage() {}
 
 func (x *ListDirectoryResponse_Entry) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[140]
+	mi := &file_inaba_v1_host_proto_msgTypes[141]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8940,7 +9033,7 @@ func (x *ListDirectoryResponse_Entry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDirectoryResponse_Entry.ProtoReflect.Descriptor instead.
 func (*ListDirectoryResponse_Entry) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{74, 0}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{75, 0}
 }
 
 func (x *ListDirectoryResponse_Entry) GetName() string {
@@ -8970,7 +9063,7 @@ type GitStatus_File struct {
 
 func (x *GitStatus_File) Reset() {
 	*x = GitStatus_File{}
-	mi := &file_inaba_v1_host_proto_msgTypes[141]
+	mi := &file_inaba_v1_host_proto_msgTypes[142]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8982,7 +9075,7 @@ func (x *GitStatus_File) String() string {
 func (*GitStatus_File) ProtoMessage() {}
 
 func (x *GitStatus_File) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[141]
+	mi := &file_inaba_v1_host_proto_msgTypes[142]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8995,7 +9088,7 @@ func (x *GitStatus_File) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitStatus_File.ProtoReflect.Descriptor instead.
 func (*GitStatus_File) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{87, 0}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{88, 0}
 }
 
 func (x *GitStatus_File) GetPath() string {
@@ -9043,7 +9136,7 @@ type Housekeeping_Worktree struct {
 
 func (x *Housekeeping_Worktree) Reset() {
 	*x = Housekeeping_Worktree{}
-	mi := &file_inaba_v1_host_proto_msgTypes[142]
+	mi := &file_inaba_v1_host_proto_msgTypes[143]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9055,7 +9148,7 @@ func (x *Housekeeping_Worktree) String() string {
 func (*Housekeeping_Worktree) ProtoMessage() {}
 
 func (x *Housekeeping_Worktree) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[142]
+	mi := &file_inaba_v1_host_proto_msgTypes[143]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9068,7 +9161,7 @@ func (x *Housekeeping_Worktree) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Housekeeping_Worktree.ProtoReflect.Descriptor instead.
 func (*Housekeeping_Worktree) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{99, 0}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{100, 0}
 }
 
 func (x *Housekeeping_Worktree) GetPath() string {
@@ -9119,7 +9212,7 @@ type Housekeeping_Snapshots struct {
 
 func (x *Housekeeping_Snapshots) Reset() {
 	*x = Housekeeping_Snapshots{}
-	mi := &file_inaba_v1_host_proto_msgTypes[143]
+	mi := &file_inaba_v1_host_proto_msgTypes[144]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9131,7 +9224,7 @@ func (x *Housekeeping_Snapshots) String() string {
 func (*Housekeeping_Snapshots) ProtoMessage() {}
 
 func (x *Housekeeping_Snapshots) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[143]
+	mi := &file_inaba_v1_host_proto_msgTypes[144]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9144,7 +9237,7 @@ func (x *Housekeeping_Snapshots) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Housekeeping_Snapshots.ProtoReflect.Descriptor instead.
 func (*Housekeeping_Snapshots) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{99, 1}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{100, 1}
 }
 
 func (x *Housekeeping_Snapshots) GetRepository() string {
@@ -9181,7 +9274,7 @@ type UsageSummary_Day struct {
 
 func (x *UsageSummary_Day) Reset() {
 	*x = UsageSummary_Day{}
-	mi := &file_inaba_v1_host_proto_msgTypes[146]
+	mi := &file_inaba_v1_host_proto_msgTypes[147]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9193,7 +9286,7 @@ func (x *UsageSummary_Day) String() string {
 func (*UsageSummary_Day) ProtoMessage() {}
 
 func (x *UsageSummary_Day) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[146]
+	mi := &file_inaba_v1_host_proto_msgTypes[147]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9206,7 +9299,7 @@ func (x *UsageSummary_Day) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageSummary_Day.ProtoReflect.Descriptor instead.
 func (*UsageSummary_Day) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{131, 0}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{132, 0}
 }
 
 func (x *UsageSummary_Day) GetDate() string {
@@ -9241,7 +9334,7 @@ type UsageSummary_Group struct {
 
 func (x *UsageSummary_Group) Reset() {
 	*x = UsageSummary_Group{}
-	mi := &file_inaba_v1_host_proto_msgTypes[147]
+	mi := &file_inaba_v1_host_proto_msgTypes[148]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9253,7 +9346,7 @@ func (x *UsageSummary_Group) String() string {
 func (*UsageSummary_Group) ProtoMessage() {}
 
 func (x *UsageSummary_Group) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[147]
+	mi := &file_inaba_v1_host_proto_msgTypes[148]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9266,7 +9359,7 @@ func (x *UsageSummary_Group) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageSummary_Group.ProtoReflect.Descriptor instead.
 func (*UsageSummary_Group) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{131, 1}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{132, 1}
 }
 
 func (x *UsageSummary_Group) GetId() string {
@@ -9297,7 +9390,7 @@ type UsageSummary_ThreadUsage struct {
 
 func (x *UsageSummary_ThreadUsage) Reset() {
 	*x = UsageSummary_ThreadUsage{}
-	mi := &file_inaba_v1_host_proto_msgTypes[148]
+	mi := &file_inaba_v1_host_proto_msgTypes[149]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9309,7 +9402,7 @@ func (x *UsageSummary_ThreadUsage) String() string {
 func (*UsageSummary_ThreadUsage) ProtoMessage() {}
 
 func (x *UsageSummary_ThreadUsage) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[148]
+	mi := &file_inaba_v1_host_proto_msgTypes[149]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9322,7 +9415,7 @@ func (x *UsageSummary_ThreadUsage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageSummary_ThreadUsage.ProtoReflect.Descriptor instead.
 func (*UsageSummary_ThreadUsage) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{131, 2}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{132, 2}
 }
 
 func (x *UsageSummary_ThreadUsage) GetThreadId() string {
@@ -9372,7 +9465,7 @@ type UsageSummary_ProviderLimits struct {
 
 func (x *UsageSummary_ProviderLimits) Reset() {
 	*x = UsageSummary_ProviderLimits{}
-	mi := &file_inaba_v1_host_proto_msgTypes[149]
+	mi := &file_inaba_v1_host_proto_msgTypes[150]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9384,7 +9477,7 @@ func (x *UsageSummary_ProviderLimits) String() string {
 func (*UsageSummary_ProviderLimits) ProtoMessage() {}
 
 func (x *UsageSummary_ProviderLimits) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_host_proto_msgTypes[149]
+	mi := &file_inaba_v1_host_proto_msgTypes[150]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9397,7 +9490,7 @@ func (x *UsageSummary_ProviderLimits) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageSummary_ProviderLimits.ProtoReflect.Descriptor instead.
 func (*UsageSummary_ProviderLimits) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_host_proto_rawDescGZIP(), []int{131, 3}
+	return file_inaba_v1_host_proto_rawDescGZIP(), []int{132, 3}
 }
 
 func (x *UsageSummary_ProviderLimits) GetProvider() string {
@@ -9512,11 +9605,12 @@ const file_inaba_v1_host_proto_rawDesc = "" +
 	"\x05value\x18\x01 \x01(\tR\x05value\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
 	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x14\n" +
-	"\x05group\x18\x04 \x01(\tR\x05group\"k\n" +
+	"\x05group\x18\x04 \x01(\tR\x05group\"\x83\x01\n" +
 	"\rQueuedMessage\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04text\x18\x02 \x01(\tR\x04text\x126\n" +
-	"\vattachments\x18\x03 \x03(\v2\x14.inaba.v1.AttachmentR\vattachments\"\xfe\x01\n" +
+	"\vattachments\x18\x03 \x03(\v2\x14.inaba.v1.AttachmentR\vattachments\x12\x16\n" +
+	"\x06resume\x18\x04 \x01(\bR\x06resume\"\xfe\x01\n" +
 	"\aProject\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x10\n" +
@@ -9572,10 +9666,11 @@ const file_inaba_v1_host_proto_rawDesc = "" +
 	"\tadditions\x18\x04 \x01(\rR\tadditions\x12\x1c\n" +
 	"\tdeletions\x18\x05 \x01(\rR\tdeletions\"C\n" +
 	"\x0eOptionsChanged\x121\n" +
-	"\aoptions\x18\x01 \x03(\v2\x17.inaba.v1.SessionOptionR\aoptions\"Y\n" +
+	"\aoptions\x18\x01 \x03(\v2\x17.inaba.v1.SessionOptionR\aoptions\"q\n" +
 	"\vUserMessage\x12\x12\n" +
 	"\x04text\x18\x01 \x01(\tR\x04text\x126\n" +
-	"\vattachments\x18\x02 \x03(\v2\x14.inaba.v1.AttachmentR\vattachments\"\x8d\x01\n" +
+	"\vattachments\x18\x02 \x03(\v2\x14.inaba.v1.AttachmentR\vattachments\x12\x16\n" +
+	"\x06resume\x18\x03 \x01(\bR\x06resume\"\x8d\x01\n" +
 	"\x04Plan\x12.\n" +
 	"\aentries\x18\x01 \x03(\v2\x14.inaba.v1.Plan.EntryR\aentries\x1aU\n" +
 	"\x05Entry\x12\x18\n" +
@@ -9735,11 +9830,16 @@ const file_inaba_v1_host_proto_rawDesc = "" +
 	"\x05value\x18\x03 \x01(\tR\x05value\"O\n" +
 	"\x13CancelQueuedRequest\x12\x1b\n" +
 	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12\x1b\n" +
-	"\tqueued_id\x18\x02 \x01(\tR\bqueuedId\"a\n" +
+	"\tqueued_id\x18\x02 \x01(\tR\bqueuedId\"\xa4\x01\n" +
 	"\x11EditQueuedRequest\x12\x1b\n" +
 	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12\x1b\n" +
 	"\tqueued_id\x18\x02 \x01(\tR\bqueuedId\x12\x12\n" +
-	"\x04text\x18\x03 \x01(\tR\x04text\"h\n" +
+	"\x04text\x18\x03 \x01(\tR\x04text\x12A\n" +
+	"\vattachments\x18\x04 \x01(\v2\x1f.inaba.v1.QueuedAttachmentsEditR\vattachments\"g\n" +
+	"\x15QueuedAttachmentsEdit\x12\x12\n" +
+	"\x04keep\x18\x01 \x03(\rR\x04keep\x12&\n" +
+	"\x03add\x18\x02 \x03(\v2\x14.inaba.v1.AttachmentR\x03add\x12\x12\n" +
+	"\x04seen\x18\x03 \x03(\tR\x04seen\"h\n" +
 	"\x11MoveQueuedRequest\x12\x1b\n" +
 	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12\x1b\n" +
 	"\tqueued_id\x18\x02 \x01(\tR\bqueuedId\x12\x19\n" +
@@ -10207,7 +10307,7 @@ func file_inaba_v1_host_proto_rawDescGZIP() []byte {
 }
 
 var file_inaba_v1_host_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_inaba_v1_host_proto_msgTypes = make([]protoimpl.MessageInfo, 150)
+var file_inaba_v1_host_proto_msgTypes = make([]protoimpl.MessageInfo, 151)
 var file_inaba_v1_host_proto_goTypes = []any{
 	(ThreadMode)(0),                      // 0: inaba.v1.ThreadMode
 	(ThreadStatus)(0),                    // 1: inaba.v1.ThreadStatus
@@ -10268,122 +10368,123 @@ var file_inaba_v1_host_proto_goTypes = []any{
 	(*SetOptionRequest)(nil),             // 56: inaba.v1.SetOptionRequest
 	(*CancelQueuedRequest)(nil),          // 57: inaba.v1.CancelQueuedRequest
 	(*EditQueuedRequest)(nil),            // 58: inaba.v1.EditQueuedRequest
-	(*MoveQueuedRequest)(nil),            // 59: inaba.v1.MoveQueuedRequest
-	(*SendQueuedNowRequest)(nil),         // 60: inaba.v1.SendQueuedNowRequest
-	(*ResumeQueueRequest)(nil),           // 61: inaba.v1.ResumeQueueRequest
-	(*InterruptRequest)(nil),             // 62: inaba.v1.InterruptRequest
-	(*InterruptResponse)(nil),            // 63: inaba.v1.InterruptResponse
-	(*RespondRequest)(nil),               // 64: inaba.v1.RespondRequest
-	(*RespondResponse)(nil),              // 65: inaba.v1.RespondResponse
-	(*SetModeRequest)(nil),               // 66: inaba.v1.SetModeRequest
-	(*RawRequest)(nil),                   // 67: inaba.v1.RawRequest
-	(*RawResponse)(nil),                  // 68: inaba.v1.RawResponse
-	(*ListEventsRequest)(nil),            // 69: inaba.v1.ListEventsRequest
-	(*ListEventsResponse)(nil),           // 70: inaba.v1.ListEventsResponse
-	(*GetAttachmentRequest)(nil),         // 71: inaba.v1.GetAttachmentRequest
-	(*SubscribeRequest)(nil),             // 72: inaba.v1.SubscribeRequest
-	(*CreateProjectRequest)(nil),         // 73: inaba.v1.CreateProjectRequest
-	(*ListProjectsRequest)(nil),          // 74: inaba.v1.ListProjectsRequest
-	(*ListProjectsResponse)(nil),         // 75: inaba.v1.ListProjectsResponse
-	(*ListDirectoryRequest)(nil),         // 76: inaba.v1.ListDirectoryRequest
-	(*ListDirectoryResponse)(nil),        // 77: inaba.v1.ListDirectoryResponse
-	(*UpdateProjectRequest)(nil),         // 78: inaba.v1.UpdateProjectRequest
-	(*DeleteProjectRequest)(nil),         // 79: inaba.v1.DeleteProjectRequest
-	(*DeleteProjectResponse)(nil),        // 80: inaba.v1.DeleteProjectResponse
-	(*ListBranchesRequest)(nil),          // 81: inaba.v1.ListBranchesRequest
-	(*ListBranchesResponse)(nil),         // 82: inaba.v1.ListBranchesResponse
-	(*GitCheckoutRequest)(nil),           // 83: inaba.v1.GitCheckoutRequest
-	(*GitRestoreRequest)(nil),            // 84: inaba.v1.GitRestoreRequest
-	(*GitRestoreResponse)(nil),           // 85: inaba.v1.GitRestoreResponse
-	(*GitPushRequest)(nil),               // 86: inaba.v1.GitPushRequest
-	(*GitFetchRequest)(nil),              // 87: inaba.v1.GitFetchRequest
-	(*GitPullBranchRequest)(nil),         // 88: inaba.v1.GitPullBranchRequest
-	(*GetGitStatusRequest)(nil),          // 89: inaba.v1.GetGitStatusRequest
-	(*GitStatus)(nil),                    // 90: inaba.v1.GitStatus
-	(*GetGitDiffRequest)(nil),            // 91: inaba.v1.GetGitDiffRequest
-	(*GetGitDiffResponse)(nil),           // 92: inaba.v1.GetGitDiffResponse
-	(*GitCommitRequest)(nil),             // 93: inaba.v1.GitCommitRequest
-	(*GitPullRequestRequest)(nil),        // 94: inaba.v1.GitPullRequestRequest
-	(*GitPullRequestResponse)(nil),       // 95: inaba.v1.GitPullRequestResponse
-	(*GitCommitResponse)(nil),            // 96: inaba.v1.GitCommitResponse
-	(*Module)(nil),                       // 97: inaba.v1.Module
-	(*ListModulesRequest)(nil),           // 98: inaba.v1.ListModulesRequest
-	(*ListModulesResponse)(nil),          // 99: inaba.v1.ListModulesResponse
-	(*SetModuleRequest)(nil),             // 100: inaba.v1.SetModuleRequest
-	(*GetHousekeepingRequest)(nil),       // 101: inaba.v1.GetHousekeepingRequest
-	(*Housekeeping)(nil),                 // 102: inaba.v1.Housekeeping
-	(*CleanUpRequest)(nil),               // 103: inaba.v1.CleanUpRequest
-	(*GetArchivePolicyRequest)(nil),      // 104: inaba.v1.GetArchivePolicyRequest
-	(*ArchivePolicy)(nil),                // 105: inaba.v1.ArchivePolicy
-	(*CleanUpResponse)(nil),              // 106: inaba.v1.CleanUpResponse
-	(*AttachRequest)(nil),                // 107: inaba.v1.AttachRequest
-	(*TerminalOutput)(nil),               // 108: inaba.v1.TerminalOutput
-	(*WriteRequest)(nil),                 // 109: inaba.v1.WriteRequest
-	(*WriteResponse)(nil),                // 110: inaba.v1.WriteResponse
-	(*ResizeRequest)(nil),                // 111: inaba.v1.ResizeRequest
-	(*ResizeResponse)(nil),               // 112: inaba.v1.ResizeResponse
-	(*ConnectRequest)(nil),               // 113: inaba.v1.ConnectRequest
-	(*ConnectResponse)(nil),              // 114: inaba.v1.ConnectResponse
-	(*ListAcpAgentsRequest)(nil),         // 115: inaba.v1.ListAcpAgentsRequest
-	(*ListAcpAgentsResponse)(nil),        // 116: inaba.v1.ListAcpAgentsResponse
-	(*AcpAgent)(nil),                     // 117: inaba.v1.AcpAgent
-	(*ProviderConfig)(nil),               // 118: inaba.v1.ProviderConfig
-	(*ProviderStatus)(nil),               // 119: inaba.v1.ProviderStatus
-	(*CheckProvidersRequest)(nil),        // 120: inaba.v1.CheckProvidersRequest
-	(*ListProviderConfigsRequest)(nil),   // 121: inaba.v1.ListProviderConfigsRequest
-	(*ListProviderConfigsResponse)(nil),  // 122: inaba.v1.ListProviderConfigsResponse
-	(*SaveProviderConfigRequest)(nil),    // 123: inaba.v1.SaveProviderConfigRequest
-	(*DeleteProviderConfigRequest)(nil),  // 124: inaba.v1.DeleteProviderConfigRequest
-	(*DeleteProviderConfigResponse)(nil), // 125: inaba.v1.DeleteProviderConfigResponse
-	(*GetSystemInfoRequest)(nil),         // 126: inaba.v1.GetSystemInfoRequest
-	(*RestartHostRequest)(nil),           // 127: inaba.v1.RestartHostRequest
-	(*RestartHostResponse)(nil),          // 128: inaba.v1.RestartHostResponse
-	(*UpgradeHostRequest)(nil),           // 129: inaba.v1.UpgradeHostRequest
-	(*UpgradeHostResponse)(nil),          // 130: inaba.v1.UpgradeHostResponse
-	(*SystemInfo)(nil),                   // 131: inaba.v1.SystemInfo
-	(*GetUsageSummaryRequest)(nil),       // 132: inaba.v1.GetUsageSummaryRequest
-	(*UsageTotals)(nil),                  // 133: inaba.v1.UsageTotals
-	(*UsageSummary)(nil),                 // 134: inaba.v1.UsageSummary
-	(*WatchAlertsRequest)(nil),           // 135: inaba.v1.WatchAlertsRequest
-	(*Alert)(nil),                        // 136: inaba.v1.Alert
-	nil,                                  // 137: inaba.v1.Thread.LabelsEntry
-	(*SessionOption_Choice)(nil),         // 138: inaba.v1.SessionOption.Choice
-	nil,                                  // 139: inaba.v1.NewThreadDefaults.OptionsEntry
-	(*Plan_Entry)(nil),                   // 140: inaba.v1.Plan.Entry
-	(*PermissionRequest_Option)(nil),     // 141: inaba.v1.PermissionRequest.Option
-	nil,                                  // 142: inaba.v1.CreateThreadRequest.OptionsEntry
-	(*ListDirectoryResponse_Entry)(nil),  // 143: inaba.v1.ListDirectoryResponse.Entry
-	(*GitStatus_File)(nil),               // 144: inaba.v1.GitStatus.File
-	(*Housekeeping_Worktree)(nil),        // 145: inaba.v1.Housekeeping.Worktree
-	(*Housekeeping_Snapshots)(nil),       // 146: inaba.v1.Housekeeping.Snapshots
-	nil,                                  // 147: inaba.v1.AcpAgent.EnvEntry
-	nil,                                  // 148: inaba.v1.ProviderConfig.EnvEntry
-	(*UsageSummary_Day)(nil),             // 149: inaba.v1.UsageSummary.Day
-	(*UsageSummary_Group)(nil),           // 150: inaba.v1.UsageSummary.Group
-	(*UsageSummary_ThreadUsage)(nil),     // 151: inaba.v1.UsageSummary.ThreadUsage
-	(*UsageSummary_ProviderLimits)(nil),  // 152: inaba.v1.UsageSummary.ProviderLimits
-	(*timestamppb.Timestamp)(nil),        // 153: google.protobuf.Timestamp
-	(*structpb.Value)(nil),               // 154: google.protobuf.Value
+	(*QueuedAttachmentsEdit)(nil),        // 59: inaba.v1.QueuedAttachmentsEdit
+	(*MoveQueuedRequest)(nil),            // 60: inaba.v1.MoveQueuedRequest
+	(*SendQueuedNowRequest)(nil),         // 61: inaba.v1.SendQueuedNowRequest
+	(*ResumeQueueRequest)(nil),           // 62: inaba.v1.ResumeQueueRequest
+	(*InterruptRequest)(nil),             // 63: inaba.v1.InterruptRequest
+	(*InterruptResponse)(nil),            // 64: inaba.v1.InterruptResponse
+	(*RespondRequest)(nil),               // 65: inaba.v1.RespondRequest
+	(*RespondResponse)(nil),              // 66: inaba.v1.RespondResponse
+	(*SetModeRequest)(nil),               // 67: inaba.v1.SetModeRequest
+	(*RawRequest)(nil),                   // 68: inaba.v1.RawRequest
+	(*RawResponse)(nil),                  // 69: inaba.v1.RawResponse
+	(*ListEventsRequest)(nil),            // 70: inaba.v1.ListEventsRequest
+	(*ListEventsResponse)(nil),           // 71: inaba.v1.ListEventsResponse
+	(*GetAttachmentRequest)(nil),         // 72: inaba.v1.GetAttachmentRequest
+	(*SubscribeRequest)(nil),             // 73: inaba.v1.SubscribeRequest
+	(*CreateProjectRequest)(nil),         // 74: inaba.v1.CreateProjectRequest
+	(*ListProjectsRequest)(nil),          // 75: inaba.v1.ListProjectsRequest
+	(*ListProjectsResponse)(nil),         // 76: inaba.v1.ListProjectsResponse
+	(*ListDirectoryRequest)(nil),         // 77: inaba.v1.ListDirectoryRequest
+	(*ListDirectoryResponse)(nil),        // 78: inaba.v1.ListDirectoryResponse
+	(*UpdateProjectRequest)(nil),         // 79: inaba.v1.UpdateProjectRequest
+	(*DeleteProjectRequest)(nil),         // 80: inaba.v1.DeleteProjectRequest
+	(*DeleteProjectResponse)(nil),        // 81: inaba.v1.DeleteProjectResponse
+	(*ListBranchesRequest)(nil),          // 82: inaba.v1.ListBranchesRequest
+	(*ListBranchesResponse)(nil),         // 83: inaba.v1.ListBranchesResponse
+	(*GitCheckoutRequest)(nil),           // 84: inaba.v1.GitCheckoutRequest
+	(*GitRestoreRequest)(nil),            // 85: inaba.v1.GitRestoreRequest
+	(*GitRestoreResponse)(nil),           // 86: inaba.v1.GitRestoreResponse
+	(*GitPushRequest)(nil),               // 87: inaba.v1.GitPushRequest
+	(*GitFetchRequest)(nil),              // 88: inaba.v1.GitFetchRequest
+	(*GitPullBranchRequest)(nil),         // 89: inaba.v1.GitPullBranchRequest
+	(*GetGitStatusRequest)(nil),          // 90: inaba.v1.GetGitStatusRequest
+	(*GitStatus)(nil),                    // 91: inaba.v1.GitStatus
+	(*GetGitDiffRequest)(nil),            // 92: inaba.v1.GetGitDiffRequest
+	(*GetGitDiffResponse)(nil),           // 93: inaba.v1.GetGitDiffResponse
+	(*GitCommitRequest)(nil),             // 94: inaba.v1.GitCommitRequest
+	(*GitPullRequestRequest)(nil),        // 95: inaba.v1.GitPullRequestRequest
+	(*GitPullRequestResponse)(nil),       // 96: inaba.v1.GitPullRequestResponse
+	(*GitCommitResponse)(nil),            // 97: inaba.v1.GitCommitResponse
+	(*Module)(nil),                       // 98: inaba.v1.Module
+	(*ListModulesRequest)(nil),           // 99: inaba.v1.ListModulesRequest
+	(*ListModulesResponse)(nil),          // 100: inaba.v1.ListModulesResponse
+	(*SetModuleRequest)(nil),             // 101: inaba.v1.SetModuleRequest
+	(*GetHousekeepingRequest)(nil),       // 102: inaba.v1.GetHousekeepingRequest
+	(*Housekeeping)(nil),                 // 103: inaba.v1.Housekeeping
+	(*CleanUpRequest)(nil),               // 104: inaba.v1.CleanUpRequest
+	(*GetArchivePolicyRequest)(nil),      // 105: inaba.v1.GetArchivePolicyRequest
+	(*ArchivePolicy)(nil),                // 106: inaba.v1.ArchivePolicy
+	(*CleanUpResponse)(nil),              // 107: inaba.v1.CleanUpResponse
+	(*AttachRequest)(nil),                // 108: inaba.v1.AttachRequest
+	(*TerminalOutput)(nil),               // 109: inaba.v1.TerminalOutput
+	(*WriteRequest)(nil),                 // 110: inaba.v1.WriteRequest
+	(*WriteResponse)(nil),                // 111: inaba.v1.WriteResponse
+	(*ResizeRequest)(nil),                // 112: inaba.v1.ResizeRequest
+	(*ResizeResponse)(nil),               // 113: inaba.v1.ResizeResponse
+	(*ConnectRequest)(nil),               // 114: inaba.v1.ConnectRequest
+	(*ConnectResponse)(nil),              // 115: inaba.v1.ConnectResponse
+	(*ListAcpAgentsRequest)(nil),         // 116: inaba.v1.ListAcpAgentsRequest
+	(*ListAcpAgentsResponse)(nil),        // 117: inaba.v1.ListAcpAgentsResponse
+	(*AcpAgent)(nil),                     // 118: inaba.v1.AcpAgent
+	(*ProviderConfig)(nil),               // 119: inaba.v1.ProviderConfig
+	(*ProviderStatus)(nil),               // 120: inaba.v1.ProviderStatus
+	(*CheckProvidersRequest)(nil),        // 121: inaba.v1.CheckProvidersRequest
+	(*ListProviderConfigsRequest)(nil),   // 122: inaba.v1.ListProviderConfigsRequest
+	(*ListProviderConfigsResponse)(nil),  // 123: inaba.v1.ListProviderConfigsResponse
+	(*SaveProviderConfigRequest)(nil),    // 124: inaba.v1.SaveProviderConfigRequest
+	(*DeleteProviderConfigRequest)(nil),  // 125: inaba.v1.DeleteProviderConfigRequest
+	(*DeleteProviderConfigResponse)(nil), // 126: inaba.v1.DeleteProviderConfigResponse
+	(*GetSystemInfoRequest)(nil),         // 127: inaba.v1.GetSystemInfoRequest
+	(*RestartHostRequest)(nil),           // 128: inaba.v1.RestartHostRequest
+	(*RestartHostResponse)(nil),          // 129: inaba.v1.RestartHostResponse
+	(*UpgradeHostRequest)(nil),           // 130: inaba.v1.UpgradeHostRequest
+	(*UpgradeHostResponse)(nil),          // 131: inaba.v1.UpgradeHostResponse
+	(*SystemInfo)(nil),                   // 132: inaba.v1.SystemInfo
+	(*GetUsageSummaryRequest)(nil),       // 133: inaba.v1.GetUsageSummaryRequest
+	(*UsageTotals)(nil),                  // 134: inaba.v1.UsageTotals
+	(*UsageSummary)(nil),                 // 135: inaba.v1.UsageSummary
+	(*WatchAlertsRequest)(nil),           // 136: inaba.v1.WatchAlertsRequest
+	(*Alert)(nil),                        // 137: inaba.v1.Alert
+	nil,                                  // 138: inaba.v1.Thread.LabelsEntry
+	(*SessionOption_Choice)(nil),         // 139: inaba.v1.SessionOption.Choice
+	nil,                                  // 140: inaba.v1.NewThreadDefaults.OptionsEntry
+	(*Plan_Entry)(nil),                   // 141: inaba.v1.Plan.Entry
+	(*PermissionRequest_Option)(nil),     // 142: inaba.v1.PermissionRequest.Option
+	nil,                                  // 143: inaba.v1.CreateThreadRequest.OptionsEntry
+	(*ListDirectoryResponse_Entry)(nil),  // 144: inaba.v1.ListDirectoryResponse.Entry
+	(*GitStatus_File)(nil),               // 145: inaba.v1.GitStatus.File
+	(*Housekeeping_Worktree)(nil),        // 146: inaba.v1.Housekeeping.Worktree
+	(*Housekeeping_Snapshots)(nil),       // 147: inaba.v1.Housekeeping.Snapshots
+	nil,                                  // 148: inaba.v1.AcpAgent.EnvEntry
+	nil,                                  // 149: inaba.v1.ProviderConfig.EnvEntry
+	(*UsageSummary_Day)(nil),             // 150: inaba.v1.UsageSummary.Day
+	(*UsageSummary_Group)(nil),           // 151: inaba.v1.UsageSummary.Group
+	(*UsageSummary_ThreadUsage)(nil),     // 152: inaba.v1.UsageSummary.ThreadUsage
+	(*UsageSummary_ProviderLimits)(nil),  // 153: inaba.v1.UsageSummary.ProviderLimits
+	(*timestamppb.Timestamp)(nil),        // 154: google.protobuf.Timestamp
+	(*structpb.Value)(nil),               // 155: google.protobuf.Value
 }
 var file_inaba_v1_host_proto_depIdxs = []int32{
 	10,  // 0: inaba.v1.Provider.options:type_name -> inaba.v1.SessionOption
 	0,   // 1: inaba.v1.Thread.mode:type_name -> inaba.v1.ThreadMode
 	1,   // 2: inaba.v1.Thread.status:type_name -> inaba.v1.ThreadStatus
-	153, // 3: inaba.v1.Thread.created_at:type_name -> google.protobuf.Timestamp
-	153, // 4: inaba.v1.Thread.updated_at:type_name -> google.protobuf.Timestamp
+	154, // 3: inaba.v1.Thread.created_at:type_name -> google.protobuf.Timestamp
+	154, // 4: inaba.v1.Thread.updated_at:type_name -> google.protobuf.Timestamp
 	11,  // 5: inaba.v1.Thread.queue:type_name -> inaba.v1.QueuedMessage
 	10,  // 6: inaba.v1.Thread.options:type_name -> inaba.v1.SessionOption
 	5,   // 7: inaba.v1.Thread.commands:type_name -> inaba.v1.Command
 	6,   // 8: inaba.v1.Thread.usage:type_name -> inaba.v1.Usage
-	137, // 9: inaba.v1.Thread.labels:type_name -> inaba.v1.Thread.LabelsEntry
+	138, // 9: inaba.v1.Thread.labels:type_name -> inaba.v1.Thread.LabelsEntry
 	7,   // 10: inaba.v1.Usage.limits:type_name -> inaba.v1.UsageLimit
-	153, // 11: inaba.v1.UsageLimit.resets_at:type_name -> google.protobuf.Timestamp
-	138, // 12: inaba.v1.SessionOption.choices:type_name -> inaba.v1.SessionOption.Choice
+	154, // 11: inaba.v1.UsageLimit.resets_at:type_name -> google.protobuf.Timestamp
+	139, // 12: inaba.v1.SessionOption.choices:type_name -> inaba.v1.SessionOption.Choice
 	9,   // 13: inaba.v1.QueuedMessage.attachments:type_name -> inaba.v1.Attachment
-	153, // 14: inaba.v1.Project.created_at:type_name -> google.protobuf.Timestamp
+	154, // 14: inaba.v1.Project.created_at:type_name -> google.protobuf.Timestamp
 	13,  // 15: inaba.v1.Project.new_thread:type_name -> inaba.v1.NewThreadDefaults
-	139, // 16: inaba.v1.NewThreadDefaults.options:type_name -> inaba.v1.NewThreadDefaults.OptionsEntry
-	153, // 17: inaba.v1.Event.time:type_name -> google.protobuf.Timestamp
+	140, // 16: inaba.v1.NewThreadDefaults.options:type_name -> inaba.v1.NewThreadDefaults.OptionsEntry
+	154, // 17: inaba.v1.Event.time:type_name -> google.protobuf.Timestamp
 	19,  // 18: inaba.v1.Event.user_message:type_name -> inaba.v1.UserMessage
 	24,  // 19: inaba.v1.Event.text_delta:type_name -> inaba.v1.TextDelta
 	25,  // 20: inaba.v1.Event.tool_call:type_name -> inaba.v1.ToolCall
@@ -10404,197 +10505,199 @@ var file_inaba_v1_host_proto_depIdxs = []int32{
 	47,  // 35: inaba.v1.Event.provider_changed:type_name -> inaba.v1.ProviderChanged
 	10,  // 36: inaba.v1.OptionsChanged.options:type_name -> inaba.v1.SessionOption
 	9,   // 37: inaba.v1.UserMessage.attachments:type_name -> inaba.v1.Attachment
-	140, // 38: inaba.v1.Plan.entries:type_name -> inaba.v1.Plan.Entry
+	141, // 38: inaba.v1.Plan.entries:type_name -> inaba.v1.Plan.Entry
 	5,   // 39: inaba.v1.CommandsChanged.commands:type_name -> inaba.v1.Command
 	6,   // 40: inaba.v1.UsageChanged.usage:type_name -> inaba.v1.Usage
 	2,   // 41: inaba.v1.TextDelta.kind:type_name -> inaba.v1.TextDelta.Kind
-	154, // 42: inaba.v1.ToolCall.raw:type_name -> google.protobuf.Value
+	155, // 42: inaba.v1.ToolCall.raw:type_name -> google.protobuf.Value
 	26,  // 43: inaba.v1.ToolCall.agents:type_name -> inaba.v1.WorkflowAgent
-	153, // 44: inaba.v1.WorkflowAgent.started_at:type_name -> google.protobuf.Timestamp
-	153, // 45: inaba.v1.WorkflowAgent.ended_at:type_name -> google.protobuf.Timestamp
+	154, // 44: inaba.v1.WorkflowAgent.started_at:type_name -> google.protobuf.Timestamp
+	154, // 45: inaba.v1.WorkflowAgent.ended_at:type_name -> google.protobuf.Timestamp
 	27,  // 46: inaba.v1.GetWorkflowAgentResponse.steps:type_name -> inaba.v1.WorkflowStep
-	141, // 47: inaba.v1.PermissionRequest.options:type_name -> inaba.v1.PermissionRequest.Option
-	154, // 48: inaba.v1.PermissionRequest.raw:type_name -> google.protobuf.Value
+	142, // 47: inaba.v1.PermissionRequest.options:type_name -> inaba.v1.PermissionRequest.Option
+	155, // 48: inaba.v1.PermissionRequest.raw:type_name -> google.protobuf.Value
 	8,   // 49: inaba.v1.TurnEnded.usage:type_name -> inaba.v1.TurnUsage
 	0,   // 50: inaba.v1.ModeChanged.mode:type_name -> inaba.v1.ThreadMode
-	154, // 51: inaba.v1.RawEvent.params:type_name -> google.protobuf.Value
+	155, // 51: inaba.v1.RawEvent.params:type_name -> google.protobuf.Value
 	3,   // 52: inaba.v1.ListProvidersResponse.providers:type_name -> inaba.v1.Provider
 	0,   // 53: inaba.v1.CreateThreadRequest.mode:type_name -> inaba.v1.ThreadMode
-	142, // 54: inaba.v1.CreateThreadRequest.options:type_name -> inaba.v1.CreateThreadRequest.OptionsEntry
+	143, // 54: inaba.v1.CreateThreadRequest.options:type_name -> inaba.v1.CreateThreadRequest.OptionsEntry
 	39,  // 55: inaba.v1.CreateThreadRequest.worktree:type_name -> inaba.v1.Worktree
 	4,   // 56: inaba.v1.ListThreadsResponse.threads:type_name -> inaba.v1.Thread
 	45,  // 57: inaba.v1.SearchThreadsResponse.hits:type_name -> inaba.v1.SearchHit
-	153, // 58: inaba.v1.SearchHit.time:type_name -> google.protobuf.Timestamp
+	154, // 58: inaba.v1.SearchHit.time:type_name -> google.protobuf.Timestamp
 	9,   // 59: inaba.v1.StartTurnRequest.attachments:type_name -> inaba.v1.Attachment
 	4,   // 60: inaba.v1.RewindResponse.thread:type_name -> inaba.v1.Thread
 	19,  // 61: inaba.v1.RewindResponse.message:type_name -> inaba.v1.UserMessage
-	0,   // 62: inaba.v1.SetModeRequest.mode:type_name -> inaba.v1.ThreadMode
-	154, // 63: inaba.v1.RawRequest.params:type_name -> google.protobuf.Value
-	154, // 64: inaba.v1.RawResponse.result:type_name -> google.protobuf.Value
-	14,  // 65: inaba.v1.ListEventsResponse.events:type_name -> inaba.v1.Event
-	12,  // 66: inaba.v1.ListProjectsResponse.projects:type_name -> inaba.v1.Project
-	143, // 67: inaba.v1.ListDirectoryResponse.entries:type_name -> inaba.v1.ListDirectoryResponse.Entry
-	13,  // 68: inaba.v1.UpdateProjectRequest.new_thread:type_name -> inaba.v1.NewThreadDefaults
-	90,  // 69: inaba.v1.GitRestoreResponse.status:type_name -> inaba.v1.GitStatus
-	144, // 70: inaba.v1.GitStatus.files:type_name -> inaba.v1.GitStatus.File
-	90,  // 71: inaba.v1.GitPullRequestResponse.status:type_name -> inaba.v1.GitStatus
-	90,  // 72: inaba.v1.GitCommitResponse.status:type_name -> inaba.v1.GitStatus
-	97,  // 73: inaba.v1.ListModulesResponse.modules:type_name -> inaba.v1.Module
-	145, // 74: inaba.v1.Housekeeping.worktrees:type_name -> inaba.v1.Housekeeping.Worktree
-	146, // 75: inaba.v1.Housekeeping.snapshots:type_name -> inaba.v1.Housekeeping.Snapshots
-	102, // 76: inaba.v1.CleanUpResponse.housekeeping:type_name -> inaba.v1.Housekeeping
-	117, // 77: inaba.v1.ListAcpAgentsResponse.agents:type_name -> inaba.v1.AcpAgent
-	147, // 78: inaba.v1.AcpAgent.env:type_name -> inaba.v1.AcpAgent.EnvEntry
-	148, // 79: inaba.v1.ProviderConfig.env:type_name -> inaba.v1.ProviderConfig.EnvEntry
-	119, // 80: inaba.v1.ProviderConfig.status:type_name -> inaba.v1.ProviderStatus
-	138, // 81: inaba.v1.ProviderConfig.models:type_name -> inaba.v1.SessionOption.Choice
-	153, // 82: inaba.v1.ProviderStatus.checked_at:type_name -> google.protobuf.Timestamp
-	118, // 83: inaba.v1.ListProviderConfigsResponse.configs:type_name -> inaba.v1.ProviderConfig
-	118, // 84: inaba.v1.SaveProviderConfigRequest.config:type_name -> inaba.v1.ProviderConfig
-	153, // 85: inaba.v1.GetUsageSummaryRequest.from:type_name -> google.protobuf.Timestamp
-	153, // 86: inaba.v1.GetUsageSummaryRequest.to:type_name -> google.protobuf.Timestamp
-	153, // 87: inaba.v1.UsageSummary.from:type_name -> google.protobuf.Timestamp
-	153, // 88: inaba.v1.UsageSummary.to:type_name -> google.protobuf.Timestamp
-	133, // 89: inaba.v1.UsageSummary.totals:type_name -> inaba.v1.UsageTotals
-	149, // 90: inaba.v1.UsageSummary.days:type_name -> inaba.v1.UsageSummary.Day
-	150, // 91: inaba.v1.UsageSummary.providers:type_name -> inaba.v1.UsageSummary.Group
-	150, // 92: inaba.v1.UsageSummary.projects:type_name -> inaba.v1.UsageSummary.Group
-	151, // 93: inaba.v1.UsageSummary.top_threads:type_name -> inaba.v1.UsageSummary.ThreadUsage
-	152, // 94: inaba.v1.UsageSummary.limits:type_name -> inaba.v1.UsageSummary.ProviderLimits
-	153, // 95: inaba.v1.Alert.at:type_name -> google.protobuf.Timestamp
-	133, // 96: inaba.v1.UsageSummary.Day.totals:type_name -> inaba.v1.UsageTotals
-	150, // 97: inaba.v1.UsageSummary.Day.providers:type_name -> inaba.v1.UsageSummary.Group
-	133, // 98: inaba.v1.UsageSummary.Group.totals:type_name -> inaba.v1.UsageTotals
-	133, // 99: inaba.v1.UsageSummary.ThreadUsage.totals:type_name -> inaba.v1.UsageTotals
-	7,   // 100: inaba.v1.UsageSummary.ProviderLimits.limits:type_name -> inaba.v1.UsageLimit
-	153, // 101: inaba.v1.UsageSummary.ProviderLimits.reported_at:type_name -> google.protobuf.Timestamp
-	36,  // 102: inaba.v1.ThreadService.ListProviders:input_type -> inaba.v1.ListProvidersRequest
-	38,  // 103: inaba.v1.ThreadService.CreateThread:input_type -> inaba.v1.CreateThreadRequest
-	40,  // 104: inaba.v1.ThreadService.ListThreads:input_type -> inaba.v1.ListThreadsRequest
-	43,  // 105: inaba.v1.ThreadService.SearchThreads:input_type -> inaba.v1.SearchThreadsRequest
-	42,  // 106: inaba.v1.ThreadService.GetThread:input_type -> inaba.v1.GetThreadRequest
-	46,  // 107: inaba.v1.ThreadService.UpdateThread:input_type -> inaba.v1.UpdateThreadRequest
-	48,  // 108: inaba.v1.ThreadService.DeleteThread:input_type -> inaba.v1.DeleteThreadRequest
-	50,  // 109: inaba.v1.ThreadService.StartTurn:input_type -> inaba.v1.StartTurnRequest
-	62,  // 110: inaba.v1.ThreadService.Interrupt:input_type -> inaba.v1.InterruptRequest
-	56,  // 111: inaba.v1.ThreadService.SetOption:input_type -> inaba.v1.SetOptionRequest
-	57,  // 112: inaba.v1.ThreadService.CancelQueued:input_type -> inaba.v1.CancelQueuedRequest
-	58,  // 113: inaba.v1.ThreadService.EditQueued:input_type -> inaba.v1.EditQueuedRequest
-	59,  // 114: inaba.v1.ThreadService.MoveQueued:input_type -> inaba.v1.MoveQueuedRequest
-	60,  // 115: inaba.v1.ThreadService.SendQueuedNow:input_type -> inaba.v1.SendQueuedNowRequest
-	61,  // 116: inaba.v1.ThreadService.ResumeQueue:input_type -> inaba.v1.ResumeQueueRequest
-	64,  // 117: inaba.v1.ThreadService.Respond:input_type -> inaba.v1.RespondRequest
-	66,  // 118: inaba.v1.ThreadService.SetMode:input_type -> inaba.v1.SetModeRequest
-	67,  // 119: inaba.v1.ThreadService.Raw:input_type -> inaba.v1.RawRequest
-	51,  // 120: inaba.v1.ThreadService.Rewind:input_type -> inaba.v1.RewindRequest
-	53,  // 121: inaba.v1.ThreadService.SetLayout:input_type -> inaba.v1.SetLayoutRequest
-	54,  // 122: inaba.v1.ThreadService.ForkThread:input_type -> inaba.v1.ForkThreadRequest
-	69,  // 123: inaba.v1.ThreadService.ListEvents:input_type -> inaba.v1.ListEventsRequest
-	71,  // 124: inaba.v1.ThreadService.GetAttachment:input_type -> inaba.v1.GetAttachmentRequest
-	28,  // 125: inaba.v1.ThreadService.GetWorkflowAgent:input_type -> inaba.v1.GetWorkflowAgentRequest
-	28,  // 126: inaba.v1.ThreadService.WatchWorkflowAgent:input_type -> inaba.v1.GetWorkflowAgentRequest
-	72,  // 127: inaba.v1.ThreadService.Subscribe:input_type -> inaba.v1.SubscribeRequest
-	73,  // 128: inaba.v1.ProjectService.CreateProject:input_type -> inaba.v1.CreateProjectRequest
-	78,  // 129: inaba.v1.ProjectService.UpdateProject:input_type -> inaba.v1.UpdateProjectRequest
-	74,  // 130: inaba.v1.ProjectService.ListProjects:input_type -> inaba.v1.ListProjectsRequest
-	76,  // 131: inaba.v1.ProjectService.ListDirectory:input_type -> inaba.v1.ListDirectoryRequest
-	79,  // 132: inaba.v1.ProjectService.DeleteProject:input_type -> inaba.v1.DeleteProjectRequest
-	89,  // 133: inaba.v1.GitService.GetStatus:input_type -> inaba.v1.GetGitStatusRequest
-	91,  // 134: inaba.v1.GitService.GetDiff:input_type -> inaba.v1.GetGitDiffRequest
-	81,  // 135: inaba.v1.GitService.ListBranches:input_type -> inaba.v1.ListBranchesRequest
-	83,  // 136: inaba.v1.GitService.Checkout:input_type -> inaba.v1.GitCheckoutRequest
-	84,  // 137: inaba.v1.GitService.Restore:input_type -> inaba.v1.GitRestoreRequest
-	86,  // 138: inaba.v1.GitService.Push:input_type -> inaba.v1.GitPushRequest
-	87,  // 139: inaba.v1.GitService.Fetch:input_type -> inaba.v1.GitFetchRequest
-	88,  // 140: inaba.v1.GitService.Pull:input_type -> inaba.v1.GitPullBranchRequest
-	94,  // 141: inaba.v1.GitService.CreatePullRequest:input_type -> inaba.v1.GitPullRequestRequest
-	93,  // 142: inaba.v1.GitService.Commit:input_type -> inaba.v1.GitCommitRequest
-	98,  // 143: inaba.v1.ModuleService.ListModules:input_type -> inaba.v1.ListModulesRequest
-	100, // 144: inaba.v1.ModuleService.SetModule:input_type -> inaba.v1.SetModuleRequest
-	101, // 145: inaba.v1.HousekeepingService.GetHousekeeping:input_type -> inaba.v1.GetHousekeepingRequest
-	104, // 146: inaba.v1.HousekeepingService.GetArchivePolicy:input_type -> inaba.v1.GetArchivePolicyRequest
-	105, // 147: inaba.v1.HousekeepingService.SetArchivePolicy:input_type -> inaba.v1.ArchivePolicy
-	103, // 148: inaba.v1.HousekeepingService.CleanUp:input_type -> inaba.v1.CleanUpRequest
-	107, // 149: inaba.v1.TerminalService.Attach:input_type -> inaba.v1.AttachRequest
-	109, // 150: inaba.v1.TerminalService.Write:input_type -> inaba.v1.WriteRequest
-	111, // 151: inaba.v1.TerminalService.Resize:input_type -> inaba.v1.ResizeRequest
-	113, // 152: inaba.v1.PeerService.Connect:input_type -> inaba.v1.ConnectRequest
-	121, // 153: inaba.v1.ProviderConfigService.ListProviderConfigs:input_type -> inaba.v1.ListProviderConfigsRequest
-	123, // 154: inaba.v1.ProviderConfigService.SaveProviderConfig:input_type -> inaba.v1.SaveProviderConfigRequest
-	124, // 155: inaba.v1.ProviderConfigService.DeleteProviderConfig:input_type -> inaba.v1.DeleteProviderConfigRequest
-	120, // 156: inaba.v1.ProviderConfigService.CheckProviders:input_type -> inaba.v1.CheckProvidersRequest
-	115, // 157: inaba.v1.ProviderConfigService.ListAcpAgents:input_type -> inaba.v1.ListAcpAgentsRequest
-	126, // 158: inaba.v1.SystemService.GetSystemInfo:input_type -> inaba.v1.GetSystemInfoRequest
-	127, // 159: inaba.v1.SystemService.RestartHost:input_type -> inaba.v1.RestartHostRequest
-	129, // 160: inaba.v1.SystemService.UpgradeHost:input_type -> inaba.v1.UpgradeHostRequest
-	132, // 161: inaba.v1.UsageService.GetUsageSummary:input_type -> inaba.v1.GetUsageSummaryRequest
-	135, // 162: inaba.v1.AlertService.WatchAlerts:input_type -> inaba.v1.WatchAlertsRequest
-	37,  // 163: inaba.v1.ThreadService.ListProviders:output_type -> inaba.v1.ListProvidersResponse
-	4,   // 164: inaba.v1.ThreadService.CreateThread:output_type -> inaba.v1.Thread
-	41,  // 165: inaba.v1.ThreadService.ListThreads:output_type -> inaba.v1.ListThreadsResponse
-	44,  // 166: inaba.v1.ThreadService.SearchThreads:output_type -> inaba.v1.SearchThreadsResponse
-	4,   // 167: inaba.v1.ThreadService.GetThread:output_type -> inaba.v1.Thread
-	4,   // 168: inaba.v1.ThreadService.UpdateThread:output_type -> inaba.v1.Thread
-	49,  // 169: inaba.v1.ThreadService.DeleteThread:output_type -> inaba.v1.DeleteThreadResponse
-	55,  // 170: inaba.v1.ThreadService.StartTurn:output_type -> inaba.v1.StartTurnResponse
-	63,  // 171: inaba.v1.ThreadService.Interrupt:output_type -> inaba.v1.InterruptResponse
-	4,   // 172: inaba.v1.ThreadService.SetOption:output_type -> inaba.v1.Thread
-	4,   // 173: inaba.v1.ThreadService.CancelQueued:output_type -> inaba.v1.Thread
-	4,   // 174: inaba.v1.ThreadService.EditQueued:output_type -> inaba.v1.Thread
-	4,   // 175: inaba.v1.ThreadService.MoveQueued:output_type -> inaba.v1.Thread
-	4,   // 176: inaba.v1.ThreadService.SendQueuedNow:output_type -> inaba.v1.Thread
-	4,   // 177: inaba.v1.ThreadService.ResumeQueue:output_type -> inaba.v1.Thread
-	65,  // 178: inaba.v1.ThreadService.Respond:output_type -> inaba.v1.RespondResponse
-	4,   // 179: inaba.v1.ThreadService.SetMode:output_type -> inaba.v1.Thread
-	68,  // 180: inaba.v1.ThreadService.Raw:output_type -> inaba.v1.RawResponse
-	52,  // 181: inaba.v1.ThreadService.Rewind:output_type -> inaba.v1.RewindResponse
-	4,   // 182: inaba.v1.ThreadService.SetLayout:output_type -> inaba.v1.Thread
-	4,   // 183: inaba.v1.ThreadService.ForkThread:output_type -> inaba.v1.Thread
-	70,  // 184: inaba.v1.ThreadService.ListEvents:output_type -> inaba.v1.ListEventsResponse
-	9,   // 185: inaba.v1.ThreadService.GetAttachment:output_type -> inaba.v1.Attachment
-	29,  // 186: inaba.v1.ThreadService.GetWorkflowAgent:output_type -> inaba.v1.GetWorkflowAgentResponse
-	29,  // 187: inaba.v1.ThreadService.WatchWorkflowAgent:output_type -> inaba.v1.GetWorkflowAgentResponse
-	14,  // 188: inaba.v1.ThreadService.Subscribe:output_type -> inaba.v1.Event
-	12,  // 189: inaba.v1.ProjectService.CreateProject:output_type -> inaba.v1.Project
-	12,  // 190: inaba.v1.ProjectService.UpdateProject:output_type -> inaba.v1.Project
-	75,  // 191: inaba.v1.ProjectService.ListProjects:output_type -> inaba.v1.ListProjectsResponse
-	77,  // 192: inaba.v1.ProjectService.ListDirectory:output_type -> inaba.v1.ListDirectoryResponse
-	80,  // 193: inaba.v1.ProjectService.DeleteProject:output_type -> inaba.v1.DeleteProjectResponse
-	90,  // 194: inaba.v1.GitService.GetStatus:output_type -> inaba.v1.GitStatus
-	92,  // 195: inaba.v1.GitService.GetDiff:output_type -> inaba.v1.GetGitDiffResponse
-	82,  // 196: inaba.v1.GitService.ListBranches:output_type -> inaba.v1.ListBranchesResponse
-	90,  // 197: inaba.v1.GitService.Checkout:output_type -> inaba.v1.GitStatus
-	85,  // 198: inaba.v1.GitService.Restore:output_type -> inaba.v1.GitRestoreResponse
-	96,  // 199: inaba.v1.GitService.Push:output_type -> inaba.v1.GitCommitResponse
-	96,  // 200: inaba.v1.GitService.Fetch:output_type -> inaba.v1.GitCommitResponse
-	96,  // 201: inaba.v1.GitService.Pull:output_type -> inaba.v1.GitCommitResponse
-	95,  // 202: inaba.v1.GitService.CreatePullRequest:output_type -> inaba.v1.GitPullRequestResponse
-	96,  // 203: inaba.v1.GitService.Commit:output_type -> inaba.v1.GitCommitResponse
-	99,  // 204: inaba.v1.ModuleService.ListModules:output_type -> inaba.v1.ListModulesResponse
-	97,  // 205: inaba.v1.ModuleService.SetModule:output_type -> inaba.v1.Module
-	102, // 206: inaba.v1.HousekeepingService.GetHousekeeping:output_type -> inaba.v1.Housekeeping
-	105, // 207: inaba.v1.HousekeepingService.GetArchivePolicy:output_type -> inaba.v1.ArchivePolicy
-	105, // 208: inaba.v1.HousekeepingService.SetArchivePolicy:output_type -> inaba.v1.ArchivePolicy
-	106, // 209: inaba.v1.HousekeepingService.CleanUp:output_type -> inaba.v1.CleanUpResponse
-	108, // 210: inaba.v1.TerminalService.Attach:output_type -> inaba.v1.TerminalOutput
-	110, // 211: inaba.v1.TerminalService.Write:output_type -> inaba.v1.WriteResponse
-	112, // 212: inaba.v1.TerminalService.Resize:output_type -> inaba.v1.ResizeResponse
-	114, // 213: inaba.v1.PeerService.Connect:output_type -> inaba.v1.ConnectResponse
-	122, // 214: inaba.v1.ProviderConfigService.ListProviderConfigs:output_type -> inaba.v1.ListProviderConfigsResponse
-	118, // 215: inaba.v1.ProviderConfigService.SaveProviderConfig:output_type -> inaba.v1.ProviderConfig
-	125, // 216: inaba.v1.ProviderConfigService.DeleteProviderConfig:output_type -> inaba.v1.DeleteProviderConfigResponse
-	122, // 217: inaba.v1.ProviderConfigService.CheckProviders:output_type -> inaba.v1.ListProviderConfigsResponse
-	116, // 218: inaba.v1.ProviderConfigService.ListAcpAgents:output_type -> inaba.v1.ListAcpAgentsResponse
-	131, // 219: inaba.v1.SystemService.GetSystemInfo:output_type -> inaba.v1.SystemInfo
-	128, // 220: inaba.v1.SystemService.RestartHost:output_type -> inaba.v1.RestartHostResponse
-	130, // 221: inaba.v1.SystemService.UpgradeHost:output_type -> inaba.v1.UpgradeHostResponse
-	134, // 222: inaba.v1.UsageService.GetUsageSummary:output_type -> inaba.v1.UsageSummary
-	136, // 223: inaba.v1.AlertService.WatchAlerts:output_type -> inaba.v1.Alert
-	163, // [163:224] is the sub-list for method output_type
-	102, // [102:163] is the sub-list for method input_type
-	102, // [102:102] is the sub-list for extension type_name
-	102, // [102:102] is the sub-list for extension extendee
-	0,   // [0:102] is the sub-list for field type_name
+	59,  // 62: inaba.v1.EditQueuedRequest.attachments:type_name -> inaba.v1.QueuedAttachmentsEdit
+	9,   // 63: inaba.v1.QueuedAttachmentsEdit.add:type_name -> inaba.v1.Attachment
+	0,   // 64: inaba.v1.SetModeRequest.mode:type_name -> inaba.v1.ThreadMode
+	155, // 65: inaba.v1.RawRequest.params:type_name -> google.protobuf.Value
+	155, // 66: inaba.v1.RawResponse.result:type_name -> google.protobuf.Value
+	14,  // 67: inaba.v1.ListEventsResponse.events:type_name -> inaba.v1.Event
+	12,  // 68: inaba.v1.ListProjectsResponse.projects:type_name -> inaba.v1.Project
+	144, // 69: inaba.v1.ListDirectoryResponse.entries:type_name -> inaba.v1.ListDirectoryResponse.Entry
+	13,  // 70: inaba.v1.UpdateProjectRequest.new_thread:type_name -> inaba.v1.NewThreadDefaults
+	91,  // 71: inaba.v1.GitRestoreResponse.status:type_name -> inaba.v1.GitStatus
+	145, // 72: inaba.v1.GitStatus.files:type_name -> inaba.v1.GitStatus.File
+	91,  // 73: inaba.v1.GitPullRequestResponse.status:type_name -> inaba.v1.GitStatus
+	91,  // 74: inaba.v1.GitCommitResponse.status:type_name -> inaba.v1.GitStatus
+	98,  // 75: inaba.v1.ListModulesResponse.modules:type_name -> inaba.v1.Module
+	146, // 76: inaba.v1.Housekeeping.worktrees:type_name -> inaba.v1.Housekeeping.Worktree
+	147, // 77: inaba.v1.Housekeeping.snapshots:type_name -> inaba.v1.Housekeeping.Snapshots
+	103, // 78: inaba.v1.CleanUpResponse.housekeeping:type_name -> inaba.v1.Housekeeping
+	118, // 79: inaba.v1.ListAcpAgentsResponse.agents:type_name -> inaba.v1.AcpAgent
+	148, // 80: inaba.v1.AcpAgent.env:type_name -> inaba.v1.AcpAgent.EnvEntry
+	149, // 81: inaba.v1.ProviderConfig.env:type_name -> inaba.v1.ProviderConfig.EnvEntry
+	120, // 82: inaba.v1.ProviderConfig.status:type_name -> inaba.v1.ProviderStatus
+	139, // 83: inaba.v1.ProviderConfig.models:type_name -> inaba.v1.SessionOption.Choice
+	154, // 84: inaba.v1.ProviderStatus.checked_at:type_name -> google.protobuf.Timestamp
+	119, // 85: inaba.v1.ListProviderConfigsResponse.configs:type_name -> inaba.v1.ProviderConfig
+	119, // 86: inaba.v1.SaveProviderConfigRequest.config:type_name -> inaba.v1.ProviderConfig
+	154, // 87: inaba.v1.GetUsageSummaryRequest.from:type_name -> google.protobuf.Timestamp
+	154, // 88: inaba.v1.GetUsageSummaryRequest.to:type_name -> google.protobuf.Timestamp
+	154, // 89: inaba.v1.UsageSummary.from:type_name -> google.protobuf.Timestamp
+	154, // 90: inaba.v1.UsageSummary.to:type_name -> google.protobuf.Timestamp
+	134, // 91: inaba.v1.UsageSummary.totals:type_name -> inaba.v1.UsageTotals
+	150, // 92: inaba.v1.UsageSummary.days:type_name -> inaba.v1.UsageSummary.Day
+	151, // 93: inaba.v1.UsageSummary.providers:type_name -> inaba.v1.UsageSummary.Group
+	151, // 94: inaba.v1.UsageSummary.projects:type_name -> inaba.v1.UsageSummary.Group
+	152, // 95: inaba.v1.UsageSummary.top_threads:type_name -> inaba.v1.UsageSummary.ThreadUsage
+	153, // 96: inaba.v1.UsageSummary.limits:type_name -> inaba.v1.UsageSummary.ProviderLimits
+	154, // 97: inaba.v1.Alert.at:type_name -> google.protobuf.Timestamp
+	134, // 98: inaba.v1.UsageSummary.Day.totals:type_name -> inaba.v1.UsageTotals
+	151, // 99: inaba.v1.UsageSummary.Day.providers:type_name -> inaba.v1.UsageSummary.Group
+	134, // 100: inaba.v1.UsageSummary.Group.totals:type_name -> inaba.v1.UsageTotals
+	134, // 101: inaba.v1.UsageSummary.ThreadUsage.totals:type_name -> inaba.v1.UsageTotals
+	7,   // 102: inaba.v1.UsageSummary.ProviderLimits.limits:type_name -> inaba.v1.UsageLimit
+	154, // 103: inaba.v1.UsageSummary.ProviderLimits.reported_at:type_name -> google.protobuf.Timestamp
+	36,  // 104: inaba.v1.ThreadService.ListProviders:input_type -> inaba.v1.ListProvidersRequest
+	38,  // 105: inaba.v1.ThreadService.CreateThread:input_type -> inaba.v1.CreateThreadRequest
+	40,  // 106: inaba.v1.ThreadService.ListThreads:input_type -> inaba.v1.ListThreadsRequest
+	43,  // 107: inaba.v1.ThreadService.SearchThreads:input_type -> inaba.v1.SearchThreadsRequest
+	42,  // 108: inaba.v1.ThreadService.GetThread:input_type -> inaba.v1.GetThreadRequest
+	46,  // 109: inaba.v1.ThreadService.UpdateThread:input_type -> inaba.v1.UpdateThreadRequest
+	48,  // 110: inaba.v1.ThreadService.DeleteThread:input_type -> inaba.v1.DeleteThreadRequest
+	50,  // 111: inaba.v1.ThreadService.StartTurn:input_type -> inaba.v1.StartTurnRequest
+	63,  // 112: inaba.v1.ThreadService.Interrupt:input_type -> inaba.v1.InterruptRequest
+	56,  // 113: inaba.v1.ThreadService.SetOption:input_type -> inaba.v1.SetOptionRequest
+	57,  // 114: inaba.v1.ThreadService.CancelQueued:input_type -> inaba.v1.CancelQueuedRequest
+	58,  // 115: inaba.v1.ThreadService.EditQueued:input_type -> inaba.v1.EditQueuedRequest
+	60,  // 116: inaba.v1.ThreadService.MoveQueued:input_type -> inaba.v1.MoveQueuedRequest
+	61,  // 117: inaba.v1.ThreadService.SendQueuedNow:input_type -> inaba.v1.SendQueuedNowRequest
+	62,  // 118: inaba.v1.ThreadService.ResumeQueue:input_type -> inaba.v1.ResumeQueueRequest
+	65,  // 119: inaba.v1.ThreadService.Respond:input_type -> inaba.v1.RespondRequest
+	67,  // 120: inaba.v1.ThreadService.SetMode:input_type -> inaba.v1.SetModeRequest
+	68,  // 121: inaba.v1.ThreadService.Raw:input_type -> inaba.v1.RawRequest
+	51,  // 122: inaba.v1.ThreadService.Rewind:input_type -> inaba.v1.RewindRequest
+	53,  // 123: inaba.v1.ThreadService.SetLayout:input_type -> inaba.v1.SetLayoutRequest
+	54,  // 124: inaba.v1.ThreadService.ForkThread:input_type -> inaba.v1.ForkThreadRequest
+	70,  // 125: inaba.v1.ThreadService.ListEvents:input_type -> inaba.v1.ListEventsRequest
+	72,  // 126: inaba.v1.ThreadService.GetAttachment:input_type -> inaba.v1.GetAttachmentRequest
+	28,  // 127: inaba.v1.ThreadService.GetWorkflowAgent:input_type -> inaba.v1.GetWorkflowAgentRequest
+	28,  // 128: inaba.v1.ThreadService.WatchWorkflowAgent:input_type -> inaba.v1.GetWorkflowAgentRequest
+	73,  // 129: inaba.v1.ThreadService.Subscribe:input_type -> inaba.v1.SubscribeRequest
+	74,  // 130: inaba.v1.ProjectService.CreateProject:input_type -> inaba.v1.CreateProjectRequest
+	79,  // 131: inaba.v1.ProjectService.UpdateProject:input_type -> inaba.v1.UpdateProjectRequest
+	75,  // 132: inaba.v1.ProjectService.ListProjects:input_type -> inaba.v1.ListProjectsRequest
+	77,  // 133: inaba.v1.ProjectService.ListDirectory:input_type -> inaba.v1.ListDirectoryRequest
+	80,  // 134: inaba.v1.ProjectService.DeleteProject:input_type -> inaba.v1.DeleteProjectRequest
+	90,  // 135: inaba.v1.GitService.GetStatus:input_type -> inaba.v1.GetGitStatusRequest
+	92,  // 136: inaba.v1.GitService.GetDiff:input_type -> inaba.v1.GetGitDiffRequest
+	82,  // 137: inaba.v1.GitService.ListBranches:input_type -> inaba.v1.ListBranchesRequest
+	84,  // 138: inaba.v1.GitService.Checkout:input_type -> inaba.v1.GitCheckoutRequest
+	85,  // 139: inaba.v1.GitService.Restore:input_type -> inaba.v1.GitRestoreRequest
+	87,  // 140: inaba.v1.GitService.Push:input_type -> inaba.v1.GitPushRequest
+	88,  // 141: inaba.v1.GitService.Fetch:input_type -> inaba.v1.GitFetchRequest
+	89,  // 142: inaba.v1.GitService.Pull:input_type -> inaba.v1.GitPullBranchRequest
+	95,  // 143: inaba.v1.GitService.CreatePullRequest:input_type -> inaba.v1.GitPullRequestRequest
+	94,  // 144: inaba.v1.GitService.Commit:input_type -> inaba.v1.GitCommitRequest
+	99,  // 145: inaba.v1.ModuleService.ListModules:input_type -> inaba.v1.ListModulesRequest
+	101, // 146: inaba.v1.ModuleService.SetModule:input_type -> inaba.v1.SetModuleRequest
+	102, // 147: inaba.v1.HousekeepingService.GetHousekeeping:input_type -> inaba.v1.GetHousekeepingRequest
+	105, // 148: inaba.v1.HousekeepingService.GetArchivePolicy:input_type -> inaba.v1.GetArchivePolicyRequest
+	106, // 149: inaba.v1.HousekeepingService.SetArchivePolicy:input_type -> inaba.v1.ArchivePolicy
+	104, // 150: inaba.v1.HousekeepingService.CleanUp:input_type -> inaba.v1.CleanUpRequest
+	108, // 151: inaba.v1.TerminalService.Attach:input_type -> inaba.v1.AttachRequest
+	110, // 152: inaba.v1.TerminalService.Write:input_type -> inaba.v1.WriteRequest
+	112, // 153: inaba.v1.TerminalService.Resize:input_type -> inaba.v1.ResizeRequest
+	114, // 154: inaba.v1.PeerService.Connect:input_type -> inaba.v1.ConnectRequest
+	122, // 155: inaba.v1.ProviderConfigService.ListProviderConfigs:input_type -> inaba.v1.ListProviderConfigsRequest
+	124, // 156: inaba.v1.ProviderConfigService.SaveProviderConfig:input_type -> inaba.v1.SaveProviderConfigRequest
+	125, // 157: inaba.v1.ProviderConfigService.DeleteProviderConfig:input_type -> inaba.v1.DeleteProviderConfigRequest
+	121, // 158: inaba.v1.ProviderConfigService.CheckProviders:input_type -> inaba.v1.CheckProvidersRequest
+	116, // 159: inaba.v1.ProviderConfigService.ListAcpAgents:input_type -> inaba.v1.ListAcpAgentsRequest
+	127, // 160: inaba.v1.SystemService.GetSystemInfo:input_type -> inaba.v1.GetSystemInfoRequest
+	128, // 161: inaba.v1.SystemService.RestartHost:input_type -> inaba.v1.RestartHostRequest
+	130, // 162: inaba.v1.SystemService.UpgradeHost:input_type -> inaba.v1.UpgradeHostRequest
+	133, // 163: inaba.v1.UsageService.GetUsageSummary:input_type -> inaba.v1.GetUsageSummaryRequest
+	136, // 164: inaba.v1.AlertService.WatchAlerts:input_type -> inaba.v1.WatchAlertsRequest
+	37,  // 165: inaba.v1.ThreadService.ListProviders:output_type -> inaba.v1.ListProvidersResponse
+	4,   // 166: inaba.v1.ThreadService.CreateThread:output_type -> inaba.v1.Thread
+	41,  // 167: inaba.v1.ThreadService.ListThreads:output_type -> inaba.v1.ListThreadsResponse
+	44,  // 168: inaba.v1.ThreadService.SearchThreads:output_type -> inaba.v1.SearchThreadsResponse
+	4,   // 169: inaba.v1.ThreadService.GetThread:output_type -> inaba.v1.Thread
+	4,   // 170: inaba.v1.ThreadService.UpdateThread:output_type -> inaba.v1.Thread
+	49,  // 171: inaba.v1.ThreadService.DeleteThread:output_type -> inaba.v1.DeleteThreadResponse
+	55,  // 172: inaba.v1.ThreadService.StartTurn:output_type -> inaba.v1.StartTurnResponse
+	64,  // 173: inaba.v1.ThreadService.Interrupt:output_type -> inaba.v1.InterruptResponse
+	4,   // 174: inaba.v1.ThreadService.SetOption:output_type -> inaba.v1.Thread
+	4,   // 175: inaba.v1.ThreadService.CancelQueued:output_type -> inaba.v1.Thread
+	4,   // 176: inaba.v1.ThreadService.EditQueued:output_type -> inaba.v1.Thread
+	4,   // 177: inaba.v1.ThreadService.MoveQueued:output_type -> inaba.v1.Thread
+	4,   // 178: inaba.v1.ThreadService.SendQueuedNow:output_type -> inaba.v1.Thread
+	4,   // 179: inaba.v1.ThreadService.ResumeQueue:output_type -> inaba.v1.Thread
+	66,  // 180: inaba.v1.ThreadService.Respond:output_type -> inaba.v1.RespondResponse
+	4,   // 181: inaba.v1.ThreadService.SetMode:output_type -> inaba.v1.Thread
+	69,  // 182: inaba.v1.ThreadService.Raw:output_type -> inaba.v1.RawResponse
+	52,  // 183: inaba.v1.ThreadService.Rewind:output_type -> inaba.v1.RewindResponse
+	4,   // 184: inaba.v1.ThreadService.SetLayout:output_type -> inaba.v1.Thread
+	4,   // 185: inaba.v1.ThreadService.ForkThread:output_type -> inaba.v1.Thread
+	71,  // 186: inaba.v1.ThreadService.ListEvents:output_type -> inaba.v1.ListEventsResponse
+	9,   // 187: inaba.v1.ThreadService.GetAttachment:output_type -> inaba.v1.Attachment
+	29,  // 188: inaba.v1.ThreadService.GetWorkflowAgent:output_type -> inaba.v1.GetWorkflowAgentResponse
+	29,  // 189: inaba.v1.ThreadService.WatchWorkflowAgent:output_type -> inaba.v1.GetWorkflowAgentResponse
+	14,  // 190: inaba.v1.ThreadService.Subscribe:output_type -> inaba.v1.Event
+	12,  // 191: inaba.v1.ProjectService.CreateProject:output_type -> inaba.v1.Project
+	12,  // 192: inaba.v1.ProjectService.UpdateProject:output_type -> inaba.v1.Project
+	76,  // 193: inaba.v1.ProjectService.ListProjects:output_type -> inaba.v1.ListProjectsResponse
+	78,  // 194: inaba.v1.ProjectService.ListDirectory:output_type -> inaba.v1.ListDirectoryResponse
+	81,  // 195: inaba.v1.ProjectService.DeleteProject:output_type -> inaba.v1.DeleteProjectResponse
+	91,  // 196: inaba.v1.GitService.GetStatus:output_type -> inaba.v1.GitStatus
+	93,  // 197: inaba.v1.GitService.GetDiff:output_type -> inaba.v1.GetGitDiffResponse
+	83,  // 198: inaba.v1.GitService.ListBranches:output_type -> inaba.v1.ListBranchesResponse
+	91,  // 199: inaba.v1.GitService.Checkout:output_type -> inaba.v1.GitStatus
+	86,  // 200: inaba.v1.GitService.Restore:output_type -> inaba.v1.GitRestoreResponse
+	97,  // 201: inaba.v1.GitService.Push:output_type -> inaba.v1.GitCommitResponse
+	97,  // 202: inaba.v1.GitService.Fetch:output_type -> inaba.v1.GitCommitResponse
+	97,  // 203: inaba.v1.GitService.Pull:output_type -> inaba.v1.GitCommitResponse
+	96,  // 204: inaba.v1.GitService.CreatePullRequest:output_type -> inaba.v1.GitPullRequestResponse
+	97,  // 205: inaba.v1.GitService.Commit:output_type -> inaba.v1.GitCommitResponse
+	100, // 206: inaba.v1.ModuleService.ListModules:output_type -> inaba.v1.ListModulesResponse
+	98,  // 207: inaba.v1.ModuleService.SetModule:output_type -> inaba.v1.Module
+	103, // 208: inaba.v1.HousekeepingService.GetHousekeeping:output_type -> inaba.v1.Housekeeping
+	106, // 209: inaba.v1.HousekeepingService.GetArchivePolicy:output_type -> inaba.v1.ArchivePolicy
+	106, // 210: inaba.v1.HousekeepingService.SetArchivePolicy:output_type -> inaba.v1.ArchivePolicy
+	107, // 211: inaba.v1.HousekeepingService.CleanUp:output_type -> inaba.v1.CleanUpResponse
+	109, // 212: inaba.v1.TerminalService.Attach:output_type -> inaba.v1.TerminalOutput
+	111, // 213: inaba.v1.TerminalService.Write:output_type -> inaba.v1.WriteResponse
+	113, // 214: inaba.v1.TerminalService.Resize:output_type -> inaba.v1.ResizeResponse
+	115, // 215: inaba.v1.PeerService.Connect:output_type -> inaba.v1.ConnectResponse
+	123, // 216: inaba.v1.ProviderConfigService.ListProviderConfigs:output_type -> inaba.v1.ListProviderConfigsResponse
+	119, // 217: inaba.v1.ProviderConfigService.SaveProviderConfig:output_type -> inaba.v1.ProviderConfig
+	126, // 218: inaba.v1.ProviderConfigService.DeleteProviderConfig:output_type -> inaba.v1.DeleteProviderConfigResponse
+	123, // 219: inaba.v1.ProviderConfigService.CheckProviders:output_type -> inaba.v1.ListProviderConfigsResponse
+	117, // 220: inaba.v1.ProviderConfigService.ListAcpAgents:output_type -> inaba.v1.ListAcpAgentsResponse
+	132, // 221: inaba.v1.SystemService.GetSystemInfo:output_type -> inaba.v1.SystemInfo
+	129, // 222: inaba.v1.SystemService.RestartHost:output_type -> inaba.v1.RestartHostResponse
+	131, // 223: inaba.v1.SystemService.UpgradeHost:output_type -> inaba.v1.UpgradeHostResponse
+	135, // 224: inaba.v1.UsageService.GetUsageSummary:output_type -> inaba.v1.UsageSummary
+	137, // 225: inaba.v1.AlertService.WatchAlerts:output_type -> inaba.v1.Alert
+	165, // [165:226] is the sub-list for method output_type
+	104, // [104:165] is the sub-list for method input_type
+	104, // [104:104] is the sub-list for extension type_name
+	104, // [104:104] is the sub-list for extension extendee
+	0,   // [0:104] is the sub-list for field type_name
 }
 
 func init() { file_inaba_v1_host_proto_init() }
@@ -10624,14 +10727,14 @@ func file_inaba_v1_host_proto_init() {
 		(*Event_ProviderChanged)(nil),
 	}
 	file_inaba_v1_host_proto_msgTypes[43].OneofWrappers = []any{}
-	file_inaba_v1_host_proto_msgTypes[75].OneofWrappers = []any{}
+	file_inaba_v1_host_proto_msgTypes[76].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_inaba_v1_host_proto_rawDesc), len(file_inaba_v1_host_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   150,
+			NumMessages:   151,
 			NumExtensions: 0,
 			NumServices:   11,
 		},
