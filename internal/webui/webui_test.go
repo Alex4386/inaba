@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"testing/fstest"
 )
@@ -31,7 +32,8 @@ func TestHandlerCachesAndCompresses(t *testing.T) {
 	if res.Header.Get("Content-Encoding") != "gzip" || res.Header.Get("Cache-Control") != "public, max-age=31536000, immutable" {
 		t.Fatalf("hashed asset headers: %v", res.Header)
 	}
-	if got := res.Header.Get("Content-Type"); got != "text/javascript; charset=utf-8" {
+	// Windows' registry says application/javascript; either is right.
+	if got := res.Header.Get("Content-Type"); !strings.Contains(got, "javascript") {
 		t.Fatalf("content type of gzipped js: %q", got)
 	}
 	zr, err := gzip.NewReader(res.Body)
