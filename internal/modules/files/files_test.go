@@ -3,6 +3,9 @@ package files
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -206,4 +209,41 @@ func TestGrepTrimsLongLines(t *testing.T) {
 func utf16Slice(s string, from, to uint32) string {
 	u := utf16.Encode([]rune(s))
 	return string(utf16.Decode(u[from:to]))
+}
+
+func TestRawFiles(t *testing.T) {
+	h := host.New(idleAgent{})
+	t.Cleanup(h.Close)
+	s := &service{threads: h}
+	ctx := rpc.Trusted(context.Background())
+	dir, outside := t.TempDir(), t.TempDir()
+	png := append([]byte("\x89PNG\r\n\x1a\n"), make([]byte, 2<<20)...) // over ReadFile's 1 MiB
+	os.WriteFile(filepath.Join(dir, "pic.png"), png, 0o644)
+	os.WriteFile(filepath.Join(dir, "page.html"), []byte("<html><script>alert(1)</script>"), 0o644)
+	os.WriteFile(filepath.Join(outside, "secret"), []byte("x"), 0o644)
+	os.Symlink(filepath.Join(outside, "secret"), filepath.Join(dir, "link"))
+	th, _ := h.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "idle", Cwd: dir})
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /v1/threads/{thread_id}/raw", s.serveRaw)
+	get := func(query string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, httptest.NewRequest("GET", "/v1/threads/"+th.Id+"/raw?"+query, nil))
+		return w
+	}
+
+	if w := get("path=pic.png&inline=1"); w.Code != 200 || w.Body.Len() != len(png) || w.Header().Get("Content-Type") != "image/png" || !strings.HasPrefix(w.Header().Get("Content-Disposition"), "inline") {
+		t.Fatalf("a picture shown: %d, %d bytes, %v", w.Code, w.Body.Len(), w.Header())
+	}
+	if w := get("path=pic.png"); !strings.HasPrefix(w.Header().Get("Content-Disposition"), "attachment") {
+		t.Fatalf("a picture saved: %v", w.Header())
+	}
+	// A page is never shown on inaba's origin, even when asked to.
+	if w := get("path=page.html&inline=1"); !strings.HasPrefix(w.Header().Get("Content-Disposition"), "attachment") || w.Header().Get("Content-Security-Policy") != "sandbox" || w.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("a page: %v", w.Header())
+	}
+	for _, path := range []string{"link", "../" + filepath.Base(outside) + "/secret", "/etc/hosts", "missing", ""} {
+		if w := get("path=" + url.QueryEscape(path)); w.Code == 200 {
+			t.Errorf("%q was sent", path)
+		}
+	}
 }

@@ -12,6 +12,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"mime"
 	"net/http"
 	"os"
 	"os/exec"
@@ -42,7 +43,11 @@ var Module = module.Module{
 	Option: fx.Options(
 		fx.Provide(func(threads module.Threads) *service { return &service{threads: threads} }),
 		module.Provide(func(s *service) module.Contribution {
-			return module.Contribution{Services: func(server *connect.Server) { inabav1connect.RegisterFileServiceHandler(server, s) }}
+			return module.Contribution{
+				Services: func(server *connect.Server) { inabav1connect.RegisterFileServiceHandler(server, s) },
+				// A file whole, at any size, for a browser to save or show: ReadFile's bytes stop at 1 MiB.
+				Routes: map[string]http.Handler{"GET /v1/threads/{thread_id}/raw": http.HandlerFunc(s.serveRaw)},
+			}
 		}),
 	),
 }
@@ -144,6 +149,72 @@ func (s *service) ReadFile(_ context.Context, req *inabav1.ReadFileRequest) (*in
 		return nil, connect.NewError(connect.CodeFailedPrecondition, "the host cannot read that file")
 	}
 	return &inabav1.ReadFileResponse{Data: data, MimeType: http.DetectContentType(data), Size: uint64(info.Size()), Truncated: info.Size() > maxReadBytes, Version: version(data)}, nil
+}
+
+// serveRaw sends a file of the thread's folder as it is, ?path= relative to the folder.
+// It is saved as a download, but for a picture asked for with ?inline=1, which a page may
+// show. Nothing it sends runs on inaba's origin: no sniffing, and a sandbox for the rest.
+func (s *service) serveRaw(w http.ResponseWriter, r *http.Request) {
+	rel := r.URL.Query().Get("path")
+	path, err := s.inside(r.PathValue("thread_id"), rel)
+	if err != nil {
+		http.Error(w, connectMessage(err), httpStatus(err))
+		return
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		http.Error(w, "the host cannot read that file", http.StatusForbidden)
+		return
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil || info.IsDir() {
+		http.Error(w, rel+" is a folder", http.StatusBadRequest)
+		return
+	}
+	head := make([]byte, 512)
+	n, _ := io.ReadFull(f, head)
+	kind := http.DetectContentType(head[:n])
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		http.Error(w, "the host cannot read that file", http.StatusForbidden)
+		return
+	}
+	disposition := "attachment"
+	if r.URL.Query().Get("inline") == "1" && rasterImage(kind) {
+		disposition = "inline"
+	}
+	w.Header().Set("Content-Type", kind)
+	w.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": filepath.Base(path)}))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Security-Policy", "sandbox")
+	http.ServeContent(w, r, "", info.ModTime(), f)
+}
+
+// rasterImage is whether a detected type is a picture a browser shows without running anything; SVG is not one.
+func rasterImage(kind string) bool {
+	switch kind {
+	case "image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp", "image/x-icon", "image/avif":
+		return true
+	}
+	return false
+}
+
+func connectMessage(err error) string {
+	var ce *connect.Error
+	if errors.As(err, &ce) {
+		return ce.Message()
+	}
+	return err.Error()
+}
+
+func httpStatus(err error) int {
+	switch connect.CodeOf(err) {
+	case connect.CodeNotFound:
+		return http.StatusNotFound
+	case connect.CodeInvalidArgument:
+		return http.StatusBadRequest
+	}
+	return http.StatusForbidden
 }
 
 // version names a file's content.

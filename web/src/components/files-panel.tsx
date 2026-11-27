@@ -1,11 +1,13 @@
 import { Code, ConnectError } from "@connectrpc/connect";
-import { CaseSensitiveIcon, ChevronRightIcon, FileIcon, FilesIcon, FolderIcon, RefreshCwIcon, RegexIcon, SearchIcon, WholeWordIcon, XIcon } from "lucide-react";
+import { CaseSensitiveIcon, ChevronRightIcon, CopyIcon, DownloadIcon, FileIcon, FilesIcon, FolderIcon, MoreHorizontalIcon, RefreshCwIcon, RegexIcon, SearchIcon, WholeWordIcon, XIcon } from "lucide-react";
 import { Fragment, lazy, type ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDefaultLayout } from "react-resizable-panels";
 import { ConfirmDialog } from "@/components/dialogs";
 import type { HostLink } from "@/api";
 import { FilePreview, previewKind } from "@/components/file-preview";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,6 +19,10 @@ import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 const TREE_KEY = "inaba.files.tree";
+
+/** A file of the thread's folder whole, through the server: saved as a download, or a picture shown with inline. */
+const rawUrl = (link: HostLink, threadId: string, path: string, inline = false) =>
+  `/hosts/${link.hostId}/v1/threads/${threadId}/raw?${new URLSearchParams({ path, ...(inline && { inline: "1" }) })}`;
 // Narrower than this, the tree floats over the editor instead of sitting beside it.
 const NARROW = 480;
 
@@ -32,7 +38,9 @@ export function FilesPanel({ link, threadId, root, onClose, onDirty: onAnyDirty,
   const [dirty, setDirtyOf] = useState<Record<string, boolean>>({});
   const onDirty = useCallback((path: string, d: boolean) => setDirtyOf((x) => (x[path] === d ? x : { ...x, [path]: d })), []);
   const anyDirty = Object.values(dirty).some(Boolean);
-  useEffect(() => onAnyDirty(anyDirty), [anyDirty, onAnyDirty]);
+  useEffect(() => {
+    onAnyDirty(anyDirty);
+  }, [anyDirty, onAnyDirty]);
   // Closing with unsaved edits waits for a yes; then holds what to do.
   const [leaving, setLeaving] = useState<() => void>();
   const [refreshing, setRefreshing] = useState(false);
@@ -52,7 +60,9 @@ export function FilesPanel({ link, threadId, root, onClose, onDirty: onAnyDirty,
   useEffect(() => {
     onActive?.(active);
   }, [active, onActive]);
-  useEffect(() => strip.current?.querySelector("[aria-current]")?.scrollIntoView({ inline: "nearest", block: "nearest" }), [active]);
+  useEffect(() => {
+    strip.current?.querySelector("[aria-current]")?.scrollIntoView({ inline: "nearest", block: "nearest" });
+  }, [active]);
   useEffect(() => {
     const ro = new ResizeObserver(([e]) => e.contentRect.width > 0 && setNarrow(e.contentRect.width < NARROW));
     ro.observe(box.current!);
@@ -194,6 +204,21 @@ export function FilesPanel({ link, threadId, root, onClose, onDirty: onAnyDirty,
         <Button size="icon-sm" variant="ghost" aria-label={t("git.refresh")} title={t("git.refresh")} disabled={refreshing} onClick={refresh}>
           {refreshing ? <Spinner /> : <RefreshCwIcon />}
         </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger render={<Button size="icon-sm" variant="ghost" aria-label={t("files.more")} title={t("files.more")} />}>
+            <MoreHorizontalIcon />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-auto whitespace-nowrap">
+            <DropdownMenuItem disabled={active === undefined} render={<a href={active && rawUrl(link, threadId, active)} download />}>
+              <DownloadIcon />
+              {t("files.download")}
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={active === undefined} onClick={() => active && navigator.clipboard.writeText(active).then(() => toast.success(t("common.copied")), showError)}>
+              <CopyIcon />
+              {t("files.copyPath")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button size="icon-sm" variant="ghost" aria-label={t("palette.close")} title={t("palette.close")} onClick={onClose}>
           <XIcon />
         </Button>
@@ -318,16 +343,13 @@ function FileView({ link, threadId, path, onDirty, readOnly, onOpen, at }: { lin
     );
   }, [link, threadId, path]);
   useEffect(load, [load]);
-  const image = useMemo(() => (file?.mimeType.startsWith("image/") ? URL.createObjectURL(new Blob([file.data as BlobPart], { type: file.mimeType })) : undefined), [file]);
-  useEffect(
-    () => () => {
-      if (image) URL.revokeObjectURL(image);
-    },
-    [image],
-  );
+  // From the host whole, as a picture can be larger than what readFile sends; the version keeps a changed one fresh.
+  const image = file?.mimeType.startsWith("image/") ? `${rawUrl(link, threadId, path, true)}&v=${file.version}` : undefined;
   const text = useMemo(() => (file && (file.mimeType.startsWith("text/") || file.mimeType.includes("json")) ? new TextDecoder().decode(file.data) : undefined), [file]);
   const dirty = draft !== undefined && draft !== text;
-  useEffect(() => onDirty(path, dirty), [path, dirty, onDirty]);
+  useEffect(() => {
+    onDirty(path, dirty);
+  }, [path, dirty, onDirty]);
   const save = () => {
     if (!dirty || saving || file?.truncated) return;
     setSaving(true);
