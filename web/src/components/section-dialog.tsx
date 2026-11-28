@@ -49,7 +49,7 @@ export function SectionDialog<T extends string>({
     <Dialog open={section !== undefined} onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="flex h-[min(40rem,85svh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl sm:flex-row">
         <div className="bg-sidebar border-b p-2 pr-12 sm:hidden">
-          <Picker className="w-full" label={title} value={current[0]} onChange={onSection} options={sections.map(([id, label]) => ({ value: id, label }))} />
+          <Picker className="w-full" label={title} value={current[0]} onChange={onSection} options={sections.map(([id, label, icon]) => ({ value: id, label, icon }))} />
         </div>
         <nav className="bg-sidebar hidden w-52 shrink-0 flex-col gap-0.5 border-r p-2 sm:flex" aria-label={title}>
           {sections.map(([id, label, icon]) => (

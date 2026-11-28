@@ -379,8 +379,9 @@ export function ThreadView({
       if (!fresh) return;
       if (d !== now$.current.driver) {
         learned.current = performance.now();
-        // The seat came free: ask at once, so a lone watcher takes it without waiting for the next beat.
-        if (!d) askSeat();
+        // Ask at once whatever the layout says: the server decides, and a layout saved by a tab since closed can
+        // name a driver no longer there, or someone took the seat; either way not until the next beat.
+        askSeat();
       }
       setDriver(d);
     } catch {
@@ -430,6 +431,30 @@ export function ThreadView({
     [link, threadId],
   );
 
+  // A thread in its terminal shows no conversation, so nothing else follows its events: without this, a
+  // seat taken in another tab or by someone else reaches this one only at the next heartbeat, and it goes on
+  // typing into a terminal that is no longer its to drive.
+  const inTerminal = thread?.mode === ThreadMode.TERMINAL;
+  const followedFrom = useRef(0n);
+  followedFrom.current = thread?.lastSeq ?? 0n;
+  useEffect(() => {
+    if (!inTerminal) return;
+    const abort = new AbortController();
+    void (async () => {
+      while (!abort.signal.aborted) {
+        try {
+          for await (const event of link.threads.subscribe({ threadId, afterSeq: followedFrom.current }, { signal: abort.signal })) {
+            followedFrom.current = event.seq;
+            onEvents([event]);
+          }
+        } catch {
+          // Retried below.
+        }
+        await link.settle(abort.signal);
+      }
+    })();
+    return () => abort.abort();
+  }, [inTerminal, link, threadId, onEvents]);
   // Before the return below, as every hook must be: whether the agent's browser has been shown this visit.
   const browserShown = useRef(false);
   useEffect(() => {

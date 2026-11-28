@@ -916,6 +916,7 @@ export const ja: Record<MessageKey, string> = {
   "empty.offlineHelp": "そのマシンで inaba を起動してください。接続されるとこのページが更新されます。",
   "empty.noThread": "開いているスレッドはありません",
   "empty.noThreadHelp": "サイドバーでスレッドを選ぶか、プロジェクトの … メニューから新しいスレッドを始めてください。",
+  "home.recent": "最近のスレッド",
   "user.apiTokens": "API トークン",
   "user.apiDocs": "API リファレンス",
   "user.accounts": "アカウント",

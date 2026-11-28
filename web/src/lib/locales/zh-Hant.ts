@@ -916,6 +916,7 @@ export const zhHant: Record<MessageKey, string> = {
   "empty.offlineHelp": "請在該機器上啟動 inaba。連線後此頁面會自動更新。",
   "empty.noThread": "沒有開啟的對話",
   "empty.noThreadHelp": "從側邊欄選擇對話，或從專案的 … 選單開始新的對話。",
+  "home.recent": "最近的執行緒",
   "user.apiTokens": "API 權杖",
   "user.apiDocs": "API 參考文件",
   "user.accounts": "帳號",

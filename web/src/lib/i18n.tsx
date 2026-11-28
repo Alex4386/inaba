@@ -927,6 +927,7 @@ const en = {
   "empty.offlineHelp": "Start inaba on that machine. This page updates when it connects.",
   "empty.noThread": "No thread open",
   "empty.noThreadHelp": "Pick a thread in the sidebar, or start one from a project's … menu.",
+  "home.recent": "Recent threads",
 
   "user.apiTokens": "API tokens",
   "user.apiDocs": "API reference",
@@ -2148,6 +2149,7 @@ const ko: Record<MessageKey, string> = {
   "empty.offlineHelp": "그 머신에서 inaba를 실행하세요. 연결되면 이 페이지가 바뀝니다.",
   "empty.noThread": "열린 쓰레드가 없습니다",
   "empty.noThreadHelp": "사이드바에서 쓰레드를 고르거나, 프로젝트의 … 메뉴에서 새 쓰레드를 시작하세요.",
+  "home.recent": "최근 쓰레드",
 
   "user.apiTokens": "API 토큰",
   "user.apiDocs": "API 문서",

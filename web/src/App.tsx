@@ -17,6 +17,7 @@ import { ProjectsPage, ProjectThreadsPage } from "@/components/projects-pages";
 import { HostSwitcher } from "@/components/host-switcher";
 import { PresenceContext, usePresence } from "@/components/presence";
 import { Logo } from "@/components/logo";
+import { RecentThreads } from "@/components/recent-threads";
 import { Welcome } from "@/components/onboarding";
 import { Alert, AlertDescription } from "@/components/reui/alert";
 import { AutomationsView } from "./modules/automations/AutomationsView";
@@ -422,6 +423,8 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
   // Only once the server has said it is there: before its first answer, offline is not known yet.
   if (activeId && listed && !offline) reached.current = activeId;
   const away = offline && reached.current === activeId;
+  // The start page of a host that is there: inaba's own, with the threads last at work.
+  const homePage = (hostList?.length ?? 0) > 0 && Boolean(host) && !(offline && !away);
   const link = useMemo(
     () => (activeId && (!offline || away) ? new HostLink(activeId, config.iceUrls, () => setLinkVersion((v) => v + 1)) : undefined),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -616,7 +619,7 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
             <Empty>
               <EmptyHeader>
                 <EmptyMedia variant="icon">{offline && !away ? <ServerOffIcon /> : <Logo />}</EmptyMedia>
-                <EmptyTitle>{!hostList || (!host && !listed) ? t("empty.loading") : hostList.length === 0 ? t("empty.firstHost") : !host ? t("empty.chooseHost") : offline && !away ? t("empty.offline", { name: host.name }) : t("empty.noThread")}</EmptyTitle>
+                <EmptyTitle className={homePage ? "text-lg" : undefined}>{!hostList || (!host && !listed) ? t("empty.loading") : hostList.length === 0 ? t("empty.firstHost") : !host ? t("empty.chooseHost") : offline && !away ? t("empty.offline", { name: host.name }) : "inaba"}</EmptyTitle>
                 <EmptyDescription>
                   {hostList?.length === 0 ? t("empty.firstHostHelp") : !host ? t("empty.chooseHostHelp") : offline && !away ? t("empty.offlineHelp") : t("empty.noThreadHelp")}
                 </EmptyDescription>
@@ -624,6 +627,12 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
               {hostList?.length === 0 && (
                 <EmptyContent>
                   <Button onClick={() => setAddingHost(true)}>{t("host.add")}</Button>
+                </EmptyContent>
+              )}
+              {/* On a host to work on: the threads last at work, to go back to one. */}
+              {homePage && link && (
+                <EmptyContent className="max-w-md">
+                  <RecentThreads link={link} onOpen={openThread} />
                 </EmptyContent>
               )}
             </Empty>

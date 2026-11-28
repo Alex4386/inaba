@@ -128,8 +128,8 @@ type service struct {
 	starting map[string]chan struct{}
 	// stopped is set once the module stops; a late call must not start a browser no one will stop.
 	stopped bool
-	// watchers is the one viewer of each page, by page id, to end when another takes over.
-	watchers map[string]*watcher
+	// casts are the pages being watched, by page id: one screencast each, however many watch.
+	casts map[string]*cast
 
 	done chan struct{}
 }
@@ -160,7 +160,7 @@ func newService(threads module.Threads, events module.Events, dataDir module.Dat
 	}
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
-	return &service{threads: threads, events: events, db: store.DB, settings: settings, keyOf: map[string]string{}, dir: dir, bin: bin, token: hex.EncodeToString(b), browsers: map[string]*instance{}, starting: map[string]chan struct{}{}, watchers: map[string]*watcher{}, done: make(chan struct{})}, nil
+	return &service{threads: threads, events: events, db: store.DB, settings: settings, keyOf: map[string]string{}, dir: dir, bin: bin, token: hex.EncodeToString(b), browsers: map[string]*instance{}, starting: map[string]chan struct{}{}, casts: map[string]*cast{}, done: make(chan struct{})}, nil
 }
 
 func (s *service) start() error {

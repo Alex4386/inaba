@@ -50,11 +50,6 @@ func (s *service) WatchPage(ctx context.Context, req *inabav1.WatchPageRequest, 
 	defer in.touch(-1)
 	in.view(1)
 	defer in.view(-1)
-	// One viewer per page: a page streams to one place. This one takes over.
-	ctx, done := s.takeOver(ctx, string(p.TargetID))
-	defer done()
-	// A screencast a viewer gone astray left running would refuse this one.
-	_ = proto.PageStopScreencast{}.Call(p)
 	// The stream is written from here and from the hand-over below.
 	var sendMu sync.Mutex
 	closed := false
@@ -98,76 +93,27 @@ func (s *service) WatchPage(ctx context.Context, req *inabav1.WatchPageRequest, 
 			return connect.NewError(connect.CodeUnavailable, "could not size the window: "+err.Error())
 		}
 	}
-	p = p.Context(ctx)
-
-	start := proto.PageStartScreencast{Format: proto.PageStartScreencastFormatJpeg, Quality: ptr(70)}
-	if req.MaxWidth > 0 {
-		start.MaxWidth = ptr(int(req.MaxWidth))
-	}
-	if req.MaxHeight > 0 {
-		start.MaxHeight = ptr(int(req.MaxHeight))
-	}
-	var sendErr error
-	wait := p.EachEvent(func(f *proto.PageScreencastFrame) bool {
-		frame := &inabav1.PageFrame{PageId: string(p.TargetID), Jpeg: f.Data, Control: in.controlNow(), AgentCursor: in.cursorOf(string(p.TargetID))}
-		if m := f.Metadata; m != nil {
-			frame.ViewportWidth, frame.ViewportHeight = m.DeviceWidth, m.DeviceHeight
+	// The picture, shared with whoever else watches this page.
+	frames, ended, leave, failed := s.watch(in, p)
+	defer leave()
+	for {
+		select {
+		case f := <-frames:
+			if err := send(f); err != nil {
+				return err
+			}
+		case <-ended:
+			if err := failed(); err != nil {
+				return connect.NewError(connect.CodeUnavailable, "the page would not show itself: "+err.Error())
+			}
+			return nil
+		case <-ctx.Done():
+			return nil
 		}
-		if info, err := p.Info(); err == nil {
-			frame.Url, frame.Title = info.URL, info.Title
-		}
-		if sendErr = send(frame); sendErr != nil {
-			return true
-		}
-		// Chrome sends the next frame once this one is acknowledged: a slow viewer gets fewer.
-		_ = proto.PageScreencastFrameAck{SessionID: f.SessionID}.Call(p)
-		return false
-	}, func(e *proto.TargetTargetDestroyed) bool {
-		return e.TargetID == p.TargetID
-	})
-	if err := start.Call(p); err != nil {
-		return connect.NewError(connect.CodeUnavailable, "the page would not show itself: "+err.Error())
 	}
-	wait()
-	// The call is over; the page stops sending, if it is still there to hear it.
-	_ = proto.PageStopScreencast{}.Call(p.Context(context.Background()))
-	return sendErr
 }
 
 func ptr[T any](v T) *T { return &v }
-
-// watcher is a page's viewer: how to end it, and word when it has.
-type watcher struct {
-	cancel context.CancelFunc
-	ended  chan struct{}
-}
-
-// takeOver ends the page's current viewer, waiting until it has let go of the page,
-// and makes the caller the viewer. done gives the page up.
-func (s *service) takeOver(ctx context.Context, pageID string) (context.Context, func()) {
-	ctx, cancel := context.WithCancel(ctx)
-	me := &watcher{cancel: cancel, ended: make(chan struct{})}
-	s.mu.Lock()
-	old := s.watchers[pageID]
-	s.watchers[pageID] = me
-	s.mu.Unlock()
-	if old != nil {
-		old.cancel()
-		select {
-		case <-old.ended:
-		case <-time.After(5 * time.Second):
-		}
-	}
-	return ctx, func() {
-		cancel()
-		s.mu.Lock()
-		if s.watchers[pageID] == me {
-			delete(s.watchers, pageID)
-		}
-		s.mu.Unlock()
-		close(me.ended)
-	}
-}
 
 // The smallest window the browser is made, so a page still lays itself out sensibly.
 const minWindowWidth, minWindowHeight = 320, 240

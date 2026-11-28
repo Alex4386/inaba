@@ -211,30 +211,56 @@ func TestABrowserForEachThread(t *testing.T) {
 		}
 	}
 
-	// A second viewer of the page takes over; the first one's stream ends.
-	first, err := client.WatchPage(ctx, &inabav1.WatchPageRequest{ThreadId: th.Id, PageId: page})
+	// Two viewers of the page, as two tabs on one thread: both see it, neither ends the other's picture.
+	firstCtx, stopFirst := context.WithCancel(ctx)
+	first, err := client.WatchPage(firstCtx, &inabav1.WatchPageRequest{ThreadId: th.Id, PageId: page})
 	if err != nil {
+		stopFirst()
 		t.Fatal(err)
 	}
-	if _, err := first.Receive(); err != nil {
+	if _, err := picture(first.Receive); err != nil {
+		stopFirst()
 		t.Fatalf("first viewer: %v", err)
 	}
 	secondCtx, stopSecond := context.WithCancel(ctx)
-	second, err := client.WatchPage(secondCtx, &inabav1.WatchPageRequest{ThreadId: th.Id, PageId: page, WindowWidth: 900, WindowHeight: 600})
+	second, err := client.WatchPage(secondCtx, &inabav1.WatchPageRequest{ThreadId: th.Id, PageId: page})
 	if err != nil {
+		stopFirst()
 		stopSecond()
 		t.Fatal(err)
 	}
-	f2, err := picture(second.Receive)
-	stopSecond()
-	if err != nil || len(f2.Jpeg) == 0 {
-		t.Fatalf("the viewer that took over got no picture: %v", err)
+	if _, err := picture(second.Receive); err != nil {
+		stopFirst()
+		stopSecond()
+		t.Fatalf("second viewer: %v", err)
 	}
-	for {
-		if _, err := first.Receive(); err != nil {
+	// A change reaches both.
+	if _, err := client.Input(ctx, &inabav1.BrowserInputRequest{ThreadId: th.Id, PageId: page, Event: &inabav1.BrowserInputRequest_Mouse{Mouse: &inabav1.MouseInput{Type: "moved", X: 3, Y: 3}}}); err != nil {
+		t.Fatal(err)
+	}
+	_, err1 := picture(first.Receive)
+	_, err2 := picture(second.Receive)
+	stopFirst()
+	stopSecond()
+	if err1 != nil || err2 != nil {
+		t.Fatalf("after a change: first %v, second %v", err1, err2)
+	}
+	// With both gone, the page stops streaming.
+	for range 50 {
+		s.mu.Lock()
+		left := len(s.casts)
+		s.mu.Unlock()
+		if left == 0 {
 			break
 		}
+		time.Sleep(50 * time.Millisecond)
 	}
+	s.mu.Lock()
+	if len(s.casts) != 0 {
+		s.mu.Unlock()
+		t.Fatal("a page nobody watches is still streaming")
+	}
+	s.mu.Unlock()
 
 	// What the agent's Playwright does: discover the browser through the proxy and drive it.
 	mcp := s.mcpFor(th)
