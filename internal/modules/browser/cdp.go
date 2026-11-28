@@ -6,10 +6,12 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/coder/websocket"
 )
@@ -79,12 +81,59 @@ func (s *service) relay(w http.ResponseWriter, r *http.Request, in *instance, th
 	// Which page each of the agent's DevTools sessions is on, so its mouse is shown on the right one.
 	var pagesMu sync.Mutex
 	pageOf := map[string]string{}
+	// Commands of the relay's own on the agent's connection, by id, answered here and not passed on to it.
+	own := map[int64]chan struct{}{}
+	// Counting down from the largest id the browser takes, far from the agent's own, which count up from 1.
+	var ownID int64 = math.MaxInt32
+	// Takes a viewport the agent set off its page, waiting until the browser has.
+	unset := func(session string) func() {
+		return func() {
+			pagesMu.Lock()
+			ownID--
+			id, done := ownID, make(chan struct{})
+			own[id] = done
+			pagesMu.Unlock()
+			cmd, _ := json.Marshal(map[string]any{"id": id, "method": "Emulation.clearDeviceMetricsOverride", "sessionId": session})
+			if up.Write(ctx, websocket.MessageText, cmd) != nil {
+				return
+			}
+			select {
+			case <-done:
+			case <-time.After(2 * time.Second):
+			case <-ctx.Done():
+			}
+		}
+	}
+	defer func() {
+		pagesMu.Lock()
+		defer pagesMu.Unlock()
+		for session, page := range pageOf {
+			in.emulating(page, session, nil)
+		}
+	}()
 	go func() {
 		defer cancel()
 		for {
 			typ, data, err := up.Read(ctx)
 			if err != nil {
 				return
+			}
+			// An answer to the relay's own command stays here.
+			if bytes.HasPrefix(data, []byte(`{"id":`)) {
+				var reply struct {
+					ID int64 `json:"id"`
+				}
+				pagesMu.Lock()
+				done, ours := (chan struct{})(nil), false
+				if len(own) > 0 && json.Unmarshal(data, &reply) == nil {
+					done, ours = own[reply.ID]
+					delete(own, reply.ID)
+				}
+				pagesMu.Unlock()
+				if ours {
+					close(done)
+					continue
+				}
 			}
 			// Only the rare message that attaches a session is read; the rest, screenshots among them, pass as they are.
 			if bytes.Contains(data, []byte(`"Target.attachedToTarget"`)) {
@@ -126,6 +175,20 @@ func (s *service) relay(w http.ResponseWriter, r *http.Request, in *instance, th
 		_ = json.Unmarshal(data, &msg)
 		if !passive(msg.Method) && in.agentActs(ctx, thread) != nil {
 			return
+		}
+		// A viewport of its own for a page, in place of the window's: noted, for a person sizing the window to take off.
+		switch msg.Method {
+		case "Emulation.setDeviceMetricsOverride", "Emulation.clearDeviceMetricsOverride":
+			pagesMu.Lock()
+			page := pageOf[msg.SessionID]
+			pagesMu.Unlock()
+			if page != "" {
+				var clear func()
+				if msg.Method == "Emulation.setDeviceMetricsOverride" {
+					clear = unset(msg.SessionID)
+				}
+				in.emulating(page, msg.SessionID, clear)
+			}
 		}
 		// Its mouse, shown where it goes; only once it may act, so a waiting click is not shown early.
 		if msg.Method == "Input.dispatchMouseEvent" {

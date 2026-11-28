@@ -82,6 +82,8 @@ type instance struct {
 	cursors map[string]*inabav1.AgentCursor
 	// unwatched gives back a taken browser once no one has watched it for a while; restarted by each who leaves.
 	unwatched *time.Timer
+	// emulated undoes, by page and then by the agent's session, a viewport its Playwright set in place of the window's.
+	emulated map[string]map[string]func()
 }
 
 func (in *instance) touch(delta int) {

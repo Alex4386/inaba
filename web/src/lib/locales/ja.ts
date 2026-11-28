@@ -894,6 +894,7 @@ export const ja: Record<MessageKey, string> = {
   "chat.noOutput": "出力なし",
   "chat.toolFailed": "失敗",
   "chat.workflowAgentCount": "エージェント{count}件",
+  "chat.agentsRunning": "実行中のエージェント{count}件",
   "chat.workflowRunning": "{running}件実行中、{done}件完了",
   "chat.workflowDone": "すべて完了",
   "chat.workflowStopped": "{done}件完了、{stopped}件は完了前に停止",

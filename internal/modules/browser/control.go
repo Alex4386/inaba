@@ -138,6 +138,36 @@ func (in *instance) cursorOf(pageID string) *inabav1.AgentCursor {
 	return in.cursors[pageID]
 }
 
+// emulating notes that one of the agent's DevTools sessions gave a page a viewport of its own (Playwright's
+// setViewportSize), with how to take it off again; clear nil notes that it took it off itself.
+func (in *instance) emulating(pageID, session string, clear func()) {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	if clear == nil {
+		delete(in.emulated[pageID], session)
+		return
+	}
+	if in.emulated == nil {
+		in.emulated = map[string]map[string]func(){}
+	}
+	if in.emulated[pageID] == nil {
+		in.emulated[pageID] = map[string]func(){}
+	}
+	in.emulated[pageID][session] = clear
+}
+
+// unemulate takes off the viewports the agent set on a page, so the window's size, a person's, is the page's.
+// Only the session that set one can take it off: the browser keeps each session's apart.
+func (in *instance) unemulate(pageID string) {
+	in.mu.Lock()
+	clears := in.emulated[pageID]
+	delete(in.emulated, pageID)
+	in.mu.Unlock()
+	for _, clear := range clears {
+		clear()
+	}
+}
+
 // agentMouse notes the agent's mouse on a page, for those watching it to see.
 func (in *instance) agentMouse(pageID, kind string, x, y float64) {
 	in.mu.Lock()

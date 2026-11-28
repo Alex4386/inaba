@@ -450,6 +450,8 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
   }, [shownHost, hostList, onThread, onProject, onAutomations, onProjects, onTerminal, onProjectThreads, onHost, onAdmin, onInvite, navigate]);
   const home = (h = shownHost) => navigate(h ? `/hosts/${h}` : "/");
   const openThread = (id: string) => navigate(`/hosts/${shownHost}/threads/${id}`);
+  const threadSettings = (id: string) => navigate(`/hosts/${shownHost}/threads/${id}?settings`);
+  const projectSettings = host && mayManage(host) ? (p: Project) => setHostSettings({ host, section: "projects", project: p.id }) : undefined;
   const openProject = (project: Project) => {
     setPicked(project);
     navigate(`/hosts/${shownHost}/projects/${project.id}`);
@@ -514,11 +516,12 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
               selected={threadId}
               openProject={draft?.id}
               onSelect={(id) => (id ? openThread(id) : home())}
+              onThreadSettings={threadSettings}
               onNewThread={openProject}
               onAddProject={() => setPalette("folder")}
               onAllProjects={() => navigate(`/hosts/${shownHost}/projects`)}
               onProjectThreads={(p) => navigate(`/hosts/${shownHost}/projects/${p.id}/threads`)}
-              onProjectSettings={host && mayManage(host) ? (p) => setHostSettings({ host, section: "projects", project: p.id }) : undefined}
+              onProjectSettings={projectSettings}
               canManage={canOn(host, Permission.MANAGE_PROJECTS)}
             />}</SidebarContent>
           </>
@@ -577,6 +580,9 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
             link={link}
             onOpen={(p) => navigate(`/hosts/${shownHost}/projects/${p.id}/threads`)}
             onAddProject={canOn(host, Permission.MANAGE_PROJECTS) ? () => setPalette("folder") : undefined}
+            onNewThread={openProject}
+            onProjectSettings={projectSettings}
+            canManage={canOn(host, Permission.MANAGE_PROJECTS)}
           />
         ) : link && onTerminal ? (
           <HostTerminalPage key={onTerminal.terminal} link={link} id={onTerminal.terminal} onClosed={() => home()} stealth={user.admin && user.stealth} />
@@ -588,6 +594,9 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
             onProjects={() => navigate(`/hosts/${shownHost}/projects`)}
             onOpen={openThread}
             onNewThread={openProject}
+            onProjectSettings={projectSettings}
+            onThreadSettings={threadSettings}
+            canManage={canOn(host, Permission.MANAGE_PROJECTS)}
           />
         ) : link && draft ? (
           <NewThreadView

@@ -1,7 +1,10 @@
-import { BotIcon, CopyIcon, FolderIcon, GitBranchIcon } from "lucide-react";
+import { BotIcon, CheckIcon, ChevronsUpDownIcon, CopyIcon, FolderIcon, GitBranchIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { LineCounts } from "@/components/changes-panel";
 import { HostAvatar } from "@/components/host-icon";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Spinner } from "@/components/ui/spinner";
 import type { GitStatus } from "@/gen/inaba/v1/host_pb";
 import type { Host } from "@/gen/inaba/v1/server_pb";
 import { showError } from "@/lib/errors";
@@ -16,6 +19,8 @@ export function WhereCard({
   onChanges,
   connection,
   provider,
+  branches,
+  children,
   className,
 }: {
   host?: Host;
@@ -27,6 +32,10 @@ export function WhereCard({
   connection?: "direct" | "relayed";
   /** The agent a thread runs, by its display name. */
   provider?: string;
+  /** The branches to switch to, for one who may switch them; without, the branch is only shown. */
+  branches?: { list: string[]; switching?: string; onSwitch: (branch: string) => void };
+  /** More about the thread, under the rest. */
+  children?: ReactNode;
   className?: string;
 }) {
   const { t } = useI18n();
@@ -63,16 +72,35 @@ export function WhereCard({
       </div>
       {git?.repository && (
         <div className="grid gap-0.5 p-1.5">
-          <div className="flex items-center gap-2.5 px-2 py-1.5">
-            <GitBranchIcon className="text-muted-foreground size-4 shrink-0" />
-            <span className="truncate">{git.branch || t("git.detached")}</span>
-          </div>
+          {branches && branches.list.length > 0 ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger className="hover:bg-muted aria-expanded:bg-muted flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left" aria-label={t("git.branch")}>
+                <GitBranchIcon className="text-muted-foreground size-4 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">{branches.switching ?? (git.branch || t("git.detached"))}</span>
+                {branches.switching ? <Spinner className="size-3.5 shrink-0" /> : <ChevronsUpDownIcon className="text-muted-foreground size-3.5 shrink-0" />}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="max-h-72 w-(--anchor-width) min-w-56">
+                {branches.list.map((b) => (
+                  <DropdownMenuItem key={b} disabled={Boolean(branches.switching)} onClick={() => b !== git.branch && branches.onSwitch(b)}>
+                    <span className="min-w-0 flex-1 truncate">{b}</span>
+                    {b === git.branch && <CheckIcon />}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <div className="flex items-center gap-2.5 px-2 py-1.5">
+              <GitBranchIcon className="text-muted-foreground size-4 shrink-0" />
+              <span className="truncate">{git.branch || t("git.detached")}</span>
+            </div>
+          )}
           <button type="button" disabled={!onChanges} onClick={onChanges} className="text-muted-foreground enabled:hover:bg-muted flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left">
             <span className="flex-1">{git.files.length ? t("new.changes", { count: String(git.files.length) }) : t("new.clean")}</span>
             {git.files.length > 0 && <LineCounts additions={git.additions} deletions={git.deletions} />}
           </button>
         </div>
       )}
+      {children}
     </aside>
   );
 }

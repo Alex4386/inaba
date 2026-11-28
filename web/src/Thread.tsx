@@ -26,7 +26,6 @@ import {
   FilePenLineIcon,
   FileTextIcon,
   GlobeIcon,
-  PencilIcon,
   SearchIcon,
   ShieldQuestionIcon,
   MoreHorizontalIcon,
@@ -36,15 +35,14 @@ import {
   PlusIcon,
   RotateCwIcon,
   SquareTerminalIcon,
-  Trash2Icon,
   WrenchIcon,
   FileIcon,
-  SettingsIcon,
 } from "lucide-react";
 import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { bytes } from "@/components/metrics";
 import { useDefaultLayout } from "react-resizable-panels";
 import { createContext, type FormEvent, memo, type ReactNode, type RefObject, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useLocation, useSearch } from "wouter";
 import { toast } from "sonner";
 import { useMarkSeen } from "@/lib/seen";
 import type { HostLink } from "./api";
@@ -69,7 +67,7 @@ import { cached, keep } from "@/lib/host-cache";
 import { loadDraft, saveDraft } from "@/lib/drafts";
 import { needsRead, withEvents } from "@/lib/thread-meta";
 import { TerminalView } from "./Terminal";
-import { ChangesPanel, LineCounts, type TurnScope } from "@/components/changes-panel";
+import { ChangesPanel, LineCounts, type TurnScope, useBranches } from "@/components/changes-panel";
 
 import { WhereCard } from "@/components/where-card";
 import { allTabs, dockOf, isBrowserTool, type Docks, type DockState, moveTab, newTabId, oneChanges, placeTab, type Surface, type TabId, withoutTab } from "@/lib/tabs";
@@ -82,7 +80,7 @@ import { BrowserPanel } from "@/modules/browser/BrowserPanel";
 import { AttachmentImage, Composer, type Draft } from "@/components/composer";
 import { ChatMap, type Exchange } from "@/components/chat-map";
 import { QueueList } from "@/components/queue-list";
-import { ConfirmDialog, RenameDialog } from "@/components/dialogs";
+import { ConfirmDialog } from "@/components/dialogs";
 import { Logo } from "@/components/logo";
 import { Markdown } from "@/components/markdown";
 import { Badge } from "@/components/reui/badge";
@@ -100,6 +98,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { errorText, showError } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
+import { ThreadMenuItems, useThreadDialogs } from "@/components/entity-menus";
 import { ThreadSettingsDialog, type ThreadSection } from "@/components/thread-settings-dialog";
 import { bindingOf, formatBinding, matches, useKeybindings } from "@/lib/keybindings";
 import { cn, pathNames } from "@/lib/utils";
@@ -160,10 +159,17 @@ export function ThreadView({
   };
   const grab = (from: string) => take(from).then(settled);
   const askToTake = (from: string) => grab(from).then((s) => s && s.driver !== CLIENT && toast.error(t("drive.denied")));
-  const [ending, setEnding] = useState(false);
-  const [renaming, setRenaming] = useState(false);
+  const threadDialogs = useThreadDialogs({ link, onChanged: () => refresh(), onEnded });
   // The thread's settings, open at this section.
   const [settingsAt, setSettingsAt] = useState<ThreadSection>();
+  // Asked for from elsewhere, as the sidebar's menu does, by ?settings on the thread's address.
+  const search = useSearch();
+  const [path, navigate] = useLocation();
+  useEffect(() => {
+    if (!new URLSearchParams(search).has("settings")) return;
+    setSettingsAt("general");
+    navigate(path, { replace: true });
+  }, [search, path, navigate]);
   const [git, setGit] = useState<GitStatus>();
   // The two docks beside the thread, each with its tabs in the user's order and the one shown.
   // A tab lives in one dock at a time.
@@ -171,6 +177,8 @@ export function ThreadView({
   const [info, setInfo] = useState(false);
   // The turns that changed files, and the one the changes panel shows; none shows what is not committed.
   const [turns, setTurns] = useState<TurnScope[]>([]);
+  // The background workflows the conversation shows, with their agents, for the card saying where the thread runs.
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [diffScope, setDiffScope] = useState<string>();
   const [docks, setDocks] = useState<Docks<Dock>>(() => Object.fromEntries(DOCKS.map((d) => [d, { open: false, tabs: [] }])) as unknown as Docks<Dock>);
   const updateDock = (dock: Dock, change: (d: DockState) => DockState) => setDocks((all) => ({ ...all, [dock]: change(all[dock]) }));
@@ -465,6 +473,11 @@ export function ThreadView({
   useEffect(() => {
     browserShown.current = false;
   }, [threadId]);
+  const branches = useBranches(link, threadId, git?.branch, loadGit);
+  const readWorkflowAgent = useCallback(
+    (toolCallId: string, agentId: string, signal: AbortSignal) => link.threads.watchWorkflowAgent({ threadId, toolCallId, agentId }, { signal }),
+    [link, threadId],
+  );
   if (!thread)
     return loadError ? (
       <div className="m-auto grid justify-items-center gap-2 p-4 text-center">
@@ -598,7 +611,22 @@ export function ThreadView({
               {t(dockMoveLabel[d])}
             </div>
           ))}
-        {info && <WhereCard host={host} cwd={thread.cwd} git={git} connection={direct ? "direct" : "relayed"} provider={provider?.displayName || thread.provider} onChanges={git?.repository && driving ? () => openSurface("right", "changes") : undefined} className="absolute top-14 right-3 z-10" />}
+        {info && (
+          <WhereCard
+            host={host}
+            cwd={thread.cwd}
+            git={git}
+            connection={direct ? "direct" : "relayed"}
+            provider={provider?.displayName || thread.provider}
+            onChanges={git?.repository && driving ? () => openSurface("right", "changes") : undefined}
+            branches={driving ? { list: branches.branches, switching: branches.switching, onSwitch: branches.checkout } : undefined}
+            className="absolute top-14 right-3 z-10"
+          >
+            <WorkflowReader value={readWorkflowAgent}>
+              <RunningAgents workflows={workflows} />
+            </WorkflowReader>
+          </WhereCard>
+        )}
         {/* Watching rather than driving: said over the conversation, with the way in when there is one. */}
         {seat && !driving && <WatchingBanner driver={driver} holder={holder} onTake={mayTake ? () => void askToTake(driver ?? "") : undefined} />}
         <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
@@ -695,6 +723,18 @@ export function ThreadView({
                 <span className="sr-only">{t("project.more", { name: threadName(thread) })}</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-auto whitespace-nowrap" align="end">
+                <ThreadMenuItems
+                  link={link}
+                  thread={thread}
+                  shown
+                  locked={!driving}
+                  onChanged={refresh}
+                  onOpen={onOpen}
+                  onRename={() => threadDialogs.rename(thread)}
+                  onEnd={() => threadDialogs.end(thread)}
+                  onSettings={() => setSettingsAt("general")}
+                  top={
+                    <>
                 {isMobile && (
                   <>
                     <DropdownMenuCheckboxItem checked={info} onCheckedChange={(on) => setInfo(on)}>
@@ -715,14 +755,10 @@ export function ThreadView({
                     <DropdownMenuSeparator />
                   </>
                 )}
-                <DropdownMenuItem disabled={!driving} onClick={() => setRenaming(true)}>
-                  <PencilIcon />
-                  {t("thread.rename")}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSettingsAt("general")}>
-                  <SettingsIcon />
-                  {t("threadSettings.title")}
-                </DropdownMenuItem>
+                    </>
+                  }
+                  extra={
+                    <>
                 {/* The driver hands back control for someone watching to take. */}
                 {driving && (clients?.length ?? 0) > 0 && (
                   <DropdownMenuItem onClick={() => void release().then((s) => s && (settled(s), sendLayout(undefined)))}>
@@ -751,11 +787,9 @@ export function ThreadView({
                     {t(terminal ? "thread.backToChat" : "thread.openInTerminal")}
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" disabled={!driving} onClick={() => setEnding(true)}>
-                  <Trash2Icon />
-                  {t("thread.end")}
-                </DropdownMenuItem>
+                    </>
+                  }
+                />
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -778,7 +812,7 @@ export function ThreadView({
           // A wrapper that is always there, so opening the side chat never remounts the conversation.
           <div className="flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col">
-              <Chat link={link} thread={thread} busy={busy} refresh={refresh} onStatus={loadGit} onOpen={onOpen} mentions={modules.has("files")} provider={provider} providers={providers} locked={!driving} pending={pending} onEvents={agentEvents} onTurns={setTurns} onTurnChanges={showTurn} onSide={(id, aside) => setSide({ id, aside })} />
+              <Chat link={link} thread={thread} busy={busy} refresh={refresh} onStatus={loadGit} onOpen={onOpen} mentions={modules.has("files")} provider={provider} providers={providers} locked={!driving} pending={pending} onEvents={agentEvents} onTurns={setTurns} onWorkflows={setWorkflows} onTurnChanges={showTurn} onSide={(id, aside) => setSide({ id, aside })} />
             </div>
             {sideChat && !isMobile && <div className="flex w-[min(32rem,45%)] shrink-0 flex-col border-l">{sideChat}</div>}
           </div>
@@ -808,13 +842,7 @@ export function ThreadView({
           onThread={setThread}
           providerName={provider?.displayName || thread.provider}
         />
-        <RenameDialog
-          open={renaming}
-          onClose={() => setRenaming(false)}
-          title={t("thread.renameTitle")}
-          name={threadName(thread)}
-          onRename={(title) => link.threads.updateThread({ threadId, title }).then(setThread)}
-        />
+        {threadDialogs.dialogs}
         <ConfirmDialog
           open={discarding !== undefined}
           onClose={() => setDiscarding(undefined)}
@@ -827,16 +855,6 @@ export function ThreadView({
             discarding?.();
             setDiscarding(undefined);
           }}
-        />
-        <ConfirmDialog
-          open={ending}
-          onClose={() => setEnding(false)}
-          title={t("thread.endTitle", { name: threadName(thread) })}
-          description={t("thread.endDescription")}
-          cancel={t("project.keep")}
-          confirm={t("thread.end")}
-          destructive
-          onConfirm={() => link.threads.deleteThread({ threadId }).then(onEnded, showError)}
         />
       </div>
   );
@@ -1358,6 +1376,7 @@ function Chat({
   pending = false,
   onEvents,
   onTurns,
+  onWorkflows,
   onTurnChanges,
   onSide,
 }: {
@@ -1372,6 +1391,8 @@ function Chat({
   provider?: Provider;
   /** The turns that changed files, oldest first, whenever they change. */
   onTurns?: (turns: TurnScope[]) => void;
+  /** The background workflows in the conversation, with their agents as they stand. */
+  onWorkflows?: (workflows: Workflow[]) => void;
   /** Shows one turn's changes beside the conversation. */
   onTurnChanges?: (turn: TurnScope) => void;
   /** Shows a side chat (a fork started by /side or /btw) beside the conversation. */
@@ -1422,6 +1443,12 @@ function Chat({
   useEffect(() => {
     onTurns?.(log.items.filter((it): it is Extract<Item, { type: "changes" }> => it.type === "changes"));
   }, [turnKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Only a change in the agents is news.
+  const tools = log.items.filter((it): it is Extract<Item, { type: "tool" }> => it.type === "tool" && it.agents.length > 0);
+  const workflowKey = tools.map((it) => it.id + ":" + it.agents.map((a) => `${a.id}${a.done}${a.stopped}${a.activity}`).join()).join("|");
+  useEffect(() => {
+    onWorkflows?.(tools.map((it) => ({ toolCallId: it.id, agents: it.agents })));
+  }, [workflowKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const lastSeq = useRef(0n);
   // How far the log went when the thread was opened: the replay up to there is drawn a few times a second, not per event.
   // A thread first shown as the sidebar last saw it learns how far it really goes when it is read.
@@ -2181,6 +2208,40 @@ function ToolRow({ item }: { item: Extract<Item, { type: "tool" }> }) {
 }
 
 type WorkflowAgentItem = Extract<Item, { type: "tool" }>["agents"][number];
+type Workflow = { toolCallId: string; agents: WorkflowAgentItem[] };
+
+/** The workflow agents running now, folded under how many; each opens on its own conversation. None, nothing. */
+function RunningAgents({ workflows }: { workflows: Workflow[] }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const [shown, setShown] = useState<{ toolCallId: string; id: string }>();
+  const running = workflows.flatMap((w) => w.agents.filter(agentRunning).map((agent) => ({ toolCallId: w.toolCallId, agent })));
+  const now = useNow(running.length > 0);
+  // The one open stays open as it finishes, read from the workflows as they now stand.
+  const agent = shown && workflows.find((w) => w.toolCallId === shown.toolCallId)?.agents.find((a) => a.id === shown.id);
+  if (!running.length && !agent) return null;
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="p-1.5">
+      <CollapsibleTrigger className="hover:bg-muted flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left">
+        {running.length ? <Spinner className="size-4 shrink-0" /> : <CheckIcon className="text-success size-4 shrink-0" />}
+        <span className="flex-1">{t("chat.agentsRunning", { count: String(running.length) })}</span>
+        <ChevronDownIcon className={cn("text-muted-foreground size-3.5 shrink-0 transition-transform", open && "rotate-180")} />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="grid max-h-64 gap-0.5 overflow-y-auto pt-0.5">
+        {running.map(({ toolCallId, agent: a }) => (
+          <button key={toolCallId + a.id} type="button" className="hover:bg-muted flex min-w-0 items-center gap-2 rounded-md px-2 py-1 text-left text-xs" onClick={() => setShown({ toolCallId, id: a.id })}>
+            <span className="text-foreground shrink-0">{a.label || a.id}</span>
+            {a.activity ? <span className="text-muted-foreground min-w-0 flex-1 truncate font-mono">{a.activity}</span> : <span className="flex-1" />}
+            <span className="text-muted-foreground shrink-0 tabular-nums">{agentDuration(a, now)}</span>
+          </button>
+        ))}
+      </CollapsibleContent>
+      <Sheet open={agent !== undefined} onOpenChange={(o) => !o && setShown(undefined)}>
+        <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-xl">{agent && shown && <AgentTranscript toolCallId={shown.toolCallId} agent={agent} />}</SheetContent>
+      </Sheet>
+    </Collapsible>
+  );
+}
 
 /** Reads what one agent of a workflow did, for the thread on screen. */
 const WorkflowReader = createContext<((toolCallId: string, agentId: string, signal: AbortSignal) => AsyncIterable<{ steps: WorkflowStep[] }>) | undefined>(undefined);

@@ -20,6 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { type NotificationChannel, type NotificationChannelSchema, type Snooze, SnoozeKind } from "@/gen/inaba/v1/server_pb";
 import { showError } from "@/lib/errors";
 import { type MessageKey, useI18n } from "@/lib/i18n";
+import { reloadSnoozes } from "@/lib/snooze";
 
 type Kind = "webhook" | "ntfy" | "discord" | "slack" | "telegram";
 
@@ -294,7 +295,8 @@ export function MutedList({ link }: { link: HostLink }) {
     setClearing(s.targetId);
     notifications
       .clearSnooze({ hostId: link.hostId, kind: s.kind, targetId: s.targetId })
-      .then(load, showError)
+      // The menus and the sidebar read the shared copy, so it is read again too.
+      .then(() => (void reloadSnoozes(link.hostId), load()), showError)
       .finally(() => setClearing(undefined));
   };
 

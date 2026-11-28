@@ -1,5 +1,5 @@
 import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { notifications } from "@/api";
 import { type Snooze, SnoozeKind } from "@/gen/inaba/v1/server_pb";
 import { showError } from "@/lib/errors";
@@ -30,14 +30,36 @@ export type Muted = { until: Date | null };
 
 const awake = (s: Snooze, now: number) => s.until !== undefined && timestampDate(s.until).getTime() <= now;
 
+// One copy per host for every menu and list that shows them, so a snooze set in one shows in all.
+const byHost = new Map<string, Snooze[]>();
+const listeners = new Set<() => void>();
+let version = 0;
+const subscribe = (l: () => void) => (listeners.add(l), () => void listeners.delete(l));
+// The newest read of each host; an older one answering late is dropped.
+const reads = new Map<string, number>();
+/** Reads a host's snoozes again, for every place that shows them. */
+export const reloadSnoozes = (hostId: string) => {
+  const n = (reads.get(hostId) ?? 0) + 1;
+  reads.set(hostId, n);
+  return notifications
+    .listSnoozes({ hostId })
+    .then((r) => r.snoozes, () => [] as Snooze[])
+    .then((list) => {
+      if (reads.get(hostId) !== n) return;
+      byHost.set(hostId, list);
+      version++;
+      for (const l of listeners) l();
+    });
+};
+
 /** The account's snoozes on a host, with what mutes a thread or a project, and setting and clearing them. */
 export function useSnoozes(hostId: string) {
-  const [snoozes, setSnoozes] = useState<Snooze[]>([]);
-  const load = useCallback(() => notifications.listSnoozes({ hostId }).then((r) => setSnoozes(r.snoozes), () => setSnoozes([])), [hostId]);
+  useSyncExternalStore(subscribe, () => version);
+  // Read once per host; a menu opening does not read again. Setting and clearing read again.
   useEffect(() => {
-    void load();
-  }, [load]);
-
+    if (!reads.has(hostId)) void reloadSnoozes(hostId);
+  }, [hostId]);
+  const snoozes = byHost.get(hostId) ?? [];
   const find = (kind: SnoozeKind, id: string): Muted | undefined => {
     const s = snoozes.find((x) => x.kind === kind && x.targetId === id && !awake(x, Date.now()));
     return s && { until: s.until ? timestampDate(s.until) : null };
@@ -50,9 +72,9 @@ export function useSnoozes(hostId: string) {
     muted: (threadId: string, projectId?: string) => find(SnoozeKind.THREAD, threadId) ?? (projectId ? find(SnoozeKind.PROJECT, projectId) : undefined),
     set: (kind: SnoozeKind, targetId: string, preset: SnoozePreset) => {
       const until = snoozeUntil(preset);
-      return notifications.setSnooze({ hostId, kind, targetId, until: until && timestampFromDate(until) }).then(load, showError);
+      return notifications.setSnooze({ hostId, kind, targetId, until: until && timestampFromDate(until) }).then(() => reloadSnoozes(hostId), showError);
     },
-    clear: (kind: SnoozeKind, targetId: string) => notifications.clearSnooze({ hostId, kind, targetId }).then(load, showError),
+    clear: (kind: SnoozeKind, targetId: string) => notifications.clearSnooze({ hostId, kind, targetId }).then(() => reloadSnoozes(hostId), showError),
   };
 }
 

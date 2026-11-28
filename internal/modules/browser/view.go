@@ -89,6 +89,8 @@ func (s *service) WatchPage(ctx context.Context, req *inabav1.WatchPageRequest, 
 	}(changed)
 	// The window stays as the agent has it while it works: a new size would change the page under it.
 	if req.WindowWidth > 0 && req.WindowHeight > 0 && control != inabav1.BrowserControl_BROWSER_CONTROL_AGENT {
+		// A viewport the agent set would keep the page its size whatever the window, and throw off the measuring below.
+		in.unemulate(pageID)
 		if err := resize(p, int(req.WindowWidth), int(req.WindowHeight)); err != nil {
 			return connect.NewError(connect.CodeUnavailable, "could not size the window: "+err.Error())
 		}

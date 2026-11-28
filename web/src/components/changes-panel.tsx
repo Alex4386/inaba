@@ -40,6 +40,25 @@ function readPrefs(): { split: boolean; wrap: boolean; hideTests: boolean; ignor
 const DEFAULT_BASE = ":default";
 
 /** Added and removed line counts, in the colors diffs use for them. */
+/** A thread's branches, and switching to one: for the changes panel and the card saying where it runs. */
+export function useBranches(link: HostLink, threadId: string, current: string | undefined, onStatus: (status?: GitStatus) => unknown) {
+  const [branches, setBranches] = useState<string[]>([]);
+  const [switching, setSwitching] = useState<string>();
+  // Read again whenever the current branch changes, which is when the list can have grown.
+  useEffect(() => {
+    link.git.listBranches({ threadId }).then((r) => setBranches(r.branches), () => setBranches([]));
+  }, [link, threadId, current]);
+  const checkout = (branch: string) => {
+    if (switching) return;
+    setSwitching(branch);
+    link.git
+      .checkout({ threadId, branch, create: false })
+      .then(onStatus, showError)
+      .finally(() => setSwitching(undefined));
+  };
+  return { branches, switching, checkout };
+}
+
 export function LineCounts({ additions, deletions, className }: { additions: number; deletions: number; className?: string }) {
   return (
     <span className={cn("font-mono text-xs tabular-nums", className)}>
@@ -114,8 +133,6 @@ export function ChangesPanel({
     });
   // The header or commit action running, so its own button spins and the rest wait.
   const [busy, setBusy] = useState<"fetch" | "pull" | "push" | "commit" | "commitPush">();
-  const [switching, setSwitching] = useState<string>();
-  const [branches, setBranches] = useState<string[]>([]);
   const [naming, setNaming] = useState(false);
   const [opening, setOpening] = useState(false);
   // The highlighter loads alongside the first diff instead of after it.
@@ -126,17 +143,7 @@ export function ChangesPanel({
   const [reload, setReload] = useState(0);
   const refresh = useCallback(() => (setReload((n) => n + 1), onStatus()), [onStatus]);
   const signature = statusSignature(status);
-  // The branch list is read again whenever the current branch changes, which is when it can have grown.
-  useEffect(() => {
-    link.git.listBranches({ threadId }).then((r) => setBranches(r.branches), () => setBranches([]));
-  }, [link, threadId, status.branch]);
-  const checkout = (branch: string) => {
-    setSwitching(branch);
-    link.git
-      .checkout({ threadId, branch, create: false })
-      .then(onStatus, showError)
-      .finally(() => setSwitching(undefined));
-  };
+  const { branches, switching, checkout } = useBranches(link, threadId, status.branch, onStatus);
 
   const before = turn?.before;
   const after = turn?.after;

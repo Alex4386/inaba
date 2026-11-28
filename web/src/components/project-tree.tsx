@@ -1,33 +1,23 @@
 import {
   ArchiveIcon,
-  ArchiveRestoreIcon,
-  BellIcon,
   BellOffIcon,
   BotIcon,
   ChevronRightIcon,
   CircleAlertIcon,
   CircleHelpIcon,
-  CircleDotIcon,
-  CopyIcon,
   FolderOpenIcon,
-  GitForkIcon,
-  ListIcon,
   MoreHorizontalIcon,
-  PencilIcon,
   PinIcon,
-  PinOffIcon,
   PlusIcon,
-  SettingsIcon,
   SquareTerminalIcon,
-  Trash2Icon,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { HostLink } from "@/api";
-import { ConfirmDialog, RenameDialog } from "@/components/dialogs";
+import { ProjectMenuItems, ThreadMenuItems, useProjectDialogs, useThreadDialogs, wakeTime } from "@/components/entity-menus";
 import { PeopleStack, usePeople } from "@/components/presence";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   SidebarGroup,
   SidebarGroupAction,
@@ -43,16 +33,14 @@ import {
 } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { SnoozeKind } from "@/gen/inaba/v1/server_pb";
 import { type DescMessage, type MessageShape, equals } from "@bufbuild/protobuf";
 import { type Project, ProjectSchema, type Thread, ThreadMode, ThreadSchema, ThreadStatus } from "@/gen/inaba/v1/host_pb";
-import { errorText, showError } from "@/lib/errors";
 import { cached, keep } from "@/lib/host-cache";
 import { poll } from "@/lib/poll";
 import { notifyEnabled } from "@/lib/settings";
 import { type Translate, useI18n } from "@/lib/i18n";
 import { useSeen } from "@/lib/seen";
-import { type Muted, type SnoozePreset, type Snoozes, snoozePresets, useSnoozes } from "@/lib/snooze";
+import { type Muted, type Snoozes, useSnoozes } from "@/lib/snooze";
 import { cn } from "@/lib/utils";
 
 const same = <D extends DescMessage>(schema: D, a: MessageShape<D>[] | undefined, b: MessageShape<D>[]) => a?.length === b.length && a.every((x, i) => equals(schema, x, b[i]));
@@ -126,13 +114,9 @@ export function threadState(thread: Thread, t: Translate): string {
   return thread.activitySeq > 0n ? t("thread.done") : t("thread.notStarted");
 }
 
-const presetKey = { hour: "snooze.hour", tomorrow: "snooze.tomorrow", week: "snooze.week", forever: "snooze.forever" } as const;
-// A weekday alone reads as this week, so a wake time past a day also says the date.
-const wakeTime = (until: Date, locale: string) =>
-  until.toLocaleString(locale, { ...(until.getTime() - Date.now() > 86_400_000 && { month: "short", day: "numeric" }), weekday: "short", hour: "2-digit", minute: "2-digit" });
 
 /** A small muted bell after a snoozed name, saying until when. */
-function SnoozedMark({ muted }: { muted?: Muted }) {
+export function SnoozedMark({ muted }: { muted?: Muted }) {
   const { t, locale } = useI18n();
   if (!muted) return null;
   const label = muted.until ? t("snooze.on", { time: wakeTime(muted.until, locale) }) : t("snooze.onForever");
@@ -146,70 +130,24 @@ function SnoozedMark({ muted }: { muted?: Muted }) {
   );
 }
 
-/** The snooze part of a thread's or project's menu: the presets, or unsnoozing what is snoozed. */
-function SnoozeItems({ own, byProject, onSet, onClear }: { own?: Muted; byProject?: Muted; onSet: (preset: SnoozePreset) => void; onClear: () => void }) {
-  const { t, locale } = useI18n();
-  if (own)
-    return (
-      <DropdownMenuItem onClick={onClear}>
-        <BellIcon />
-        {own.until ? t("snooze.off", { time: wakeTime(own.until, locale) }) : t("snooze.offForever")}
-      </DropdownMenuItem>
-    );
-  if (byProject)
-    return (
-      <DropdownMenuItem disabled>
-        <BellOffIcon />
-        {t("snooze.byProject")}
-      </DropdownMenuItem>
-    );
-  return (
-    <DropdownMenuSub>
-      <DropdownMenuSubTrigger openOnHover={false}>
-        <BellOffIcon />
-        {t("snooze.menu")}
-      </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent>
-        {snoozePresets.map((p) => (
-          <DropdownMenuItem key={p} onClick={() => onSet(p)}>
-            {t(presetKey[p])}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuSubContent>
-    </DropdownMenuSub>
-  );
-}
 
 /** What can be done to a thread, from its … or a right-click. */
-type ThreadActions = {
-  onNewThread?: () => void;
-  onPin: (pinned: boolean) => void;
-  onArchive: (archived: boolean) => void;
-  onRename: () => void;
-  onFork: () => void;
-  onEnd: () => void;
-  onSnooze: (preset: SnoozePreset) => void;
-  onUnsnooze: () => void;
-  /** Absent when the thread already reads as unread or has nothing to read. */
-  onMarkUnread?: () => void;
-};
 
 function ThreadRow({
   thread,
   active,
   unread,
   onSelect,
-  actions,
+  menu: items,
   snoozed,
-  byProject,
 }: {
   thread: Thread;
   active: boolean;
   unread: boolean;
   onSelect: () => void;
-  actions: ThreadActions;
+  /** The thread's menu, as this place offers it. */
+  menu: ReactNode;
   snoozed?: Muted;
-  byProject?: Muted;
 }) {
   const { t, locale } = useI18n();
   const people = usePeople();
@@ -219,7 +157,6 @@ function ThreadRow({
   const failed = threadFailed(thread);
   const pinned = Boolean(thread.labels.pinned);
   const archived = Boolean(thread.labels.archived);
-  const copy =(text: string) => navigator.clipboard.writeText(text).then(() => toast.success(t("common.copied")), showError);
   return (
     <SidebarMenuSubItem
       className="group/thread relative"
@@ -274,52 +211,7 @@ function ThreadRow({
           <span className="sr-only">{t("project.more", { name: threadName(thread) })}</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-auto min-w-48 whitespace-nowrap" side="right" align="start">
-          {actions.onNewThread && (
-            <DropdownMenuItem onClick={actions.onNewThread}>
-              <PlusIcon />
-              {t("thread.new")}
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem onClick={() => actions.onPin(!pinned)}>
-            {pinned ? <PinOffIcon /> : <PinIcon />}
-            {t(pinned ? "thread.unpin" : "thread.pin")}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => actions.onArchive(!archived)}>
-            {archived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
-            {t(archived ? "archive.unarchiveThread" : "archive.archiveThread")}
-          </DropdownMenuItem>
-          <SnoozeItems own={snoozed} byProject={byProject} onSet={actions.onSnooze} onClear={actions.onUnsnooze} />
-          {actions.onMarkUnread && (
-            <DropdownMenuItem onClick={actions.onMarkUnread}>
-              <CircleDotIcon />
-              {t("thread.markUnread")}
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={actions.onRename}>
-            <PencilIcon />
-            {t("thread.rename")}
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled={running} onClick={actions.onFork}>
-            <GitForkIcon />
-            {t("thread.fork")}
-          </DropdownMenuItem>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger openOnHover={false}>
-              <CopyIcon />
-              {t("common.copy")}
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <DropdownMenuItem onClick={() => copy(thread.id)}>{t("thread.copyId")}</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => copy(thread.cwd)}>{t("thread.copyPath")}</DropdownMenuItem>
-              {thread.nativeSessionId && <DropdownMenuItem onClick={() => copy(thread.nativeSessionId)}>{t("thread.copyNative")}</DropdownMenuItem>}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" onClick={actions.onEnd}>
-            <Trash2Icon />
-            {t("thread.end")}
-          </DropdownMenuItem>
+          {items}
         </DropdownMenuContent>
       </DropdownMenu>
     </SidebarMenuSubItem>
@@ -338,6 +230,7 @@ export function ProjectTree({
   onProjectSettings,
   onAllProjects,
   onProjectThreads,
+  onThreadSettings,
 }: {
   /** Opens the page listing every project, archived ones too. */
   onAllProjects: () => void;
@@ -352,6 +245,8 @@ export function ProjectTree({
   onSelect: (id: string | undefined) => void;
   /** Opens the screen that starts a thread in the project. */
   onNewThread: (project: Project) => void;
+  /** Opens a thread with its settings showing. */
+  onThreadSettings: (threadId: string) => void;
   /** Opens the folder picker that adds a project. */
   onAddProject: () => void;
   /** Whether the account may add and remove projects. */
@@ -360,31 +255,32 @@ export function ProjectTree({
   const { t } = useI18n();
   const { setOpenMobile } = useSidebar();
   const people = usePeople();
-  const [renaming, setRenaming] = useState<Thread>();
-  const [ending, setEnding] = useState<Thread>();
-  // What a thread's menu does; a thread outside any project has no project to start another in.
-  const actionsFor = (th: Thread, project?: Project): ThreadActions => ({
-    onNewThread: project
-      ? () => {
+  const threadDialogs = useThreadDialogs({ link, onChanged: () => refresh(), onEnded: (th) => (void refresh(), th.id === selected && onSelect(undefined)) });
+  const projectDialogs = useProjectDialogs({ link, onChanged: () => refresh() });
+  // A thread's menu here; a thread outside any project has no project to start another in.
+  const menuFor = (th: Thread, project?: Project) => (
+    <ThreadMenuItems
+      link={link}
+      thread={th}
+      shown={th.id === selected}
+      onChanged={() => refresh()}
+      onLabel={(label, on) => relabel(th.id, label, on)}
+      onOpen={onSelect}
+      onRename={() => threadDialogs.rename(th)}
+      onEnd={() => threadDialogs.end(th)}
+      onSettings={() => {
+        setOpenMobile(false);
+        onThreadSettings(th.id);
+      }}
+      onNewThread={
+        project &&
+        (() => {
           setOpenMobile(false);
           onNewThread(project);
-        }
-      : undefined,
-    onPin: (pinned) => (relabel(th.id, "pinned", pinned), link.threads.updateThread({ threadId: th.id, pinned }).catch(showError).finally(refresh)),
-    onArchive: (archived) => (relabel(th.id, "archived", archived), link.threads.updateThread({ threadId: th.id, archived }).catch(showError).finally(refresh)),
-    onRename: () => setRenaming(th),
-    onFork: () => {
-      if (forking.current) return;
-      forking.current = true;
-      const fork = link.threads.forkThread({ threadId: th.id, seq: th.lastSeq }).then((f) => (void refresh(), onSelect(f.id)));
-      toast.promise(fork, { loading: t("thread.forking"), error: errorText });
-      fork.catch(() => {}).finally(() => (forking.current = false));
-    },
-    onEnd: () => setEnding(th),
-    onSnooze: (preset) => snoozes.set(SnoozeKind.THREAD, th.id, preset),
-    onUnsnooze: () => snoozes.clear(SnoozeKind.THREAD, th.id),
-    onMarkUnread: th.activitySeq > 0n && !seen.unread(th) ? () => seen.markUnread(th) : undefined,
-  });
+        })
+      }
+    />
+  );
   // Projects the user opened or folded by hand; the others show their threads only while one
   // works or asks, or holds what is on screen, so finished work does not crowd the sidebar.
   const [toggled, setToggled] = useState<Map<string, boolean>>(new Map());
@@ -396,7 +292,6 @@ export function ProjectTree({
   // What the host had last time shows until it answers.
   const [projects, setProjects] = useState(() => cached(link.hostId, "projects", ProjectSchema));
   const [threads, setThreads] = useState(() => cached(link.hostId, "threads", ThreadSchema) ?? []);
-  const forking = useRef(false);
   // Shown at once; the refresh after the call puts back what the host really has.
   const relabel = (id: string, label: "pinned" | "archived", on: boolean) =>
     setThreads((ts) =>
@@ -410,7 +305,6 @@ export function ProjectTree({
     );
   const reproject = (id: string, change: Partial<Pick<Project, "pinned" | "archived">>) => setProjects((ps) => ps?.map((p) => (p.id === id ? { ...p, ...change } : p)));
   const statuses = useRef(new Map<string, ThreadStatus>());
-  const [removing, setRemoving] = useState<Project>();
   const snoozes = useSnoozes(link.hostId);
   const seen = useSeen(link.hostId);
   // Read by the poll below without restarting it.
@@ -508,62 +402,23 @@ export function ProjectTree({
                   </DropdownMenuTrigger>
                   {/* Sized to its items: the trigger it hangs from is only an icon wide. */}
                   <DropdownMenuContent className="w-auto whitespace-nowrap" side="right" align="start">
-                    <DropdownMenuItem
-                      onClick={() => {
+                    <ProjectMenuItems
+                      link={link}
+                      project={project}
+                      canManage={canManage}
+                      onChanged={() => refresh()}
+                      onPatch={(change) => reproject(project.id, change)}
+                      onNewThread={() => {
                         setOpenMobile(false);
                         onNewThread(project);
                       }}
-                    >
-                      <PlusIcon />
-                      {t("thread.new")}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => {
+                      onThreads={() => {
                         setOpenMobile(false);
                         onProjectThreads(project);
                       }}
-                    >
-                      <ListIcon />
-                      {t("archive.allThreads")}
-                    </DropdownMenuItem>
-                    <SnoozeItems
-                      own={snoozes.project(project.id)}
-                      onSet={(preset) => snoozes.set(SnoozeKind.PROJECT, project.id, preset)}
-                      onClear={() => snoozes.clear(SnoozeKind.PROJECT, project.id)}
+                      onSettings={onProjectSettings && (() => onProjectSettings(project))}
+                      onRemove={() => projectDialogs.remove(project)}
                     />
-                    {onProjectSettings && (
-                      <DropdownMenuItem onClick={() => onProjectSettings(project)}>
-                        <SettingsIcon />
-                        {t("projectSettings.open")}
-                      </DropdownMenuItem>
-                    )}
-                    {canManage && (
-                      <>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            reproject(project.id, { pinned: !project.pinned });
-                            link.projects.updateProject({ projectId: project.id, pinned: !project.pinned }).catch(showError).finally(refresh);
-                          }}
-                        >
-                          {project.pinned ? <PinOffIcon /> : <PinIcon />}
-                          {t(project.pinned ? "project.unpin" : "project.pin")}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            reproject(project.id, { archived: !project.archived });
-                            link.projects.updateProject({ projectId: project.id, archived: !project.archived }).catch(showError).finally(refresh);
-                          }}
-                        >
-                          {project.archived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
-                          {t(project.archived ? "archive.unarchiveProject" : "archive.archiveProject")}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem variant="destructive" onClick={() => setRemoving(project)}>
-                          <Trash2Icon />
-                          {t("project.remove")}
-                        </DropdownMenuItem>
-                      </>
-                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
                 </div>
@@ -583,9 +438,8 @@ export function ProjectTree({
                           setOpenMobile(false);
                           onSelect(th.id);
                         }}
-                        actions={actionsFor(th, project)}
+                        menu={menuFor(th, project)}
                         snoozed={snoozes.thread(th.id)}
-                        byProject={snoozes.project(project.id)}
                       />
                     ))}
                   </SidebarMenuSub>
@@ -609,7 +463,7 @@ export function ProjectTree({
                   setOpenMobile(false);
                   onSelect(th.id);
                 }}
-                actions={actionsFor(th)}
+                menu={menuFor(th)}
                 snoozed={snoozes.thread(th.id)}
               />
             ))}
@@ -635,39 +489,8 @@ export function ProjectTree({
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarGroup>
-      <RenameDialog
-        open={renaming !== undefined}
-        onClose={() => setRenaming(undefined)}
-        title={t("thread.renameTitle")}
-        name={renaming ? threadName(renaming) : ""}
-        onRename={(title) => link.threads.updateThread({ threadId: renaming!.id, title }).then(refresh)}
-      />
-      <ConfirmDialog
-        open={ending !== undefined}
-        onClose={() => setEnding(undefined)}
-        title={t("thread.endTitle", { name: ending ? threadName(ending) : "" })}
-        description={t("thread.endDescription")}
-        cancel={t("project.keep")}
-        confirm={t("thread.end")}
-        destructive
-        onConfirm={() =>
-          ending &&
-          link.threads.deleteThread({ threadId: ending.id }).then(() => {
-            if (ending.id === selected) onSelect(undefined);
-            void refresh();
-          }, showError)
-        }
-      />
-      <ConfirmDialog
-        open={removing !== undefined}
-        onClose={() => setRemoving(undefined)}
-        title={t("project.removeTitle", { name: removing?.name ?? "" })}
-        description={t("project.removeDescription")}
-        cancel={t("project.keep")}
-        confirm={t("project.remove")}
-        destructive
-        onConfirm={() => removing && link.projects.deleteProject({ projectId: removing.id }).then(refresh, showError)}
-      />
+      {threadDialogs.dialogs}
+      {projectDialogs.dialogs}
     </>
   );
 }

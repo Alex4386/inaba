@@ -894,6 +894,7 @@ export const zhHans: Record<MessageKey, string> = {
   "chat.noOutput": "无输出",
   "chat.toolFailed": "失败",
   "chat.workflowAgentCount": "{count} 个智能体",
+  "chat.agentsRunning": "{count} 个智能体正在运行",
   "chat.workflowRunning": "{running} 个运行中，{done} 个已完成",
   "chat.workflowDone": "全部完成",
   "chat.workflowStopped": "{done} 个已完成，{stopped} 个在完成前停止",

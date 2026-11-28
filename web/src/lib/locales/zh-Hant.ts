@@ -894,6 +894,7 @@ export const zhHant: Record<MessageKey, string> = {
   "chat.noOutput": "沒有輸出",
   "chat.toolFailed": "失敗",
   "chat.workflowAgentCount": "{count} 個代理程式",
+  "chat.agentsRunning": "{count} 個代理程式正在執行",
   "chat.workflowRunning": "{running} 個執行中，{done} 個已完成",
   "chat.workflowDone": "全部完成",
   "chat.workflowStopped": "{done} 個已完成，{stopped} 個在完成前停止",

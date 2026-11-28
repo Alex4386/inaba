@@ -1,9 +1,11 @@
-import { ArchiveIcon, BotIcon, ChevronRightIcon, CircleAlertIcon, PinIcon, PlusIcon, SquareTerminalIcon } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { ArchiveIcon, BotIcon, CircleAlertIcon, MoreHorizontalIcon, PinIcon, PlusIcon, SquareTerminalIcon } from "lucide-react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import type { HostLink } from "@/api";
-import { ProjectIcon, threadFailed, threadName, threadState, timeAgo } from "@/components/project-tree";
+import { ProjectMenuItems, ThreadMenuItems, useProjectDialogs, useThreadDialogs } from "@/components/entity-menus";
+import { ProjectIcon, SnoozedMark, threadFailed, threadName, threadState, timeAgo } from "@/components/project-tree";
 import { Badge } from "@/components/reui/badge";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
@@ -11,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { type Project, type Thread, ThreadMode } from "@/gen/inaba/v1/host_pb";
 import { errorText } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
+import { useSnoozes } from "@/lib/snooze";
 
 /** The host's projects and threads, read once for a page that lists them. */
 function useListing(link: HostLink) {
@@ -28,8 +31,35 @@ function useListing(link: HostLink) {
     );
   }, [link]);
   useEffect(load, [load]);
-  return { projects, threads, failed: error && <LoadError error={error} onRetry={load} /> };
+  return { projects, threads, reload: load, failed: error && <LoadError error={error} onRetry={load} /> };
 }
+
+/** A row's or the page's ⋯ menu. Clicks in it stay in it, not opening the row it sits on. */
+function RowMenu({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button size="icon-sm" variant="ghost" onClick={(e) => e.stopPropagation()} />}>
+        <MoreHorizontalIcon />
+        <span className="sr-only">{label}</span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-auto min-w-48 whitespace-nowrap" align="end" onClick={(e) => e.stopPropagation()}>
+        {children}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+// The menu's cell stays at the row's right edge, in view however far a narrow screen scrolls the table.
+const menuCell = "bg-background sticky right-0 py-0";
+
+/** What a project's menu does on these pages. */
+type ProjectActions = {
+  onNewThread: (project: Project) => void;
+  /** Opens a project's settings; absent when the account may not change them. */
+  onProjectSettings?: (project: Project) => void;
+  /** Whether the account may pin, archive and remove projects. */
+  canManage: boolean;
+};
 
 function LoadError({ error, onRetry }: { error: string; onRetry: () => void }) {
   const { t } = useI18n();
@@ -73,9 +103,18 @@ function Archived() {
 }
 
 /** Every project on the host, archived ones too: pick one to see all its threads. */
-export function ProjectsPage({ link, onOpen, onAddProject }: { link: HostLink; onOpen: (project: Project) => void; /** Opens the folder picker that adds a project; absent when the account may not. */ onAddProject?: () => void }) {
+export function ProjectsPage({
+  link,
+  onOpen,
+  onAddProject,
+  onNewThread,
+  onProjectSettings,
+  canManage,
+}: ProjectActions & { link: HostLink; onOpen: (project: Project) => void; /** Opens the folder picker that adds a project; absent when the account may not. */ onAddProject?: () => void }) {
   const { t } = useI18n();
-  const { projects, threads, failed } = useListing(link);
+  const { projects, threads, reload, failed } = useListing(link);
+  const snoozes = useSnoozes(link.hostId);
+  const dialogs = useProjectDialogs({ link, onChanged: reload });
   const [filter, setFilter] = useState("");
   const q = filter.trim().toLowerCase();
   const shown = projects?.filter((p) => !q || p.name.toLowerCase().includes(q) || p.cwd.toLowerCase().includes(q)).sort((a, b) => Number(b.pinned) - Number(a.pinned));
@@ -119,12 +158,24 @@ export function ProjectsPage({ link, onOpen, onAddProject }: { link: HostLink; o
                           <span className="truncate">{p.name}</span>
                           {p.pinned && <Pinned />}
                           {p.archived && <Archived />}
+                          <SnoozedMark muted={snoozes.project(p.id)} />
                         </span>
                       </TableCell>
                       <TableCell className="text-muted-foreground max-w-64 truncate">{p.cwd}</TableCell>
                       <TableCell className="text-muted-foreground text-right tabular-nums">{threads.filter((th) => th.projectId === p.id).length}</TableCell>
-                      <TableCell>
-                        <ChevronRightIcon className="text-muted-foreground size-4" aria-hidden />
+                      <TableCell className={menuCell}>
+                        <RowMenu label={t("project.more", { name: p.name })}>
+                          <ProjectMenuItems
+                            link={link}
+                            project={p}
+                            canManage={canManage}
+                            onChanged={reload}
+                            onNewThread={() => onNewThread(p)}
+                            onThreads={() => onOpen(p)}
+                            onSettings={onProjectSettings && (() => onProjectSettings(p))}
+                            onRemove={() => dialogs.remove(p)}
+                          />
+                        </RowMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -134,6 +185,7 @@ export function ProjectsPage({ link, onOpen, onAddProject }: { link: HostLink; o
           )}
         </div>
       </div>
+      {dialogs.dialogs}
     </div>
   );
 }
@@ -145,15 +197,22 @@ export function ProjectThreadsPage({
   onProjects,
   onOpen,
   onNewThread,
-}: {
+  onProjectSettings,
+  onThreadSettings,
+  canManage,
+}: ProjectActions & {
   link: HostLink;
   projectId: string;
   onProjects: () => void;
   onOpen: (threadId: string) => void;
-  onNewThread: (project: Project) => void;
+  /** Opens a thread with its settings showing. */
+  onThreadSettings: (threadId: string) => void;
 }) {
   const { t, locale } = useI18n();
-  const { projects, threads, failed } = useListing(link);
+  const { projects, threads, reload, failed } = useListing(link);
+  const snoozes = useSnoozes(link.hostId);
+  const threadDialogs = useThreadDialogs({ link, onChanged: reload });
+  const projectDialogs = useProjectDialogs({ link, onChanged: reload, onRemoved: onProjects });
   const [filter, setFilter] = useState("");
   const project = projects?.find((p) => p.id === projectId);
   const q = filter.trim().toLowerCase();
@@ -171,11 +230,25 @@ export function ProjectThreadsPage({
         {project && <ProjectIcon project={project} />}
         <h1 className="truncate text-sm font-medium">{project?.name}</h1>
         {project?.archived && <Archived />}
+        {project && <SnoozedMark muted={snoozes.project(project.id)} />}
         {project && (
-          <Button size="sm" variant="outline" className="ml-auto" onClick={() => onNewThread(project)}>
-            <PlusIcon data-icon="inline-start" />
-            {t("thread.new")}
-          </Button>
+          <>
+            <Button size="sm" variant="outline" className="ml-auto" onClick={() => onNewThread(project)}>
+              <PlusIcon data-icon="inline-start" />
+              {t("thread.new")}
+            </Button>
+            <RowMenu label={t("project.more", { name: project.name })}>
+              <ProjectMenuItems
+                link={link}
+                project={project}
+                canManage={canManage}
+                onChanged={reload}
+                onNewThread={() => onNewThread(project)}
+                onSettings={onProjectSettings && (() => onProjectSettings(project))}
+                onRemove={() => projectDialogs.remove(project)}
+              />
+            </RowMenu>
+          </>
         )}
       </PageHeader>
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -207,6 +280,7 @@ export function ProjectThreadsPage({
                           <span className="truncate">{threadName(th)}</span>
                           {th.labels.pinned && <Pinned />}
                           {th.labels.archived && <Archived />}
+                          <SnoozedMark muted={snoozes.thread(th.id)} />
                         </span>
                       </TableCell>
                       <TableCell className={threadFailed(th) ? "text-destructive" : "text-muted-foreground"}>
@@ -216,8 +290,18 @@ export function ProjectThreadsPage({
                         </span>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{th.updatedAt && timeAgo(new Date(Number(th.updatedAt.seconds) * 1000), locale, t("common.justNow"))}</TableCell>
-                      <TableCell>
-                        <ChevronRightIcon className="text-muted-foreground size-4" aria-hidden />
+                      <TableCell className={menuCell}>
+                        <RowMenu label={t("project.more", { name: threadName(th) })}>
+                          <ThreadMenuItems
+                            link={link}
+                            thread={th}
+                            onChanged={reload}
+                            onOpen={onOpen}
+                            onRename={() => threadDialogs.rename(th)}
+                            onEnd={() => threadDialogs.end(th)}
+                            onSettings={() => onThreadSettings(th.id)}
+                          />
+                        </RowMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -227,6 +311,8 @@ export function ProjectThreadsPage({
           )}
         </div>
       </div>
+      {threadDialogs.dialogs}
+      {projectDialogs.dialogs}
     </div>
   );
 }

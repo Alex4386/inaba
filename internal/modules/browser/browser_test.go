@@ -334,6 +334,23 @@ func TestABrowserForEachThread(t *testing.T) {
 	if st, err := client.SetBrowserControl(ctx, &inabav1.SetBrowserControlRequest{ThreadId: th.Id, Control: inabav1.BrowserControl_BROWSER_CONTROL_USER}); err != nil || st.Control != inabav1.BrowserControl_BROWSER_CONTROL_USER {
 		t.Fatalf("taking control: %v %v", st, err)
 	}
+	// A viewport the agent's Playwright gave the page gives way to the window a person sizes it to.
+	if err := (proto.EmulationSetDeviceMetricsOverride{Width: 390, Height: 844, DeviceScaleFactor: 1}).Call(pages[0]); err != nil {
+		t.Fatal(err)
+	}
+	for _, size := range [][2]uint32{{640, 420}, {480, 700}} {
+		watching, stop := context.WithCancel(ctx)
+		sized, err := client.WatchPage(watching, &inabav1.WatchPageRequest{ThreadId: th.Id, PageId: page, WindowWidth: size[0], WindowHeight: size[1]})
+		if err != nil {
+			stop()
+			t.Fatal(err)
+		}
+		f, err := picture(sized.Receive)
+		stop()
+		if err != nil || f.ViewportWidth != float64(size[0]) || f.ViewportHeight != float64(size[1]) {
+			t.Fatalf("emulated by the agent, at %v the page is %vx%v: %v", size, f.GetViewportWidth(), f.GetViewportHeight(), err)
+		}
+	}
 	if _, err := client.Input(ctx, &inabav1.BrowserInputRequest{ThreadId: th.Id, PageId: page, Event: &inabav1.BrowserInputRequest_Mouse{Mouse: &inabav1.MouseInput{Type: "moved", X: 1, Y: 1}}}); err != nil {
 		t.Fatalf("a person with control: %v", err)
 	}

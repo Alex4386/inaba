@@ -904,6 +904,7 @@ const en = {
   "chat.noOutput": "No output",
   "chat.toolFailed": "failed",
   "chat.workflowAgentCount": "{count} agents",
+  "chat.agentsRunning": "{count} agents running",
   "chat.workflowRunning": "{running} running, {done} done",
   "chat.workflowDone": "all done",
   "chat.workflowStopped": "{done} done, {stopped} stopped before finishing",
@@ -2126,6 +2127,7 @@ const ko: Record<MessageKey, string> = {
   "chat.noOutput": "출력 없음",
   "chat.toolFailed": "실패",
   "chat.workflowAgentCount": "에이전트 {count}개",
+  "chat.agentsRunning": "실행 중인 에이전트 {count}개",
   "chat.workflowRunning": "{running}개 실행 중, {done}개 완료",
   "chat.workflowDone": "모두 완료",
   "chat.workflowStopped": "{done}개 완료, {stopped}개 끝나기 전에 중단됨",
@@ -2476,6 +2478,7 @@ export function browserLocale(languages: readonly string[]): Locale {
 const enOne: Partial<Record<MessageKey, string>> = {
   "chat.steps": "{count} step",
   "chat.workflowAgentCount": "{count} agent",
+  "chat.agentsRunning": "{count} agent running",
   "git.turnScope": "Turn {n} · {count} file",
   "git.latestTurn": "Latest turn ({n}) · {count} file",
   "git.allChanges": "All changes ({count} file)",
