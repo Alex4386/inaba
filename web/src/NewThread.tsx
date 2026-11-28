@@ -90,7 +90,8 @@ export function NewThreadView({
   const [base, setBase] = useState("");
   const [branches, setBranches] = useState<string[]>([]);
   const branchInvalid = branch.trim() !== "" && !validBranchName(branch.trim());
-  const [info, setInfo] = useState(true);
+  // Open beside the composer on a wide screen; on a phone it would cover it, so it waits to be asked for.
+  const [info, setInfo] = useState(() => window.innerWidth >= 768);
   useEffect(() => {
     link.git
       .getStatus({ projectId: project.id })
