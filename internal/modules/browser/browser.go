@@ -72,6 +72,14 @@ type instance struct {
 	lastUsed time.Time
 	// users counts what has it open now: viewers and the agent's connections.
 	users int
+	// Who has it, the thread whose agent last used it, and how many people watch its pages.
+	control     inabav1.BrowserControl
+	agentThread string
+	viewers     int
+	// changed is closed, and replaced, whenever control changes.
+	changed chan struct{}
+	// unwatched gives back a taken browser once no one has watched it for a while; restarted by each who leaves.
+	unwatched *time.Timer
 }
 
 func (in *instance) touch(delta int) {
@@ -161,7 +169,14 @@ func (s *service) start() error {
 	s.listener = l
 	go func() { _ = http.Serve(l, s.proxy()) }()
 	go s.reap()
-	s.stopFollow = s.events.OnDelete(s.forget)
+	stopDeletes := s.events.OnDelete(s.forget)
+	// An agent has the browser until its turn ends.
+	stopTurns := s.events.Follow(func(e *inabav1.Event) bool { return e.GetTurnEnded() != nil }, func(e module.ThreadEvent) {
+		if !e.Copied {
+			s.turnEnded(e.Thread.GetId())
+		}
+	})
+	s.stopFollow = func() { stopDeletes(); stopTurns() }
 	return nil
 }
 
@@ -379,7 +394,7 @@ func state(in *instance) (*inabav1.BrowserState, error) {
 	if err != nil {
 		return nil, connect.NewError(connect.CodeUnavailable, "the browser did not answer: "+err.Error())
 	}
-	res := &inabav1.BrowserState{}
+	res := &inabav1.BrowserState{Control: in.controlNow()}
 	// Chrome lists the newest first.
 	for i := len(pages) - 1; i >= 0; i-- {
 		info, err := pages[i].Info()

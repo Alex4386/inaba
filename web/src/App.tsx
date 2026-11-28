@@ -416,10 +416,21 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
   const activeId = host?.id ?? (listed ? undefined : hostId);
   // A visited host is not in this account's list, so its own flag says whether it is offline.
   const offline = listed && host !== undefined && (down.has(host.id) || (host === visited && !host.online));
+  // A host that goes away while it is open, as it does when it restarts, keeps its link and what is on screen:
+  // its streams wait for it and pick up where they were. Only one offline from the start shows as not connected.
+  const reached = useRef<string>(undefined);
+  // Only once the server has said it is there: before its first answer, offline is not known yet.
+  if (activeId && listed && !offline) reached.current = activeId;
+  const away = offline && reached.current === activeId;
   const link = useMemo(
-    () => (activeId && !offline ? new HostLink(activeId, config.iceUrls, () => setLinkVersion((v) => v + 1)) : undefined),
-    [activeId, offline, config.iceUrls],
+    () => (activeId && (!offline || away) ? new HostLink(activeId, config.iceUrls, () => setLinkVersion((v) => v + 1)) : undefined),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeId, offline && !away, config.iceUrls],
   );
+  // Back: everything waiting on it tries again at once.
+  useEffect(() => {
+    if (!offline) link?.wake();
+  }, [link, offline]);
   useEffect(() => () => link?.close(), [link]);
   const draftKnown = Boolean(draft);
   useEffect(() => {
@@ -538,6 +549,12 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
         <SidebarResizeRail />
       </Sidebar>
       <SidebarInset className="min-h-0 min-w-0">
+        {away && host && (
+          <div role="status" className="bg-warning/15 text-foreground flex h-8 shrink-0 items-center justify-center gap-2 border-b px-3 text-xs">
+            <Spinner className="size-3.5" />
+            {t("host.reconnecting", { name: host.name })}
+          </div>
+        )}
         {administering ? (
           <AdminPage
             section={administering}
@@ -598,10 +615,10 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
             >
             <Empty>
               <EmptyHeader>
-                <EmptyMedia variant="icon">{offline ? <ServerOffIcon /> : <Logo />}</EmptyMedia>
-                <EmptyTitle>{!hostList || (!host && !listed) ? t("empty.loading") : hostList.length === 0 ? t("empty.firstHost") : !host ? t("empty.chooseHost") : offline ? t("empty.offline", { name: host.name }) : t("empty.noThread")}</EmptyTitle>
+                <EmptyMedia variant="icon">{offline && !away ? <ServerOffIcon /> : <Logo />}</EmptyMedia>
+                <EmptyTitle>{!hostList || (!host && !listed) ? t("empty.loading") : hostList.length === 0 ? t("empty.firstHost") : !host ? t("empty.chooseHost") : offline && !away ? t("empty.offline", { name: host.name }) : t("empty.noThread")}</EmptyTitle>
                 <EmptyDescription>
-                  {hostList?.length === 0 ? t("empty.firstHostHelp") : !host ? t("empty.chooseHostHelp") : offline ? t("empty.offlineHelp") : t("empty.noThreadHelp")}
+                  {hostList?.length === 0 ? t("empty.firstHostHelp") : !host ? t("empty.chooseHostHelp") : offline && !away ? t("empty.offlineHelp") : t("empty.noThreadHelp")}
                 </EmptyDescription>
               </EmptyHeader>
               {hostList?.length === 0 && (

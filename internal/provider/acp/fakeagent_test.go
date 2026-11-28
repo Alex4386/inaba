@@ -19,6 +19,8 @@ type fakeAgentImpl struct {
 	mu        sync.Mutex
 	// The MCP servers the last session was given, as name=command or name=url.
 	mcp []string
+	// The instructions the client added to the session's, if any.
+	system string
 }
 
 func fakeAgent() {
@@ -46,7 +48,7 @@ func fakeOptions(model string, fast bool) []sdk.SessionConfigOption {
 func (a *fakeAgentImpl) Initialize(context.Context, sdk.InitializeRequest) (sdk.InitializeResponse, error) {
 	return sdk.InitializeResponse{
 		ProtocolVersion:   sdk.ProtocolVersionNumber,
-		AgentCapabilities: sdk.AgentCapabilities{LoadSession: true, PromptCapabilities: sdk.PromptCapabilities{Image: true}, McpCapabilities: sdk.McpCapabilities{Http: true}},
+		AgentCapabilities: sdk.AgentCapabilities{LoadSession: true, PromptCapabilities: sdk.PromptCapabilities{Image: true}, McpCapabilities: sdk.McpCapabilities{Http: true}, SessionCapabilities: sdk.SessionCapabilities{SystemPrompt: &sdk.SessionSystemPromptCapabilities{}}},
 		AuthMethods:       []sdk.AuthMethod{},
 		AgentInfo:         &sdk.Implementation{Name: "fake-agent", Version: "1.2.3"},
 	}, nil
@@ -68,6 +70,10 @@ func (a *fakeAgentImpl) NewSession(_ context.Context, req sdk.NewSessionRequest)
 	}
 	a.mu.Lock()
 	a.mcp = got
+	a.system = ""
+	if p := req.SystemPrompt; p != nil && p.Mode == sdk.SystemPromptModeAppend && len(p.Content) > 0 && p.Content[0].Text != nil {
+		a.system = p.Content[0].Text.Text
+	}
 	a.mu.Unlock()
 	// Commands come after the session exists, as a notification.
 	go func() {
@@ -122,6 +128,11 @@ func (a *fakeAgentImpl) Prompt(ctx context.Context, req sdk.PromptRequest) (sdk.
 	case "hang":
 		<-a.cancelled
 		return sdk.PromptResponse{StopReason: sdk.StopReasonCancelled}, nil
+	case "system":
+		a.mu.Lock()
+		a.update(sdk.UpdateAgentMessageText("system: " + a.system))
+		a.mu.Unlock()
+		return done, nil
 	case "mcp":
 		a.mu.Lock()
 		a.update(sdk.UpdateAgentMessageText("mcp: " + strings.Join(a.mcp, "; ")))

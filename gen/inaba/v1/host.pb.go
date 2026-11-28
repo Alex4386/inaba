@@ -339,8 +339,11 @@ type Thread struct {
 	// How many agents of background workflows its agent started are still running. The
 	// thread is still at work while this is above 0, even with its turn over.
 	BackgroundAgents uint32 `protobuf:"varint,27,opt,name=background_agents,json=backgroundAgents,proto3" json:"background_agents,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// The language its agent talks to people in, as a BCP 47 tag such as ko; empty leaves that
+	// to the agent, which mostly answers in the language it is written to.
+	Language      string `protobuf:"bytes,28,opt,name=language,proto3" json:"language,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Thread) Reset() {
@@ -553,6 +556,13 @@ func (x *Thread) GetBackgroundAgents() uint32 {
 		return x.BackgroundAgents
 	}
 	return 0
+}
+
+func (x *Thread) GetLanguage() string {
+	if x != nil {
+		return x.Language
+	}
+	return ""
 }
 
 // A slash command the agent offers, run by sending "/name" and its input as a message.
@@ -2976,7 +2986,10 @@ type CreateThreadRequest struct {
 	Options map[string]string `protobuf:"bytes,6,rep,name=options,proto3" json:"options,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// Give the thread a git worktree of its own instead of the project's folder, so its
 	// changes stay apart from other threads'. Needs project_id, and a git repository there.
-	Worktree      *Worktree `protobuf:"bytes,7,opt,name=worktree,proto3" json:"worktree,omitempty"`
+	Worktree *Worktree `protobuf:"bytes,7,opt,name=worktree,proto3" json:"worktree,omitempty"`
+	// The language its agent talks to people in, as a BCP 47 tag such as ko; empty leaves it
+	// to the agent. Said to an agent that takes instructions of the client's.
+	Language      string `protobuf:"bytes,8,opt,name=language,proto3" json:"language,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3058,6 +3071,13 @@ func (x *CreateThreadRequest) GetWorktree() *Worktree {
 		return x.Worktree
 	}
 	return nil
+}
+
+func (x *CreateThreadRequest) GetLanguage() string {
+	if x != nil {
+		return x.Language
+	}
+	return ""
 }
 
 type Worktree struct {
@@ -9558,7 +9578,7 @@ const file_inaba_v1_host_proto_rawDesc = "" +
 	"structured\x121\n" +
 	"\aoptions\x18\x05 \x03(\v2\x17.inaba.v1.SessionOptionR\aoptions\x12!\n" +
 	"\fdisplay_name\x18\x06 \x01(\tR\vdisplayName\x12\x12\n" +
-	"\x04icon\x18\a \x01(\tR\x04icon\"\x81\b\n" +
+	"\x04icon\x18\a \x01(\tR\x04icon\"\x9d\b\n" +
 	"\x06Thread\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\bprovider\x18\x02 \x01(\tR\bprovider\x12\x10\n" +
@@ -9589,7 +9609,8 @@ const file_inaba_v1_host_proto_rawDesc = "" +
 	"\x05named\x18\x17 \x01(\bR\x05named\x12(\n" +
 	"\x10last_turn_failed\x18\x19 \x01(\bR\x0elastTurnFailed\x12!\n" +
 	"\factivity_seq\x18\x1a \x01(\x04R\vactivitySeq\x12+\n" +
-	"\x11background_agents\x18\x1b \x01(\rR\x10backgroundAgents\x1a9\n" +
+	"\x11background_agents\x18\x1b \x01(\rR\x10backgroundAgents\x12\x1a\n" +
+	"\blanguage\x18\x1c \x01(\tR\blanguage\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x14\x10\x15\"S\n" +
@@ -9782,7 +9803,7 @@ const file_inaba_v1_host_proto_rawDesc = "" +
 	"\x06params\x18\x02 \x01(\v2\x16.google.protobuf.ValueR\x06params\"\x16\n" +
 	"\x14ListProvidersRequest\"I\n" +
 	"\x15ListProvidersResponse\x120\n" +
-	"\tproviders\x18\x01 \x03(\v2\x12.inaba.v1.ProviderR\tproviders\"\xd4\x02\n" +
+	"\tproviders\x18\x01 \x03(\v2\x12.inaba.v1.ProviderR\tproviders\"\xf0\x02\n" +
 	"\x13CreateThreadRequest\x12\x1a\n" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x10\n" +
 	"\x03cwd\x18\x02 \x01(\tR\x03cwd\x12\x14\n" +
@@ -9791,7 +9812,8 @@ const file_inaba_v1_host_proto_rawDesc = "" +
 	"\n" +
 	"project_id\x18\x05 \x01(\tR\tprojectId\x12D\n" +
 	"\aoptions\x18\x06 \x03(\v2*.inaba.v1.CreateThreadRequest.OptionsEntryR\aoptions\x12.\n" +
-	"\bworktree\x18\a \x01(\v2\x12.inaba.v1.WorktreeR\bworktree\x1a:\n" +
+	"\bworktree\x18\a \x01(\v2\x12.inaba.v1.WorktreeR\bworktree\x12\x1a\n" +
+	"\blanguage\x18\b \x01(\tR\blanguage\x1a:\n" +
 	"\fOptionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"6\n" +

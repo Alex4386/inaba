@@ -79,6 +79,61 @@ func (BrowserSharing) EnumDescriptor() ([]byte, []int) {
 	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{0}
 }
 
+// Who has the browser. While the agent does, people watch: their clicks, keys, navigation and
+// window sizes are refused, so they do not get in its way. While a person does, the agent's
+// commands wait until it is given back.
+type BrowserControl int32
+
+const (
+	// No one: people use it as they like, and the agent takes it by using it.
+	BrowserControl_BROWSER_CONTROL_UNSPECIFIED BrowserControl = 0
+	// The agent is using it, until its turn ends or someone takes it.
+	BrowserControl_BROWSER_CONTROL_AGENT BrowserControl = 1
+	// Someone took it from the agent, until they give it back or no one watches any more.
+	BrowserControl_BROWSER_CONTROL_USER BrowserControl = 2
+)
+
+// Enum value maps for BrowserControl.
+var (
+	BrowserControl_name = map[int32]string{
+		0: "BROWSER_CONTROL_UNSPECIFIED",
+		1: "BROWSER_CONTROL_AGENT",
+		2: "BROWSER_CONTROL_USER",
+	}
+	BrowserControl_value = map[string]int32{
+		"BROWSER_CONTROL_UNSPECIFIED": 0,
+		"BROWSER_CONTROL_AGENT":       1,
+		"BROWSER_CONTROL_USER":        2,
+	}
+)
+
+func (x BrowserControl) Enum() *BrowserControl {
+	p := new(BrowserControl)
+	*p = x
+	return p
+}
+
+func (x BrowserControl) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (BrowserControl) Descriptor() protoreflect.EnumDescriptor {
+	return file_inaba_v1_browser_proto_enumTypes[1].Descriptor()
+}
+
+func (BrowserControl) Type() protoreflect.EnumType {
+	return &file_inaba_v1_browser_proto_enumTypes[1]
+}
+
+func (x BrowserControl) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use BrowserControl.Descriptor instead.
+func (BrowserControl) EnumDescriptor() ([]byte, []int) {
+	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{1}
+}
+
 type BrowserProfile struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Chrome command-line switches, as "name" or "name=value", without the leading dashes:
@@ -289,7 +344,8 @@ type BrowserState struct {
 	// Oldest first.
 	Pages []*BrowserPage `protobuf:"bytes,1,rep,name=pages,proto3" json:"pages,omitempty"`
 	// The page a Navigate with new_page opened.
-	Opened        string `protobuf:"bytes,2,opt,name=opened,proto3" json:"opened,omitempty"`
+	Opened        string         `protobuf:"bytes,2,opt,name=opened,proto3" json:"opened,omitempty"`
+	Control       BrowserControl `protobuf:"varint,3,opt,name=control,proto3,enum=inaba.v1.BrowserControl" json:"control,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -338,6 +394,65 @@ func (x *BrowserState) GetOpened() string {
 	return ""
 }
 
+func (x *BrowserState) GetControl() BrowserControl {
+	if x != nil {
+		return x.Control
+	}
+	return BrowserControl_BROWSER_CONTROL_UNSPECIFIED
+}
+
+type SetBrowserControlRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
+	Control       BrowserControl         `protobuf:"varint,2,opt,name=control,proto3,enum=inaba.v1.BrowserControl" json:"control,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetBrowserControlRequest) Reset() {
+	*x = SetBrowserControlRequest{}
+	mi := &file_inaba_v1_browser_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetBrowserControlRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetBrowserControlRequest) ProtoMessage() {}
+
+func (x *SetBrowserControlRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inaba_v1_browser_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetBrowserControlRequest.ProtoReflect.Descriptor instead.
+func (*SetBrowserControlRequest) Descriptor() ([]byte, []int) {
+	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *SetBrowserControlRequest) GetThreadId() string {
+	if x != nil {
+		return x.ThreadId
+	}
+	return ""
+}
+
+func (x *SetBrowserControlRequest) GetControl() BrowserControl {
+	if x != nil {
+		return x.Control
+	}
+	return BrowserControl_BROWSER_CONTROL_UNSPECIFIED
+}
+
 type OpenBrowserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId      string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
@@ -347,7 +462,7 @@ type OpenBrowserRequest struct {
 
 func (x *OpenBrowserRequest) Reset() {
 	*x = OpenBrowserRequest{}
-	mi := &file_inaba_v1_browser_proto_msgTypes[5]
+	mi := &file_inaba_v1_browser_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -359,7 +474,7 @@ func (x *OpenBrowserRequest) String() string {
 func (*OpenBrowserRequest) ProtoMessage() {}
 
 func (x *OpenBrowserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_browser_proto_msgTypes[5]
+	mi := &file_inaba_v1_browser_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -372,7 +487,7 @@ func (x *OpenBrowserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenBrowserRequest.ProtoReflect.Descriptor instead.
 func (*OpenBrowserRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{5}
+	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *OpenBrowserRequest) GetThreadId() string {
@@ -391,7 +506,7 @@ type CloseBrowserRequest struct {
 
 func (x *CloseBrowserRequest) Reset() {
 	*x = CloseBrowserRequest{}
-	mi := &file_inaba_v1_browser_proto_msgTypes[6]
+	mi := &file_inaba_v1_browser_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -403,7 +518,7 @@ func (x *CloseBrowserRequest) String() string {
 func (*CloseBrowserRequest) ProtoMessage() {}
 
 func (x *CloseBrowserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_browser_proto_msgTypes[6]
+	mi := &file_inaba_v1_browser_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -416,7 +531,7 @@ func (x *CloseBrowserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloseBrowserRequest.ProtoReflect.Descriptor instead.
 func (*CloseBrowserRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{6}
+	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *CloseBrowserRequest) GetThreadId() string {
@@ -434,7 +549,7 @@ type CloseBrowserResponse struct {
 
 func (x *CloseBrowserResponse) Reset() {
 	*x = CloseBrowserResponse{}
-	mi := &file_inaba_v1_browser_proto_msgTypes[7]
+	mi := &file_inaba_v1_browser_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -446,7 +561,7 @@ func (x *CloseBrowserResponse) String() string {
 func (*CloseBrowserResponse) ProtoMessage() {}
 
 func (x *CloseBrowserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_browser_proto_msgTypes[7]
+	mi := &file_inaba_v1_browser_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -459,7 +574,7 @@ func (x *CloseBrowserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloseBrowserResponse.ProtoReflect.Descriptor instead.
 func (*CloseBrowserResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{7}
+	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{8}
 }
 
 type WatchPageRequest struct {
@@ -480,7 +595,7 @@ type WatchPageRequest struct {
 
 func (x *WatchPageRequest) Reset() {
 	*x = WatchPageRequest{}
-	mi := &file_inaba_v1_browser_proto_msgTypes[8]
+	mi := &file_inaba_v1_browser_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -492,7 +607,7 @@ func (x *WatchPageRequest) String() string {
 func (*WatchPageRequest) ProtoMessage() {}
 
 func (x *WatchPageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_browser_proto_msgTypes[8]
+	mi := &file_inaba_v1_browser_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -505,7 +620,7 @@ func (x *WatchPageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchPageRequest.ProtoReflect.Descriptor instead.
 func (*WatchPageRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{8}
+	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *WatchPageRequest) GetThreadId() string {
@@ -559,13 +674,15 @@ type PageFrame struct {
 	ViewportHeight float64 `protobuf:"fixed64,4,opt,name=viewport_height,json=viewportHeight,proto3" json:"viewport_height,omitempty"`
 	Url            string  `protobuf:"bytes,5,opt,name=url,proto3" json:"url,omitempty"`
 	Title          string  `protobuf:"bytes,6,opt,name=title,proto3" json:"title,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Who has the browser now. A frame without jpeg only says this changed.
+	Control       BrowserControl `protobuf:"varint,7,opt,name=control,proto3,enum=inaba.v1.BrowserControl" json:"control,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *PageFrame) Reset() {
 	*x = PageFrame{}
-	mi := &file_inaba_v1_browser_proto_msgTypes[9]
+	mi := &file_inaba_v1_browser_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -577,7 +694,7 @@ func (x *PageFrame) String() string {
 func (*PageFrame) ProtoMessage() {}
 
 func (x *PageFrame) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_browser_proto_msgTypes[9]
+	mi := &file_inaba_v1_browser_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -590,7 +707,7 @@ func (x *PageFrame) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PageFrame.ProtoReflect.Descriptor instead.
 func (*PageFrame) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{9}
+	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *PageFrame) GetPageId() string {
@@ -635,6 +752,13 @@ func (x *PageFrame) GetTitle() string {
 	return ""
 }
 
+func (x *PageFrame) GetControl() BrowserControl {
+	if x != nil {
+		return x.Control
+	}
+	return BrowserControl_BROWSER_CONTROL_UNSPECIFIED
+}
+
 type BrowserInputRequest struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	ThreadId string                 `protobuf:"bytes,1,opt,name=thread_id,json=threadId,proto3" json:"thread_id,omitempty"`
@@ -652,7 +776,7 @@ type BrowserInputRequest struct {
 
 func (x *BrowserInputRequest) Reset() {
 	*x = BrowserInputRequest{}
-	mi := &file_inaba_v1_browser_proto_msgTypes[10]
+	mi := &file_inaba_v1_browser_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -664,7 +788,7 @@ func (x *BrowserInputRequest) String() string {
 func (*BrowserInputRequest) ProtoMessage() {}
 
 func (x *BrowserInputRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_browser_proto_msgTypes[10]
+	mi := &file_inaba_v1_browser_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -677,7 +801,7 @@ func (x *BrowserInputRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BrowserInputRequest.ProtoReflect.Descriptor instead.
 func (*BrowserInputRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{10}
+	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *BrowserInputRequest) GetThreadId() string {
@@ -777,7 +901,7 @@ type BrowserInputResponse struct {
 
 func (x *BrowserInputResponse) Reset() {
 	*x = BrowserInputResponse{}
-	mi := &file_inaba_v1_browser_proto_msgTypes[11]
+	mi := &file_inaba_v1_browser_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -789,7 +913,7 @@ func (x *BrowserInputResponse) String() string {
 func (*BrowserInputResponse) ProtoMessage() {}
 
 func (x *BrowserInputResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_browser_proto_msgTypes[11]
+	mi := &file_inaba_v1_browser_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -802,7 +926,7 @@ func (x *BrowserInputResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BrowserInputResponse.ProtoReflect.Descriptor instead.
 func (*BrowserInputResponse) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{11}
+	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{12}
 }
 
 type MouseInput struct {
@@ -825,7 +949,7 @@ type MouseInput struct {
 
 func (x *MouseInput) Reset() {
 	*x = MouseInput{}
-	mi := &file_inaba_v1_browser_proto_msgTypes[12]
+	mi := &file_inaba_v1_browser_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -837,7 +961,7 @@ func (x *MouseInput) String() string {
 func (*MouseInput) ProtoMessage() {}
 
 func (x *MouseInput) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_browser_proto_msgTypes[12]
+	mi := &file_inaba_v1_browser_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -850,7 +974,7 @@ func (x *MouseInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MouseInput.ProtoReflect.Descriptor instead.
 func (*MouseInput) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{12}
+	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *MouseInput) GetType() string {
@@ -929,7 +1053,7 @@ type KeyInput struct {
 
 func (x *KeyInput) Reset() {
 	*x = KeyInput{}
-	mi := &file_inaba_v1_browser_proto_msgTypes[13]
+	mi := &file_inaba_v1_browser_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -941,7 +1065,7 @@ func (x *KeyInput) String() string {
 func (*KeyInput) ProtoMessage() {}
 
 func (x *KeyInput) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_browser_proto_msgTypes[13]
+	mi := &file_inaba_v1_browser_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -954,7 +1078,7 @@ func (x *KeyInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeyInput.ProtoReflect.Descriptor instead.
 func (*KeyInput) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{13}
+	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *KeyInput) GetType() string {
@@ -1023,7 +1147,7 @@ type NavigateRequest struct {
 
 func (x *NavigateRequest) Reset() {
 	*x = NavigateRequest{}
-	mi := &file_inaba_v1_browser_proto_msgTypes[14]
+	mi := &file_inaba_v1_browser_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1035,7 +1159,7 @@ func (x *NavigateRequest) String() string {
 func (*NavigateRequest) ProtoMessage() {}
 
 func (x *NavigateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inaba_v1_browser_proto_msgTypes[14]
+	mi := &file_inaba_v1_browser_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1048,7 +1172,7 @@ func (x *NavigateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NavigateRequest.ProtoReflect.Descriptor instead.
 func (*NavigateRequest) Descriptor() ([]byte, []int) {
-	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{14}
+	return file_inaba_v1_browser_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *NavigateRequest) GetThreadId() string {
@@ -1104,10 +1228,14 @@ const file_inaba_v1_browser_proto_rawDesc = "" +
 	"\vBrowserPage\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
 	"\x03url\x18\x02 \x01(\tR\x03url\x12\x14\n" +
-	"\x05title\x18\x03 \x01(\tR\x05title\"S\n" +
+	"\x05title\x18\x03 \x01(\tR\x05title\"\x87\x01\n" +
 	"\fBrowserState\x12+\n" +
 	"\x05pages\x18\x01 \x03(\v2\x15.inaba.v1.BrowserPageR\x05pages\x12\x16\n" +
-	"\x06opened\x18\x02 \x01(\tR\x06opened\"1\n" +
+	"\x06opened\x18\x02 \x01(\tR\x06opened\x122\n" +
+	"\acontrol\x18\x03 \x01(\x0e2\x18.inaba.v1.BrowserControlR\acontrol\"k\n" +
+	"\x18SetBrowserControlRequest\x12\x1b\n" +
+	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x122\n" +
+	"\acontrol\x18\x02 \x01(\x0e2\x18.inaba.v1.BrowserControlR\acontrol\"1\n" +
 	"\x12OpenBrowserRequest\x12\x1b\n" +
 	"\tthread_id\x18\x01 \x01(\tR\bthreadId\"2\n" +
 	"\x13CloseBrowserRequest\x12\x1b\n" +
@@ -1120,14 +1248,15 @@ const file_inaba_v1_browser_proto_rawDesc = "" +
 	"\n" +
 	"max_height\x18\x04 \x01(\rR\tmaxHeight\x12!\n" +
 	"\fwindow_width\x18\x05 \x01(\rR\vwindowWidth\x12#\n" +
-	"\rwindow_height\x18\x06 \x01(\rR\fwindowHeight\"\xb0\x01\n" +
+	"\rwindow_height\x18\x06 \x01(\rR\fwindowHeight\"\xe4\x01\n" +
 	"\tPageFrame\x12\x17\n" +
 	"\apage_id\x18\x01 \x01(\tR\x06pageId\x12\x12\n" +
 	"\x04jpeg\x18\x02 \x01(\fR\x04jpeg\x12%\n" +
 	"\x0eviewport_width\x18\x03 \x01(\x01R\rviewportWidth\x12'\n" +
 	"\x0fviewport_height\x18\x04 \x01(\x01R\x0eviewportHeight\x12\x10\n" +
 	"\x03url\x18\x05 \x01(\tR\x03url\x12\x14\n" +
-	"\x05title\x18\x06 \x01(\tR\x05title\"\xe4\x01\n" +
+	"\x05title\x18\x06 \x01(\tR\x05title\x122\n" +
+	"\acontrol\x18\a \x01(\x0e2\x18.inaba.v1.BrowserControlR\acontrol\"\xe4\x01\n" +
 	"\x13BrowserInputRequest\x12\x1b\n" +
 	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12\x17\n" +
 	"\apage_id\x18\x02 \x01(\tR\x06pageId\x12,\n" +
@@ -1164,13 +1293,18 @@ const file_inaba_v1_browser_proto_rawDesc = "" +
 	"\x0eBrowserSharing\x12\x1f\n" +
 	"\x1bBROWSER_SHARING_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16BROWSER_SHARING_THREAD\x10\x01\x12\x1b\n" +
-	"\x17BROWSER_SHARING_PROJECT\x10\x022\xd7\x05\n" +
+	"\x17BROWSER_SHARING_PROJECT\x10\x02*f\n" +
+	"\x0eBrowserControl\x12\x1f\n" +
+	"\x1bBROWSER_CONTROL_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15BROWSER_CONTROL_AGENT\x10\x01\x12\x18\n" +
+	"\x14BROWSER_CONTROL_USER\x10\x022\xdd\x06\n" +
 	"\x0eBrowserService\x12o\n" +
 	"\vOpenBrowser\x12\x1c.inaba.v1.OpenBrowserRequest\x1a\x16.inaba.v1.BrowserState\"*\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v1/threads/{thread_id}/browser\x12v\n" +
 	"\fCloseBrowser\x12\x1d.inaba.v1.CloseBrowserRequest\x1a\x1e.inaba.v1.CloseBrowserResponse\"'\x82\xd3\xe4\x93\x02!*\x1f/v1/threads/{thread_id}/browser\x12>\n" +
 	"\tWatchPage\x12\x1a.inaba.v1.WatchPageRequest\x1a\x13.inaba.v1.PageFrame0\x01\x12F\n" +
 	"\x05Input\x12\x1d.inaba.v1.BrowserInputRequest\x1a\x1e.inaba.v1.BrowserInputResponse\x12r\n" +
-	"\bNavigate\x12\x19.inaba.v1.NavigateRequest\x1a\x16.inaba.v1.BrowserState\"3\x82\xd3\xe4\x93\x02-:\x01*\"(/v1/threads/{thread_id}/browser/navigate\x12r\n" +
+	"\bNavigate\x12\x19.inaba.v1.NavigateRequest\x1a\x16.inaba.v1.BrowserState\"3\x82\xd3\xe4\x93\x02-:\x01*\"(/v1/threads/{thread_id}/browser/navigate\x12\x83\x01\n" +
+	"\x11SetBrowserControl\x12\".inaba.v1.SetBrowserControlRequest\x1a\x16.inaba.v1.BrowserState\"2\x82\xd3\xe4\x93\x02,:\x01*\"'/v1/threads/{thread_id}/browser/control\x12r\n" +
 	"\x12GetBrowserSettings\x12#.inaba.v1.GetBrowserSettingsRequest\x1a\x19.inaba.v1.BrowserSettings\"\x1c\x82\xd3\xe4\x93\x02\x16\x12\x14/v1/browser/settings\x12l\n" +
 	"\x13SaveBrowserSettings\x12\x19.inaba.v1.BrowserSettings\x1a\x19.inaba.v1.BrowserSettings\"\x1f\x82\xd3\xe4\x93\x02\x19:\x01*\x1a\x14/v1/browser/settingsB\x8d\x01\n" +
 	"\fcom.inaba.v1B\fBrowserProtoP\x01Z.github.com/Alex4386/inaba/gen/inaba/v1;inabav1\xa2\x02\x03IXX\xaa\x02\bInaba.V1\xca\x02\bInaba\\V1\xe2\x02\x14Inaba\\V1\\GPBMetadata\xea\x02\tInaba::V1b\x06proto3"
@@ -1187,54 +1321,61 @@ func file_inaba_v1_browser_proto_rawDescGZIP() []byte {
 	return file_inaba_v1_browser_proto_rawDescData
 }
 
-var file_inaba_v1_browser_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_inaba_v1_browser_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_inaba_v1_browser_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_inaba_v1_browser_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_inaba_v1_browser_proto_goTypes = []any{
 	(BrowserSharing)(0),               // 0: inaba.v1.BrowserSharing
-	(*BrowserProfile)(nil),            // 1: inaba.v1.BrowserProfile
-	(*GetBrowserSettingsRequest)(nil), // 2: inaba.v1.GetBrowserSettingsRequest
-	(*BrowserSettings)(nil),           // 3: inaba.v1.BrowserSettings
-	(*BrowserPage)(nil),               // 4: inaba.v1.BrowserPage
-	(*BrowserState)(nil),              // 5: inaba.v1.BrowserState
-	(*OpenBrowserRequest)(nil),        // 6: inaba.v1.OpenBrowserRequest
-	(*CloseBrowserRequest)(nil),       // 7: inaba.v1.CloseBrowserRequest
-	(*CloseBrowserResponse)(nil),      // 8: inaba.v1.CloseBrowserResponse
-	(*WatchPageRequest)(nil),          // 9: inaba.v1.WatchPageRequest
-	(*PageFrame)(nil),                 // 10: inaba.v1.PageFrame
-	(*BrowserInputRequest)(nil),       // 11: inaba.v1.BrowserInputRequest
-	(*BrowserInputResponse)(nil),      // 12: inaba.v1.BrowserInputResponse
-	(*MouseInput)(nil),                // 13: inaba.v1.MouseInput
-	(*KeyInput)(nil),                  // 14: inaba.v1.KeyInput
-	(*NavigateRequest)(nil),           // 15: inaba.v1.NavigateRequest
-	nil,                               // 16: inaba.v1.BrowserSettings.ProjectsEntry
+	(BrowserControl)(0),               // 1: inaba.v1.BrowserControl
+	(*BrowserProfile)(nil),            // 2: inaba.v1.BrowserProfile
+	(*GetBrowserSettingsRequest)(nil), // 3: inaba.v1.GetBrowserSettingsRequest
+	(*BrowserSettings)(nil),           // 4: inaba.v1.BrowserSettings
+	(*BrowserPage)(nil),               // 5: inaba.v1.BrowserPage
+	(*BrowserState)(nil),              // 6: inaba.v1.BrowserState
+	(*SetBrowserControlRequest)(nil),  // 7: inaba.v1.SetBrowserControlRequest
+	(*OpenBrowserRequest)(nil),        // 8: inaba.v1.OpenBrowserRequest
+	(*CloseBrowserRequest)(nil),       // 9: inaba.v1.CloseBrowserRequest
+	(*CloseBrowserResponse)(nil),      // 10: inaba.v1.CloseBrowserResponse
+	(*WatchPageRequest)(nil),          // 11: inaba.v1.WatchPageRequest
+	(*PageFrame)(nil),                 // 12: inaba.v1.PageFrame
+	(*BrowserInputRequest)(nil),       // 13: inaba.v1.BrowserInputRequest
+	(*BrowserInputResponse)(nil),      // 14: inaba.v1.BrowserInputResponse
+	(*MouseInput)(nil),                // 15: inaba.v1.MouseInput
+	(*KeyInput)(nil),                  // 16: inaba.v1.KeyInput
+	(*NavigateRequest)(nil),           // 17: inaba.v1.NavigateRequest
+	nil,                               // 18: inaba.v1.BrowserSettings.ProjectsEntry
 }
 var file_inaba_v1_browser_proto_depIdxs = []int32{
 	0,  // 0: inaba.v1.BrowserProfile.sharing:type_name -> inaba.v1.BrowserSharing
-	1,  // 1: inaba.v1.BrowserSettings.defaults:type_name -> inaba.v1.BrowserProfile
-	16, // 2: inaba.v1.BrowserSettings.projects:type_name -> inaba.v1.BrowserSettings.ProjectsEntry
-	4,  // 3: inaba.v1.BrowserState.pages:type_name -> inaba.v1.BrowserPage
-	13, // 4: inaba.v1.BrowserInputRequest.mouse:type_name -> inaba.v1.MouseInput
-	14, // 5: inaba.v1.BrowserInputRequest.key:type_name -> inaba.v1.KeyInput
-	1,  // 6: inaba.v1.BrowserSettings.ProjectsEntry.value:type_name -> inaba.v1.BrowserProfile
-	6,  // 7: inaba.v1.BrowserService.OpenBrowser:input_type -> inaba.v1.OpenBrowserRequest
-	7,  // 8: inaba.v1.BrowserService.CloseBrowser:input_type -> inaba.v1.CloseBrowserRequest
-	9,  // 9: inaba.v1.BrowserService.WatchPage:input_type -> inaba.v1.WatchPageRequest
-	11, // 10: inaba.v1.BrowserService.Input:input_type -> inaba.v1.BrowserInputRequest
-	15, // 11: inaba.v1.BrowserService.Navigate:input_type -> inaba.v1.NavigateRequest
-	2,  // 12: inaba.v1.BrowserService.GetBrowserSettings:input_type -> inaba.v1.GetBrowserSettingsRequest
-	3,  // 13: inaba.v1.BrowserService.SaveBrowserSettings:input_type -> inaba.v1.BrowserSettings
-	5,  // 14: inaba.v1.BrowserService.OpenBrowser:output_type -> inaba.v1.BrowserState
-	8,  // 15: inaba.v1.BrowserService.CloseBrowser:output_type -> inaba.v1.CloseBrowserResponse
-	10, // 16: inaba.v1.BrowserService.WatchPage:output_type -> inaba.v1.PageFrame
-	12, // 17: inaba.v1.BrowserService.Input:output_type -> inaba.v1.BrowserInputResponse
-	5,  // 18: inaba.v1.BrowserService.Navigate:output_type -> inaba.v1.BrowserState
-	3,  // 19: inaba.v1.BrowserService.GetBrowserSettings:output_type -> inaba.v1.BrowserSettings
-	3,  // 20: inaba.v1.BrowserService.SaveBrowserSettings:output_type -> inaba.v1.BrowserSettings
-	14, // [14:21] is the sub-list for method output_type
-	7,  // [7:14] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	2,  // 1: inaba.v1.BrowserSettings.defaults:type_name -> inaba.v1.BrowserProfile
+	18, // 2: inaba.v1.BrowserSettings.projects:type_name -> inaba.v1.BrowserSettings.ProjectsEntry
+	5,  // 3: inaba.v1.BrowserState.pages:type_name -> inaba.v1.BrowserPage
+	1,  // 4: inaba.v1.BrowserState.control:type_name -> inaba.v1.BrowserControl
+	1,  // 5: inaba.v1.SetBrowserControlRequest.control:type_name -> inaba.v1.BrowserControl
+	1,  // 6: inaba.v1.PageFrame.control:type_name -> inaba.v1.BrowserControl
+	15, // 7: inaba.v1.BrowserInputRequest.mouse:type_name -> inaba.v1.MouseInput
+	16, // 8: inaba.v1.BrowserInputRequest.key:type_name -> inaba.v1.KeyInput
+	2,  // 9: inaba.v1.BrowserSettings.ProjectsEntry.value:type_name -> inaba.v1.BrowserProfile
+	8,  // 10: inaba.v1.BrowserService.OpenBrowser:input_type -> inaba.v1.OpenBrowserRequest
+	9,  // 11: inaba.v1.BrowserService.CloseBrowser:input_type -> inaba.v1.CloseBrowserRequest
+	11, // 12: inaba.v1.BrowserService.WatchPage:input_type -> inaba.v1.WatchPageRequest
+	13, // 13: inaba.v1.BrowserService.Input:input_type -> inaba.v1.BrowserInputRequest
+	17, // 14: inaba.v1.BrowserService.Navigate:input_type -> inaba.v1.NavigateRequest
+	7,  // 15: inaba.v1.BrowserService.SetBrowserControl:input_type -> inaba.v1.SetBrowserControlRequest
+	3,  // 16: inaba.v1.BrowserService.GetBrowserSettings:input_type -> inaba.v1.GetBrowserSettingsRequest
+	4,  // 17: inaba.v1.BrowserService.SaveBrowserSettings:input_type -> inaba.v1.BrowserSettings
+	6,  // 18: inaba.v1.BrowserService.OpenBrowser:output_type -> inaba.v1.BrowserState
+	10, // 19: inaba.v1.BrowserService.CloseBrowser:output_type -> inaba.v1.CloseBrowserResponse
+	12, // 20: inaba.v1.BrowserService.WatchPage:output_type -> inaba.v1.PageFrame
+	14, // 21: inaba.v1.BrowserService.Input:output_type -> inaba.v1.BrowserInputResponse
+	6,  // 22: inaba.v1.BrowserService.Navigate:output_type -> inaba.v1.BrowserState
+	6,  // 23: inaba.v1.BrowserService.SetBrowserControl:output_type -> inaba.v1.BrowserState
+	4,  // 24: inaba.v1.BrowserService.GetBrowserSettings:output_type -> inaba.v1.BrowserSettings
+	4,  // 25: inaba.v1.BrowserService.SaveBrowserSettings:output_type -> inaba.v1.BrowserSettings
+	18, // [18:26] is the sub-list for method output_type
+	10, // [10:18] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_inaba_v1_browser_proto_init() }
@@ -1242,7 +1383,7 @@ func file_inaba_v1_browser_proto_init() {
 	if File_inaba_v1_browser_proto != nil {
 		return
 	}
-	file_inaba_v1_browser_proto_msgTypes[10].OneofWrappers = []any{
+	file_inaba_v1_browser_proto_msgTypes[11].OneofWrappers = []any{
 		(*BrowserInputRequest_Mouse)(nil),
 		(*BrowserInputRequest_Key)(nil),
 		(*BrowserInputRequest_Text)(nil),
@@ -1253,8 +1394,8 @@ func file_inaba_v1_browser_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_inaba_v1_browser_proto_rawDesc), len(file_inaba_v1_browser_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   16,
+			NumEnums:      2,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

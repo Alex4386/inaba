@@ -22,7 +22,7 @@ import { ThemeEditor } from "@/components/theme-editor";
 import { type Locale, type MessageKey, localeNames, useI18n } from "@/lib/i18n";
 import { showError } from "@/lib/errors";
 import { disablePush, enablePush, pushSupport, usePushDevices } from "@/lib/push";
-import { setChatMap, setNotify, setTerminalFontSize, terminalFontSizes, useChatMap, useNotify, useTerminalFontSize } from "@/lib/settings";
+import { setAgentLanguage, setChatMap, setNotify, setTerminalFontSize, terminalFontSizes, useAgentLanguage, useChatMap, useNotify, useTerminalFontSize } from "@/lib/settings";
 
 // Hosts, and what each one offers, are set in each host's own settings, from the host switcher.
 export type SettingsSection = "profile" | "general" | "notifications" | "appearance" | "keyboard" | "tokens";
@@ -46,6 +46,7 @@ export function SettingsDialog({
   onClose: () => void;
 }) {
   const { t, locale, setLocale } = useI18n();
+  const agentLanguage = useAgentLanguage();
   const { theme = "system", setTheme } = useTheme();
   const notify = useNotify();
   const chatMap = useChatMap();
@@ -76,6 +77,18 @@ export function SettingsDialog({
                     value: l,
                     label: localeNames[l],
                   }))}
+                />
+              </Row>
+              <Row title={t("settings.agentLanguage")} description={t("settings.agentLanguageHelp")}>
+                <Picker
+                  label={t("settings.agentLanguage")}
+                  value={agentLanguage}
+                  onChange={setAgentLanguage}
+                  options={[
+                    { value: "interface", label: t("settings.agentLanguageInterface", { language: localeNames[locale] }) },
+                    { value: "auto", label: t("settings.agentLanguageAuto") },
+                    ...(Object.keys(localeNames) as Locale[]).map((l) => ({ value: l, label: localeNames[l] })),
+                  ]}
                 />
               </Row>
             </Card>

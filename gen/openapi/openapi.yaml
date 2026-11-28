@@ -3056,6 +3056,45 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/hosts/{host_id}/threads/{thread_id}/browser/control:
+        post:
+            tags:
+                - BrowserService
+            description: |-
+                Takes the browser from the agent, which then waits, or gives it back. Only BROWSER_CONTROL_USER
+                 and BROWSER_CONTROL_UNSPECIFIED, for no one, are asked for; the agent takes the browser by using it.
+            operationId: BrowserService_SetBrowserControl
+            parameters:
+                - name: host_id
+                  in: path
+                  required: true
+                  description: The id of the host, from GET /v1/hosts.
+                  schema:
+                    type: string
+                - name: thread_id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetBrowserControlRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BrowserState'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/hosts/{host_id}/threads/{thread_id}/browser/navigate:
         post:
             tags:
@@ -5197,6 +5236,9 @@ components:
                 opened:
                     type: string
                     description: The page a Navigate with new_page opened.
+                control:
+                    type: integer
+                    format: enum
         ChangePasswordRequest:
             type: object
             properties:
@@ -5387,6 +5429,11 @@ components:
                     description: |-
                         Give the thread a git worktree of its own instead of the project's folder, so its
                          changes stay apart from other threads'. Needs project_id, and a git repository there.
+                language:
+                    type: string
+                    description: |-
+                        The language its agent talks to people in, as a BCP 47 tag such as ko; empty leaves it
+                         to the agent. Said to an agent that takes instructions of the client's.
         CreateTokenRequest:
             type: object
             properties:
@@ -6410,6 +6457,9 @@ components:
                     type: object
                     additionalProperties:
                         type: string
+                language:
+                    type: string
+                    description: The language each run's agent talks in, as CreateThreadRequest takes it; empty leaves it to the agent.
         NewThreadDefaults:
             type: object
             properties:
@@ -7145,6 +7195,14 @@ components:
                     items:
                         type: integer
                         format: enum
+        SetBrowserControlRequest:
+            type: object
+            properties:
+                thread_id:
+                    type: string
+                control:
+                    type: integer
+                    format: enum
         SetHostMemberRequest:
             type: object
             properties:
@@ -7475,6 +7533,11 @@ components:
                         How many agents of background workflows its agent started are still running. The
                          thread is still at work while this is above 0, even with its turn over.
                     format: uint32
+                language:
+                    type: string
+                    description: |-
+                        The language its agent talks to people in, as a BCP 47 tag such as ko; empty leaves that
+                         to the agent, which mostly answers in the language it is written to.
         ThreadSeen:
             type: object
             properties:

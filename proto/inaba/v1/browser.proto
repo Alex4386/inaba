@@ -34,6 +34,14 @@ service BrowserService {
       body: "*"
     };
   }
+  // Takes the browser from the agent, which then waits, or gives it back. Only BROWSER_CONTROL_USER
+  // and BROWSER_CONTROL_UNSPECIFIED, for no one, are asked for; the agent takes the browser by using it.
+  rpc SetBrowserControl(SetBrowserControlRequest) returns (BrowserState) {
+    option (google.api.http) = {
+      post: "/v1/threads/{thread_id}/browser/control"
+      body: "*"
+    };
+  }
   // The host's browser settings. Needs the hosts permission.
   rpc GetBrowserSettings(GetBrowserSettingsRequest) returns (BrowserSettings) {
     option (google.api.http) = {get: "/v1/browser/settings"};
@@ -87,6 +95,24 @@ message BrowserState {
   repeated BrowserPage pages = 1;
   // The page a Navigate with new_page opened.
   string opened = 2;
+  BrowserControl control = 3;
+}
+
+// Who has the browser. While the agent does, people watch: their clicks, keys, navigation and
+// window sizes are refused, so they do not get in its way. While a person does, the agent's
+// commands wait until it is given back.
+enum BrowserControl {
+  // No one: people use it as they like, and the agent takes it by using it.
+  BROWSER_CONTROL_UNSPECIFIED = 0;
+  // The agent is using it, until its turn ends or someone takes it.
+  BROWSER_CONTROL_AGENT = 1;
+  // Someone took it from the agent, until they give it back or no one watches any more.
+  BROWSER_CONTROL_USER = 2;
+}
+
+message SetBrowserControlRequest {
+  string thread_id = 1;
+  BrowserControl control = 2;
 }
 
 message OpenBrowserRequest {
@@ -118,6 +144,8 @@ message PageFrame {
   double viewport_height = 4;
   string url = 5;
   string title = 6;
+  // Who has the browser now. A frame without jpeg only says this changed.
+  BrowserControl control = 7;
 }
 
 message BrowserInputRequest {

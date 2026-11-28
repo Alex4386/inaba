@@ -1,13 +1,15 @@
 package browser
 
 import (
+	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"strings"
+
+	"github.com/coder/websocket"
 )
 
 // hostOf is the host:port of a DevTools address such as ws://127.0.0.1:9222/devtools/browser/x.
@@ -42,17 +44,83 @@ func (s *service) proxy() http.Handler {
 			// The connection counts as use for as long as it is open.
 			in.touch(1)
 			defer in.touch(-1)
-			target := &url.URL{Scheme: "http", Host: in.debug}
-			(&httputil.ReverseProxy{Rewrite: func(pr *httputil.ProxyRequest) {
-				pr.SetURL(target)
-				pr.Out.URL.Path, pr.Out.URL.RawPath = rest, ""
-				pr.Out.Host = in.debug
-			}}).ServeHTTP(w, r)
+			s.relay(w, r, in, thread, rest)
 		default:
 			http.NotFound(w, r)
 		}
 	})
 	return mux
+}
+
+// relay carries the agent's DevTools connection to the browser a message at a time, so each
+// command it sends takes the browser for it, or waits while a person has it. What the browser
+// sends back goes straight through.
+func (s *service) relay(w http.ResponseWriter, r *http.Request, in *instance, thread, path string) {
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	up, _, err := websocket.Dial(ctx, "ws://"+in.debug+path, nil)
+	if err != nil {
+		http.Error(w, "the browser did not answer", http.StatusBadGateway)
+		return
+	}
+	defer up.CloseNow()
+	// The path's token is what keeps others out; the agent's Playwright sends no Origin to check.
+	down, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
+	if err != nil {
+		return
+	}
+	defer down.CloseNow()
+	// Screenshots and page contents come whole in one message.
+	up.SetReadLimit(-1)
+	down.SetReadLimit(-1)
+	defer in.agentDone(thread)
+	go func() {
+		defer cancel()
+		for {
+			typ, data, err := up.Read(ctx)
+			if err != nil || down.Write(ctx, typ, data) != nil {
+				return
+			}
+		}
+	}()
+	for {
+		typ, data, err := down.Read(ctx)
+		if err != nil {
+			return
+		}
+		// Only a command that does something to a page is the agent using the browser; Playwright's own
+		// bookkeeping, as it attaches to a tab or frame someone opened, goes straight through, at any time.
+		var msg struct {
+			Method string `json:"method"`
+		}
+		_ = json.Unmarshal(data, &msg)
+		if !passive(msg.Method) && in.agentActs(ctx, thread) != nil {
+			return
+		}
+		if up.Write(ctx, typ, data) != nil {
+			return
+		}
+	}
+}
+
+// passive is whether a DevTools command only sets up or reads a session, rather than acting on a page:
+// what Playwright sends by itself for every target that appears, which Chrome holds paused until it does.
+func passive(method string) bool {
+	domain, name, _ := strings.Cut(method, ".")
+	switch {
+	case name == "enable" || name == "disable":
+		return true
+	case domain == "Target":
+		return name != "createTarget" && name != "closeTarget" && name != "activateTarget"
+	case domain == "Network", domain == "Emulation", domain == "Fetch", domain == "Log", domain == "Browser" && name == "getVersion":
+		return true
+	}
+	switch method {
+	case "Runtime.runIfWaitingForDebugger", "Runtime.addBinding", "Page.getFrameTree", "Page.setLifecycleEventsEnabled",
+		"Page.addScriptToEvaluateOnNewDocument", "Page.createIsolatedWorld", "Page.setInterceptFileChooserDialog", "":
+		return true
+	}
+	return false
 }
 
 // version answers DevTools' discovery request with the browser's own answer, its

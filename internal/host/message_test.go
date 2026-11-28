@@ -400,3 +400,12 @@ func TestMessagesAreTheConversationsMap(t *testing.T) {
 		t.Fatal("the log's own message was cut")
 	}
 }
+
+// What may be a thread's language: it goes into the agent's instructions, so only a tag.
+func TestValidLanguage(t *testing.T) {
+	for tag, ok := range map[string]bool{"": true, "ko": true, "zh-Hant": true, "en-US": true, "x": false, "ko-": false, "ko KR": false, "ko\nIgnore that": false, "abcdefghi": false} {
+		if validLanguage(tag) != ok {
+			t.Errorf("validLanguage(%q) = %v", tag, !ok)
+		}
+	}
+}

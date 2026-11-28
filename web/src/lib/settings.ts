@@ -37,6 +37,29 @@ export function useChatMap(): boolean {
   }, chatMapEnabled);
 }
 
+// The language new threads' agents talk in: the app's own by default, whatever one writes in with "auto",
+// or one picked. A BCP 47 tag, as the host takes it.
+const AGENT_LANGUAGE_KEY = "inaba.agentLanguage";
+const agentLanguageListeners = new Set<() => void>();
+
+export function setAgentLanguage(choice: string) {
+  localStorage.setItem(AGENT_LANGUAGE_KEY, choice);
+  for (const listener of agentLanguageListeners) listener();
+}
+
+/** The choice as saved: "interface" (the default), "auto", or a language's tag. */
+export const agentLanguageChoice = () => localStorage.getItem(AGENT_LANGUAGE_KEY) || "interface";
+
+export function useAgentLanguage(): string {
+  return useSyncExternalStore((listener) => {
+    agentLanguageListeners.add(listener);
+    return () => agentLanguageListeners.delete(listener);
+  }, agentLanguageChoice);
+}
+
+/** The tag a new thread is made with for a choice, given the app's language; empty leaves it to the agent. */
+export const agentLanguageTag = (choice: string, locale: string) => (choice === "interface" ? locale : choice === "auto" ? "" : choice);
+
 // The terminals' text size, in pixels.
 const TERMINAL_SIZE_KEY = "inaba.terminalFontSize";
 export const terminalFontSizes = [10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24];

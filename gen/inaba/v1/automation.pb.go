@@ -320,8 +320,10 @@ type NewThread struct {
 	ProjectId string `protobuf:"bytes,2,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
 	Cwd       string `protobuf:"bytes,3,opt,name=cwd,proto3" json:"cwd,omitempty"`
 	// Give each run's thread its own worktree, as CreateThread does.
-	Worktree      bool              `protobuf:"varint,4,opt,name=worktree,proto3" json:"worktree,omitempty"`
-	Options       map[string]string `protobuf:"bytes,5,rep,name=options,proto3" json:"options,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Worktree bool              `protobuf:"varint,4,opt,name=worktree,proto3" json:"worktree,omitempty"`
+	Options  map[string]string `protobuf:"bytes,5,rep,name=options,proto3" json:"options,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// The language each run's agent talks in, as CreateThreadRequest takes it; empty leaves it to the agent.
+	Language      string `protobuf:"bytes,6,opt,name=language,proto3" json:"language,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -389,6 +391,13 @@ func (x *NewThread) GetOptions() map[string]string {
 		return x.Options
 	}
 	return nil
+}
+
+func (x *NewThread) GetLanguage() string {
+	if x != nil {
+		return x.Language
+	}
+	return ""
 }
 
 type AutomationRun struct {
@@ -835,14 +844,15 @@ const file_inaba_v1_automation_proto_rawDesc = "" +
 	"\x04when\"3\n" +
 	"\x05Daily\x12\x0e\n" +
 	"\x02at\x18\x01 \x01(\tR\x02at\x12\x1a\n" +
-	"\bweekdays\x18\x02 \x03(\rR\bweekdays\"\xec\x01\n" +
+	"\bweekdays\x18\x02 \x03(\rR\bweekdays\"\x88\x02\n" +
 	"\tNewThread\x12\x1a\n" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x02 \x01(\tR\tprojectId\x12\x10\n" +
 	"\x03cwd\x18\x03 \x01(\tR\x03cwd\x12\x1a\n" +
 	"\bworktree\x18\x04 \x01(\bR\bworktree\x12:\n" +
-	"\aoptions\x18\x05 \x03(\v2 .inaba.v1.NewThread.OptionsEntryR\aoptions\x1a:\n" +
+	"\aoptions\x18\x05 \x03(\v2 .inaba.v1.NewThread.OptionsEntryR\aoptions\x12\x1a\n" +
+	"\blanguage\x18\x06 \x01(\tR\blanguage\x1a:\n" +
 	"\fOptionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x8c\x01\n" +

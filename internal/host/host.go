@@ -370,6 +370,28 @@ func (t *thread) turnStart(before uint64, n int) uint64 {
 	return t.messageStart(start)
 }
 
+// validLanguage is whether a thread's language is empty or looks like a BCP 47 tag: what a
+// person picks goes into the agent's instructions, so nothing else may.
+func validLanguage(tag string) bool {
+	if len(tag) > 35 {
+		return false
+	}
+	for i, part := range strings.Split(tag, "-") {
+		if tag == "" {
+			return true
+		}
+		if part == "" || len(part) > 8 || (i == 0 && len(part) < 2) {
+			return false
+		}
+		for _, r := range part {
+			if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9') {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // messages is the thread's user messages and rewinds, light and with each message's text cut
 // to what a map of the conversation shows of it.
 func (t *thread) messages() []*inabav1.Event {
@@ -432,7 +454,7 @@ func (t *thread) openSession(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, openTimeout)
 	defer cancel()
 	meta := t.snapshot()
-	cfg := provider.Config{Cwd: meta.Cwd, NativeSessionID: meta.NativeSessionId}
+	cfg := provider.Config{Cwd: meta.Cwd, NativeSessionID: meta.NativeSessionId, Language: meta.Language}
 	if t.mcp != nil {
 		cfg.MCPServers = t.mcp(meta)
 	}
@@ -580,6 +602,9 @@ func (h *Host) CreateThread(ctx context.Context, req *inabav1.CreateThreadReques
 	if err := checkDir(req.Cwd); err != nil {
 		return nil, err
 	}
+	if !validLanguage(req.Language) {
+		return nil, connect.NewError(connect.CodeInvalidArgument, "language must be a BCP 47 tag such as ko or zh-Hant")
+	}
 	t := &thread{
 		prov:    prov,
 		save:    h.save,
@@ -589,7 +614,7 @@ func (h *Host) CreateThread(ctx context.Context, req *inabav1.CreateThreadReques
 		mcp:     h.sessionMCP,
 		changed: make(chan struct{}),
 		meta: &inabav1.Thread{
-			Id: id, Provider: req.Provider, Cwd: req.Cwd, Title: req.Title, ProjectId: req.ProjectId, Worktree: req.Worktree != nil,
+			Id: id, Provider: req.Provider, Cwd: req.Cwd, Title: req.Title, ProjectId: req.ProjectId, Worktree: req.Worktree != nil, Language: req.Language,
 			Mode:      inabav1.ThreadMode_THREAD_MODE_STRUCTURED,
 			Status:    inabav1.ThreadStatus_THREAD_STATUS_IDLE,
 			CreatedAt: timestamppb.Now(),

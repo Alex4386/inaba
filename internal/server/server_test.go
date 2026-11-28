@@ -130,6 +130,12 @@ func TestLoginHostAndRelayedTurn(t *testing.T) {
 	if code, _ := postJSON(t, plain, srv.URL+"/v1/hosts/"+hostID+"/threads", apiToken, nil); code != http.StatusServiceUnavailable {
 		t.Fatalf("relay to an offline host: %d", code)
 	}
+	// Said apart from an error of the host's own, so the web waits for the host rather than show it.
+	offline, _ := http.NewRequest("POST", srv.URL+"/v1/hosts/"+hostID+"/threads", nil)
+	offline.Header.Set("Authorization", "Bearer "+apiToken)
+	if res, err := plain.Do(offline); err != nil || res.Header.Get(unreachableHeader) != "unreachable" {
+		t.Fatalf("relay to an offline host does not say the host was unreachable: %v %v", res, err)
+	}
 
 	h := host.New(echoProvider{})
 	defer h.Close()

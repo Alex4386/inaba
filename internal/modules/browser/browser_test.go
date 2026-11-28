@@ -17,6 +17,7 @@ import (
 	"connectrpc.com/connect/v2"
 	"connectrpc.com/connect/v2/connecthttp"
 	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/cdp"
 	"github.com/go-rod/rod/lib/launcher"
 
 	inabav1 "github.com/Alex4386/inaba/gen/inaba/v1"
@@ -111,7 +112,7 @@ func TestABrowserForEachThread(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	frame, err := frames.Receive()
+	frame, err := picture(frames.Receive)
 	if err != nil || len(frame.Jpeg) < 100 || string(frame.Jpeg[:2]) != "\xff\xd8" || frame.ViewportWidth < 100 || frame.PageId != page {
 		t.Fatalf("frame: %d bytes, %vx%v, %v", len(frame.GetJpeg()), frame.GetViewportWidth(), frame.GetViewportHeight(), err)
 	}
@@ -133,7 +134,7 @@ func TestABrowserForEachThread(t *testing.T) {
 	}
 	titled("typed:hi")
 	// A change shows: a new frame arrives after the input.
-	if _, err := frames.Receive(); err != nil {
+	if _, err := picture(frames.Receive); err != nil {
 		t.Fatalf("no frame after the change: %v", err)
 	}
 	stopWatching()
@@ -201,7 +202,7 @@ func TestABrowserForEachThread(t *testing.T) {
 			stop()
 			t.Fatal(err)
 		}
-		f, err := sized.Receive()
+		f, err := picture(sized.Receive)
 		// Ended before any check can fail, so a failure does not leave the stream holding the server open.
 		stop()
 		if err != nil || f.ViewportWidth != float64(size[0]) || f.ViewportHeight != float64(size[1]) {
@@ -223,7 +224,7 @@ func TestABrowserForEachThread(t *testing.T) {
 		stopSecond()
 		t.Fatal(err)
 	}
-	f2, err := second.Receive()
+	f2, err := picture(second.Receive)
 	stopSecond()
 	if err != nil || len(f2.Jpeg) == 0 {
 		t.Fatalf("the viewer that took over got no picture: %v", err)
@@ -253,13 +254,87 @@ func TestABrowserForEachThread(t *testing.T) {
 	if !strings.HasPrefix(version.WebSocketDebuggerURL, "ws://127.0.0.1:") || !strings.Contains(version.WebSocketDebuggerURL, "/"+th.Id+"/devtools/browser/") {
 		t.Fatalf("discovery: %+v", version)
 	}
-	agent := rod.New().ControlURL(version.WebSocketDebuggerURL)
+	// A proper handshake key, as Playwright sends: rod's own is "nil", which the proxy's WebSocket refuses.
+	devtools, err := cdp.StartWithURL(ctx, version.WebSocketDebuggerURL, http.Header{"Sec-WebSocket-Key": {"dGhlIHNhbXBsZSBub25jZQ=="}})
+	if err != nil {
+		t.Fatalf("connecting through the proxy: %v", err)
+	}
+	agent := rod.New().Client(devtools)
 	if err := agent.Connect(); err != nil {
 		t.Fatalf("connecting through the proxy: %v", err)
 	}
 	pages, err := agent.Pages()
 	if err != nil || len(pages) != 1 || pages[0].MustInfo().Title != "typed:日本中文!" {
 		t.Fatalf("what the agent sees: %v %v", pages, err)
+	}
+
+	// Using the browser, the agent has it: a person's clicks are refused, and so is a new window size.
+	controlOf := func() inabav1.BrowserControl {
+		t.Helper()
+		st, err := client.OpenBrowser(ctx, &inabav1.OpenBrowserRequest{ThreadId: th.Id})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return st.Control
+	}
+	// Looking round, as Playwright does by itself whenever a tab or frame appears, is not using it.
+	if c := controlOf(); c != inabav1.BrowserControl_BROWSER_CONTROL_UNSPECIFIED {
+		t.Fatalf("after the agent only looked, the browser is %v", c)
+	}
+	if _, err := pages[0].Eval(`() => document.title`); err != nil {
+		t.Fatal(err)
+	}
+	if c := controlOf(); c != inabav1.BrowserControl_BROWSER_CONTROL_AGENT {
+		t.Fatalf("after the agent's commands the browser is %v", c)
+	}
+	if _, err := client.Input(ctx, &inabav1.BrowserInputRequest{ThreadId: th.Id, PageId: page, Event: &inabav1.BrowserInputRequest_Text{Text: "x"}}); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("typing while the agent has the browser: %v", err)
+	}
+	watchAgent, stopAgent := context.WithCancel(ctx)
+	beside, err := client.WatchPage(watchAgent, &inabav1.WatchPageRequest{ThreadId: th.Id, PageId: page, WindowWidth: 500, WindowHeight: 300})
+	if err != nil {
+		stopAgent()
+		t.Fatal(err)
+	}
+	told, err := beside.Receive()
+	f, err2 := picture(beside.Receive)
+	stopAgent()
+	if err != nil || err2 != nil || told.Control != inabav1.BrowserControl_BROWSER_CONTROL_AGENT || f.ViewportWidth == 500 {
+		t.Fatalf("watching while the agent works: told %v, page %vx%v, %v %v", told.GetControl(), f.GetViewportWidth(), f.GetViewportHeight(), err, err2)
+	}
+
+	// Taken from it, the agent's next command waits until it is given back.
+	if st, err := client.SetBrowserControl(ctx, &inabav1.SetBrowserControlRequest{ThreadId: th.Id, Control: inabav1.BrowserControl_BROWSER_CONTROL_USER}); err != nil || st.Control != inabav1.BrowserControl_BROWSER_CONTROL_USER {
+		t.Fatalf("taking control: %v %v", st, err)
+	}
+	if _, err := client.Input(ctx, &inabav1.BrowserInputRequest{ThreadId: th.Id, PageId: page, Event: &inabav1.BrowserInputRequest_Mouse{Mouse: &inabav1.MouseInput{Type: "moved", X: 1, Y: 1}}}); err != nil {
+		t.Fatalf("a person with control: %v", err)
+	}
+	answered := make(chan error, 1)
+	go func() {
+		_, err := pages[0].Eval(`() => 1`)
+		answered <- err
+	}()
+	select {
+	case err := <-answered:
+		t.Fatalf("the agent went on while a person had the browser: %v", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	if _, err := client.SetBrowserControl(ctx, &inabav1.SetBrowserControlRequest{ThreadId: th.Id}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-answered:
+		if err != nil {
+			t.Fatalf("the agent's waiting command: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the agent's command never went once the browser was given back")
+	}
+	// Its turn over, the agent lets go.
+	s.turnEnded(th.Id)
+	if c := controlOf(); c != inabav1.BrowserControl_BROWSER_CONTROL_UNSPECIFIED {
+		t.Fatalf("after the agent's turn the browser is %v", c)
 	}
 	agent.Close()
 	if res, _ := http.Get(strings.Replace(endpoint, s.token, "wrong", 1) + "/json/version"); res.StatusCode != http.StatusNotFound {
@@ -373,5 +448,15 @@ func TestAStoppedModuleStartsNoBrowser(t *testing.T) {
 	}
 	if len(s.browsers) != 0 {
 		t.Fatal("a browser started after the module stopped")
+	}
+}
+
+// picture is the next frame with a picture in it, past those that only say who has the browser.
+func picture(receive func() (*inabav1.PageFrame, error)) (*inabav1.PageFrame, error) {
+	for {
+		f, err := receive()
+		if err != nil || len(f.Jpeg) > 0 {
+			return f, err
+		}
 	}
 }

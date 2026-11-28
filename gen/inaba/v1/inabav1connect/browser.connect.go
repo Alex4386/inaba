@@ -37,6 +37,9 @@ const (
 	BrowserServiceInputProcedure = "/inaba.v1.BrowserService/Input"
 	// BrowserServiceNavigateProcedure is the procedure name of the BrowserService's Navigate RPC.
 	BrowserServiceNavigateProcedure = "/inaba.v1.BrowserService/Navigate"
+	// BrowserServiceSetBrowserControlProcedure is the procedure name of the BrowserService's
+	// SetBrowserControl RPC.
+	BrowserServiceSetBrowserControlProcedure = "/inaba.v1.BrowserService/SetBrowserControl"
 	// BrowserServiceGetBrowserSettingsProcedure is the procedure name of the BrowserService's
 	// GetBrowserSettings RPC.
 	BrowserServiceGetBrowserSettingsProcedure = "/inaba.v1.BrowserService/GetBrowserSettings"
@@ -81,6 +84,13 @@ var (
 			Procedure:  BrowserServiceNavigateProcedure,
 		}
 	})
+	browserServiceSetBrowserControlSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_inaba_v1_browser_proto.Services().ByName("BrowserService").Methods().ByName("SetBrowserControl"),
+			Procedure:  BrowserServiceSetBrowserControlProcedure,
+		}
+	})
 	browserServiceGetBrowserSettingsSpec = sync.OnceValue(func() connect.Spec {
 		return connect.Spec{
 			StreamType: connect.StreamTypeUnary,
@@ -110,6 +120,9 @@ type BrowserServiceClient interface {
 	Input(context.Context, *v1.BrowserInputRequest) (*v1.BrowserInputResponse, error)
 	// Goes to an address, or back, forward or reload; or opens a new page.
 	Navigate(context.Context, *v1.NavigateRequest) (*v1.BrowserState, error)
+	// Takes the browser from the agent, which then waits, or gives it back. Only BROWSER_CONTROL_USER
+	// and BROWSER_CONTROL_UNSPECIFIED, for no one, are asked for; the agent takes the browser by using it.
+	SetBrowserControl(context.Context, *v1.SetBrowserControlRequest) (*v1.BrowserState, error)
 	// The host's browser settings. Needs the hosts permission.
 	GetBrowserSettings(context.Context, *v1.GetBrowserSettingsRequest) (*v1.BrowserSettings, error)
 	// Replaces the host's browser settings; browsers started from then on take them.
@@ -156,6 +169,9 @@ type BrowserServiceHandler interface {
 	Input(context.Context, *v1.BrowserInputRequest) (*v1.BrowserInputResponse, error)
 	// Goes to an address, or back, forward or reload; or opens a new page.
 	Navigate(context.Context, *v1.NavigateRequest) (*v1.BrowserState, error)
+	// Takes the browser from the agent, which then waits, or gives it back. Only BROWSER_CONTROL_USER
+	// and BROWSER_CONTROL_UNSPECIFIED, for no one, are asked for; the agent takes the browser by using it.
+	SetBrowserControl(context.Context, *v1.SetBrowserControlRequest) (*v1.BrowserState, error)
 	// The host's browser settings. Needs the hosts permission.
 	GetBrowserSettings(context.Context, *v1.GetBrowserSettingsRequest) (*v1.BrowserSettings, error)
 	// Replaces the host's browser settings; browsers started from then on take them.
@@ -173,6 +189,7 @@ func RegisterBrowserServiceHandler(server *connect.Server, svc BrowserServiceHan
 		connect.Method{Spec: browserServiceWatchPageSpec(), Handler: adapter.watchPage},
 		connect.Method{Spec: browserServiceInputSpec(), Handler: adapter.input},
 		connect.Method{Spec: browserServiceNavigateSpec(), Handler: adapter.navigate},
+		connect.Method{Spec: browserServiceSetBrowserControlSpec(), Handler: adapter.setBrowserControl},
 		connect.Method{Spec: browserServiceGetBrowserSettingsSpec(), Handler: adapter.getBrowserSettings},
 		connect.Method{Spec: browserServiceSaveBrowserSettingsSpec(), Handler: adapter.saveBrowserSettings},
 	)
@@ -214,6 +231,10 @@ func (UnimplementedBrowserServiceHandler) Input(context.Context, *v1.BrowserInpu
 
 func (UnimplementedBrowserServiceHandler) Navigate(context.Context, *v1.NavigateRequest) (*v1.BrowserState, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.BrowserService.Navigate is not implemented")
+}
+
+func (UnimplementedBrowserServiceHandler) SetBrowserControl(context.Context, *v1.SetBrowserControlRequest) (*v1.BrowserState, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.BrowserService.SetBrowserControl is not implemented")
 }
 
 func (UnimplementedBrowserServiceHandler) GetBrowserSettings(context.Context, *v1.GetBrowserSettingsRequest) (*v1.BrowserSettings, error) {
@@ -263,6 +284,14 @@ func (c *browserServiceClient) Input(ctx context.Context, req *v1.BrowserInputRe
 func (c *browserServiceClient) Navigate(ctx context.Context, req *v1.NavigateRequest) (*v1.BrowserState, error) {
 	var res v1.BrowserState
 	if err := c.client.CallUnary(ctx, browserServiceNavigateSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *browserServiceClient) SetBrowserControl(ctx context.Context, req *v1.SetBrowserControlRequest) (*v1.BrowserState, error) {
+	var res v1.BrowserState
+	if err := c.client.CallUnary(ctx, browserServiceSetBrowserControlSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -336,6 +365,18 @@ func (h browserServiceHandler) navigate(ctx context.Context, _ connect.Spec, str
 		return err
 	}
 	res, err := h.svc.Navigate(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h browserServiceHandler) setBrowserControl(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.SetBrowserControlRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.SetBrowserControl(ctx, &req)
 	if err != nil {
 		return err
 	}

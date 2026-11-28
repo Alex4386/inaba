@@ -11,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { SidebarGroup, SidebarGroupAction, SidebarGroupLabel, SidebarMenu, SidebarMenuAction, SidebarMenuButton, SidebarMenuItem, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
 import type { HostTerminal } from "@/gen/inaba/v1/terminal_pb";
-import { errorText, showError } from "@/lib/errors";
+import { errorText, showError, unreachable } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
 import { poll } from "@/lib/poll";
 import { cn } from "@/lib/utils";
@@ -35,7 +35,8 @@ export function terminalListing(link: HostLink) {
         .listHostTerminals({})
         .then(
           (r) => ({ terminals: r.terminals, error: "" }),
-          (e) => ({ terminals: it.now.terminals, error: ConnectError.from(e).code === Code.Unimplemented ? "off" : errorText(e) }),
+          // The host being away is said once, beside its name; here the last list stays as it was.
+          (e) => ({ terminals: it.now.terminals, error: ConnectError.from(e).code === Code.Unimplemented ? "off" : unreachable(e) ? "" : errorText(e) }),
         )
         .then((next) => {
           // A slower, older answer must not undo a newer one.

@@ -98,6 +98,8 @@ message NewThread {
   // Give each run's thread its own worktree, as CreateThread does.
   bool worktree = 4;
   map<string, string> options = 5;
+  // The language each run's agent talks in, as CreateThreadRequest takes it; empty leaves it to the agent.
+  string language = 6;
 }
 
 message AutomationRun {

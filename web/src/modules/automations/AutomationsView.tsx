@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { showError } from "@/lib/errors";
 import { cached } from "@/lib/host-cache";
 import { type MessageKey, useI18n } from "@/lib/i18n";
+import { agentLanguageChoice, agentLanguageTag } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
 const weekdays: MessageKey[] = ["day.sun", "day.mon", "day.tue", "day.wed", "day.thu", "day.fri", "day.sat"];
@@ -274,7 +275,7 @@ function AutomationDialog({
   onClose: () => void;
   onSave: (a: Automation) => Promise<unknown>;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState("");
   const [target, setTarget] = useState<"thread" | "new">("new");
@@ -349,7 +350,8 @@ function AutomationDialog({
       webhook,
       schedule,
       threadId: target === "thread" ? threadId : "",
-      newThread: target === "new" ? { provider, projectId, worktree, options: chosen } : undefined,
+      // Its runs talk the language this person's new threads do, as set when it is saved.
+      newThread: target === "new" ? { provider, projectId, worktree, options: chosen, language: agentLanguageTag(agentLanguageChoice(), locale) } : undefined,
     });
     setBusy(true);
     try {

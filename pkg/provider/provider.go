@@ -21,6 +21,8 @@ type Config struct {
 	NativeSessionID string
 	// MCP servers to give the agent for this session, on top of its own.
 	MCPServers []MCPServer
+	// The language the agent talks to people in, as a BCP 47 tag; empty leaves it to the agent.
+	Language string
 }
 
 // MCPServer is an MCP server an agent can use: a command it starts, or an address

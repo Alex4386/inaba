@@ -188,7 +188,7 @@ export function TerminalView({ link, threadId = "", shell, io, driving = true, p
           return;
         } catch {
           setAttached(false);
-          await new Promise((r) => setTimeout(r, 1_000));
+          await link.settle(abort.signal);
         }
       }
     })();

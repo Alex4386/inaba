@@ -101,6 +101,9 @@ message Thread {
   // How many agents of background workflows its agent started are still running. The
   // thread is still at work while this is above 0, even with its turn over.
   uint32 background_agents = 27;
+  // The language its agent talks to people in, as a BCP 47 tag such as ko; empty leaves that
+  // to the agent, which mostly answers in the language it is written to.
+  string language = 28;
 }
 
 // A slash command the agent offers, run by sending "/name" and its input as a message.
@@ -595,6 +598,9 @@ message CreateThreadRequest {
   // Give the thread a git worktree of its own instead of the project's folder, so its
   // changes stay apart from other threads'. Needs project_id, and a git repository there.
   Worktree worktree = 7;
+  // The language its agent talks to people in, as a BCP 47 tag such as ko; empty leaves it
+  // to the agent. Said to an agent that takes instructions of the client's.
+  string language = 8;
 }
 
 message Worktree {

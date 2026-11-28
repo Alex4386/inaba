@@ -84,9 +84,10 @@ export function HostUsage({ hostId, onOpenThread }: { hostId: string; onOpenThre
   };
 
   return (
-    <div className="grid gap-5">
+    // Sized by its own width, not the window's: in the host settings dialog four cards cut their numbers short.
+    <div className="@container grid gap-5">
       {picker}
-      <StatGrid className="grid-cols-2 sm:grid-cols-4">
+      <StatGrid className="grid-cols-2 @3xl:grid-cols-4">
         <Stat label={t(byCost ? "usage.totalCost" : "usage.totalTokens")} value={totals ? format(measure(totals)) : "—"} icon={CoinsIcon} />
         <Stat label={t("usage.turns")} value={totals ? totals.turns.toLocaleString(locale) : "—"} icon={MessagesSquareIcon} />
         <Stat label={t("usage.threads")} value={totals ? totals.threads.toLocaleString(locale) : "—"} icon={ActivityIcon} />

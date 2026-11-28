@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file inaba/v1/browser.proto.
  */
 export const file_inaba_v1_browser: GenFile = /*@__PURE__*/
-  fileDesc("ChZpbmFiYS92MS9icm93c2VyLnByb3RvEghpbmFiYS52MSJKCg5Ccm93c2VyUHJvZmlsZRINCgVmbGFncxgBIAMoCRIpCgdzaGFyaW5nGAIgASgOMhguaW5hYmEudjEuQnJvd3NlclNoYXJpbmciGwoZR2V0QnJvd3NlclNldHRpbmdzUmVxdWVzdCLDAQoPQnJvd3NlclNldHRpbmdzEioKCGRlZmF1bHRzGAEgASgLMhguaW5hYmEudjEuQnJvd3NlclByb2ZpbGUSOQoIcHJvamVjdHMYAiADKAsyJy5pbmFiYS52MS5Ccm93c2VyU2V0dGluZ3MuUHJvamVjdHNFbnRyeRpJCg1Qcm9qZWN0c0VudHJ5EgsKA2tleRgBIAEoCRInCgV2YWx1ZRgCIAEoCzIYLmluYWJhLnYxLkJyb3dzZXJQcm9maWxlOgI4ASI1CgtCcm93c2VyUGFnZRIKCgJpZBgBIAEoCRILCgN1cmwYAiABKAkSDQoFdGl0bGUYAyABKAkiRAoMQnJvd3NlclN0YXRlEiQKBXBhZ2VzGAEgAygLMhUuaW5hYmEudjEuQnJvd3NlclBhZ2USDgoGb3BlbmVkGAIgASgJIicKEk9wZW5Ccm93c2VyUmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkiKAoTQ2xvc2VCcm93c2VyUmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkiFgoUQ2xvc2VCcm93c2VyUmVzcG9uc2UiigEKEFdhdGNoUGFnZVJlcXVlc3QSEQoJdGhyZWFkX2lkGAEgASgJEg8KB3BhZ2VfaWQYAiABKAkSEQoJbWF4X3dpZHRoGAMgASgNEhIKCm1heF9oZWlnaHQYBCABKA0SFAoMd2luZG93X3dpZHRoGAUgASgNEhUKDXdpbmRvd19oZWlnaHQYBiABKA0idwoJUGFnZUZyYW1lEg8KB3BhZ2VfaWQYASABKAkSDAoEanBlZxgCIAEoDBIWCg52aWV3cG9ydF93aWR0aBgDIAEoARIXCg92aWV3cG9ydF9oZWlnaHQYBCABKAESCwoDdXJsGAUgASgJEg0KBXRpdGxlGAYgASgJIrMBChNCcm93c2VySW5wdXRSZXF1ZXN0EhEKCXRocmVhZF9pZBgBIAEoCRIPCgdwYWdlX2lkGAIgASgJEiUKBW1vdXNlGAMgASgLMhQuaW5hYmEudjEuTW91c2VJbnB1dEgAEiEKA2tleRgEIAEoCzISLmluYWJhLnYxLktleUlucHV0SAASDgoEdGV4dBgFIAEoCUgAEhUKC2NvbXBvc2l0aW9uGAYgASgJSABCBwoFZXZlbnQiFgoUQnJvd3NlcklucHV0UmVzcG9uc2UihQEKCk1vdXNlSW5wdXQSDAoEdHlwZRgBIAEoCRIJCgF4GAIgASgBEgkKAXkYAyABKAESDgoGYnV0dG9uGAQgASgJEg4KBmNsaWNrcxgFIAEoDRIPCgdkZWx0YV94GAYgASgBEg8KB2RlbHRhX3kYByABKAESEQoJbW9kaWZpZXJzGAggASgFIngKCEtleUlucHV0EgwKBHR5cGUYASABKAkSCwoDa2V5GAIgASgJEgwKBGNvZGUYAyABKAkSEAoIa2V5X2NvZGUYBCABKAUSDAoEdGV4dBgFIAEoCRIRCgltb2RpZmllcnMYBiABKAUSEAoIY29tbWFuZHMYByADKAkiZAoPTmF2aWdhdGVSZXF1ZXN0EhEKCXRocmVhZF9pZBgBIAEoCRIPCgdwYWdlX2lkGAIgASgJEgsKA3VybBgDIAEoCRIOCgZhY3Rpb24YBCABKAkSEAoIbmV3X3BhZ2UYBSABKAgqagoOQnJvd3NlclNoYXJpbmcSHwobQlJPV1NFUl9TSEFSSU5HX1VOU1BFQ0lGSUVEEAASGgoWQlJPV1NFUl9TSEFSSU5HX1RIUkVBRBABEhsKF0JST1dTRVJfU0hBUklOR19QUk9KRUNUEAIy1wUKDkJyb3dzZXJTZXJ2aWNlEm8KC09wZW5Ccm93c2VyEhwuaW5hYmEudjEuT3BlbkJyb3dzZXJSZXF1ZXN0GhYuaW5hYmEudjEuQnJvd3NlclN0YXRlIiqC0+STAiQ6ASoiHy92MS90aHJlYWRzL3t0aHJlYWRfaWR9L2Jyb3dzZXISdgoMQ2xvc2VCcm93c2VyEh0uaW5hYmEudjEuQ2xvc2VCcm93c2VyUmVxdWVzdBoeLmluYWJhLnYxLkNsb3NlQnJvd3NlclJlc3BvbnNlIieC0+STAiEqHy92MS90aHJlYWRzL3t0aHJlYWRfaWR9L2Jyb3dzZXISPgoJV2F0Y2hQYWdlEhouaW5hYmEudjEuV2F0Y2hQYWdlUmVxdWVzdBoTLmluYWJhLnYxLlBhZ2VGcmFtZTABEkYKBUlucHV0Eh0uaW5hYmEudjEuQnJvd3NlcklucHV0UmVxdWVzdBoeLmluYWJhLnYxLkJyb3dzZXJJbnB1dFJlc3BvbnNlEnIKCE5hdmlnYXRlEhkuaW5hYmEudjEuTmF2aWdhdGVSZXF1ZXN0GhYuaW5hYmEudjEuQnJvd3NlclN0YXRlIjOC0+STAi06ASoiKC92MS90aHJlYWRzL3t0aHJlYWRfaWR9L2Jyb3dzZXIvbmF2aWdhdGUScgoSR2V0QnJvd3NlclNldHRpbmdzEiMuaW5hYmEudjEuR2V0QnJvd3NlclNldHRpbmdzUmVxdWVzdBoZLmluYWJhLnYxLkJyb3dzZXJTZXR0aW5ncyIcgtPkkwIWEhQvdjEvYnJvd3Nlci9zZXR0aW5ncxJsChNTYXZlQnJvd3NlclNldHRpbmdzEhkuaW5hYmEudjEuQnJvd3NlclNldHRpbmdzGhkuaW5hYmEudjEuQnJvd3NlclNldHRpbmdzIh+C0+STAhk6ASoaFC92MS9icm93c2VyL3NldHRpbmdzQo0BCgxjb20uaW5hYmEudjFCDEJyb3dzZXJQcm90b1ABWi5naXRodWIuY29tL0FsZXg0Mzg2L2luYWJhL2dlbi9pbmFiYS92MTtpbmFiYXYxogIDSVhYqgIISW5hYmEuVjHKAghJbmFiYVxWMeICFEluYWJhXFYxXEdQQk1ldGFkYXRh6gIJSW5hYmE6OlYxYgZwcm90bzM", [file_google_api_annotations]);
+  fileDesc("ChZpbmFiYS92MS9icm93c2VyLnByb3RvEghpbmFiYS52MSJKCg5Ccm93c2VyUHJvZmlsZRINCgVmbGFncxgBIAMoCRIpCgdzaGFyaW5nGAIgASgOMhguaW5hYmEudjEuQnJvd3NlclNoYXJpbmciGwoZR2V0QnJvd3NlclNldHRpbmdzUmVxdWVzdCLDAQoPQnJvd3NlclNldHRpbmdzEioKCGRlZmF1bHRzGAEgASgLMhguaW5hYmEudjEuQnJvd3NlclByb2ZpbGUSOQoIcHJvamVjdHMYAiADKAsyJy5pbmFiYS52MS5Ccm93c2VyU2V0dGluZ3MuUHJvamVjdHNFbnRyeRpJCg1Qcm9qZWN0c0VudHJ5EgsKA2tleRgBIAEoCRInCgV2YWx1ZRgCIAEoCzIYLmluYWJhLnYxLkJyb3dzZXJQcm9maWxlOgI4ASI1CgtCcm93c2VyUGFnZRIKCgJpZBgBIAEoCRILCgN1cmwYAiABKAkSDQoFdGl0bGUYAyABKAkibwoMQnJvd3NlclN0YXRlEiQKBXBhZ2VzGAEgAygLMhUuaW5hYmEudjEuQnJvd3NlclBhZ2USDgoGb3BlbmVkGAIgASgJEikKB2NvbnRyb2wYAyABKA4yGC5pbmFiYS52MS5Ccm93c2VyQ29udHJvbCJYChhTZXRCcm93c2VyQ29udHJvbFJlcXVlc3QSEQoJdGhyZWFkX2lkGAEgASgJEikKB2NvbnRyb2wYAiABKA4yGC5pbmFiYS52MS5Ccm93c2VyQ29udHJvbCInChJPcGVuQnJvd3NlclJlcXVlc3QSEQoJdGhyZWFkX2lkGAEgASgJIigKE0Nsb3NlQnJvd3NlclJlcXVlc3QSEQoJdGhyZWFkX2lkGAEgASgJIhYKFENsb3NlQnJvd3NlclJlc3BvbnNlIooBChBXYXRjaFBhZ2VSZXF1ZXN0EhEKCXRocmVhZF9pZBgBIAEoCRIPCgdwYWdlX2lkGAIgASgJEhEKCW1heF93aWR0aBgDIAEoDRISCgptYXhfaGVpZ2h0GAQgASgNEhQKDHdpbmRvd193aWR0aBgFIAEoDRIVCg13aW5kb3dfaGVpZ2h0GAYgASgNIqIBCglQYWdlRnJhbWUSDwoHcGFnZV9pZBgBIAEoCRIMCgRqcGVnGAIgASgMEhYKDnZpZXdwb3J0X3dpZHRoGAMgASgBEhcKD3ZpZXdwb3J0X2hlaWdodBgEIAEoARILCgN1cmwYBSABKAkSDQoFdGl0bGUYBiABKAkSKQoHY29udHJvbBgHIAEoDjIYLmluYWJhLnYxLkJyb3dzZXJDb250cm9sIrMBChNCcm93c2VySW5wdXRSZXF1ZXN0EhEKCXRocmVhZF9pZBgBIAEoCRIPCgdwYWdlX2lkGAIgASgJEiUKBW1vdXNlGAMgASgLMhQuaW5hYmEudjEuTW91c2VJbnB1dEgAEiEKA2tleRgEIAEoCzISLmluYWJhLnYxLktleUlucHV0SAASDgoEdGV4dBgFIAEoCUgAEhUKC2NvbXBvc2l0aW9uGAYgASgJSABCBwoFZXZlbnQiFgoUQnJvd3NlcklucHV0UmVzcG9uc2UihQEKCk1vdXNlSW5wdXQSDAoEdHlwZRgBIAEoCRIJCgF4GAIgASgBEgkKAXkYAyABKAESDgoGYnV0dG9uGAQgASgJEg4KBmNsaWNrcxgFIAEoDRIPCgdkZWx0YV94GAYgASgBEg8KB2RlbHRhX3kYByABKAESEQoJbW9kaWZpZXJzGAggASgFIngKCEtleUlucHV0EgwKBHR5cGUYASABKAkSCwoDa2V5GAIgASgJEgwKBGNvZGUYAyABKAkSEAoIa2V5X2NvZGUYBCABKAUSDAoEdGV4dBgFIAEoCRIRCgltb2RpZmllcnMYBiABKAUSEAoIY29tbWFuZHMYByADKAkiZAoPTmF2aWdhdGVSZXF1ZXN0EhEKCXRocmVhZF9pZBgBIAEoCRIPCgdwYWdlX2lkGAIgASgJEgsKA3VybBgDIAEoCRIOCgZhY3Rpb24YBCABKAkSEAoIbmV3X3BhZ2UYBSABKAgqagoOQnJvd3NlclNoYXJpbmcSHwobQlJPV1NFUl9TSEFSSU5HX1VOU1BFQ0lGSUVEEAASGgoWQlJPV1NFUl9TSEFSSU5HX1RIUkVBRBABEhsKF0JST1dTRVJfU0hBUklOR19QUk9KRUNUEAIqZgoOQnJvd3NlckNvbnRyb2wSHwobQlJPV1NFUl9DT05UUk9MX1VOU1BFQ0lGSUVEEAASGQoVQlJPV1NFUl9DT05UUk9MX0FHRU5UEAESGAoUQlJPV1NFUl9DT05UUk9MX1VTRVIQAjLdBgoOQnJvd3NlclNlcnZpY2USbwoLT3BlbkJyb3dzZXISHC5pbmFiYS52MS5PcGVuQnJvd3NlclJlcXVlc3QaFi5pbmFiYS52MS5Ccm93c2VyU3RhdGUiKoLT5JMCJDoBKiIfL3YxL3RocmVhZHMve3RocmVhZF9pZH0vYnJvd3NlchJ2CgxDbG9zZUJyb3dzZXISHS5pbmFiYS52MS5DbG9zZUJyb3dzZXJSZXF1ZXN0Gh4uaW5hYmEudjEuQ2xvc2VCcm93c2VyUmVzcG9uc2UiJ4LT5JMCISofL3YxL3RocmVhZHMve3RocmVhZF9pZH0vYnJvd3NlchI+CglXYXRjaFBhZ2USGi5pbmFiYS52MS5XYXRjaFBhZ2VSZXF1ZXN0GhMuaW5hYmEudjEuUGFnZUZyYW1lMAESRgoFSW5wdXQSHS5pbmFiYS52MS5Ccm93c2VySW5wdXRSZXF1ZXN0Gh4uaW5hYmEudjEuQnJvd3NlcklucHV0UmVzcG9uc2UScgoITmF2aWdhdGUSGS5pbmFiYS52MS5OYXZpZ2F0ZVJlcXVlc3QaFi5pbmFiYS52MS5Ccm93c2VyU3RhdGUiM4LT5JMCLToBKiIoL3YxL3RocmVhZHMve3RocmVhZF9pZH0vYnJvd3Nlci9uYXZpZ2F0ZRKDAQoRU2V0QnJvd3NlckNvbnRyb2wSIi5pbmFiYS52MS5TZXRCcm93c2VyQ29udHJvbFJlcXVlc3QaFi5pbmFiYS52MS5Ccm93c2VyU3RhdGUiMoLT5JMCLDoBKiInL3YxL3RocmVhZHMve3RocmVhZF9pZH0vYnJvd3Nlci9jb250cm9sEnIKEkdldEJyb3dzZXJTZXR0aW5ncxIjLmluYWJhLnYxLkdldEJyb3dzZXJTZXR0aW5nc1JlcXVlc3QaGS5pbmFiYS52MS5Ccm93c2VyU2V0dGluZ3MiHILT5JMCFhIUL3YxL2Jyb3dzZXIvc2V0dGluZ3MSbAoTU2F2ZUJyb3dzZXJTZXR0aW5ncxIZLmluYWJhLnYxLkJyb3dzZXJTZXR0aW5ncxoZLmluYWJhLnYxLkJyb3dzZXJTZXR0aW5ncyIfgtPkkwIZOgEqGhQvdjEvYnJvd3Nlci9zZXR0aW5nc0KNAQoMY29tLmluYWJhLnYxQgxCcm93c2VyUHJvdG9QAVouZ2l0aHViLmNvbS9BbGV4NDM4Ni9pbmFiYS9nZW4vaW5hYmEvdjE7aW5hYmF2MaICA0lYWKoCCEluYWJhLlYxygIISW5hYmFcVjHiAhRJbmFiYVxWMVxHUEJNZXRhZGF0YeoCCUluYWJhOjpWMWIGcHJvdG8z", [file_google_api_annotations]);
 
 /**
  * @generated from message inaba.v1.BrowserProfile
@@ -124,6 +124,11 @@ export type BrowserState = Message<"inaba.v1.BrowserState"> & {
    * @generated from field: string opened = 2;
    */
   opened: string;
+
+  /**
+   * @generated from field: inaba.v1.BrowserControl control = 3;
+   */
+  control: BrowserControl;
 };
 
 /**
@@ -132,6 +137,28 @@ export type BrowserState = Message<"inaba.v1.BrowserState"> & {
  */
 export const BrowserStateSchema: GenMessage<BrowserState> = /*@__PURE__*/
   messageDesc(file_inaba_v1_browser, 4);
+
+/**
+ * @generated from message inaba.v1.SetBrowserControlRequest
+ */
+export type SetBrowserControlRequest = Message<"inaba.v1.SetBrowserControlRequest"> & {
+  /**
+   * @generated from field: string thread_id = 1;
+   */
+  threadId: string;
+
+  /**
+   * @generated from field: inaba.v1.BrowserControl control = 2;
+   */
+  control: BrowserControl;
+};
+
+/**
+ * Describes the message inaba.v1.SetBrowserControlRequest.
+ * Use `create(SetBrowserControlRequestSchema)` to create a new message.
+ */
+export const SetBrowserControlRequestSchema: GenMessage<SetBrowserControlRequest> = /*@__PURE__*/
+  messageDesc(file_inaba_v1_browser, 5);
 
 /**
  * @generated from message inaba.v1.OpenBrowserRequest
@@ -148,7 +175,7 @@ export type OpenBrowserRequest = Message<"inaba.v1.OpenBrowserRequest"> & {
  * Use `create(OpenBrowserRequestSchema)` to create a new message.
  */
 export const OpenBrowserRequestSchema: GenMessage<OpenBrowserRequest> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_browser, 5);
+  messageDesc(file_inaba_v1_browser, 6);
 
 /**
  * @generated from message inaba.v1.CloseBrowserRequest
@@ -165,7 +192,7 @@ export type CloseBrowserRequest = Message<"inaba.v1.CloseBrowserRequest"> & {
  * Use `create(CloseBrowserRequestSchema)` to create a new message.
  */
 export const CloseBrowserRequestSchema: GenMessage<CloseBrowserRequest> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_browser, 6);
+  messageDesc(file_inaba_v1_browser, 7);
 
 /**
  * @generated from message inaba.v1.CloseBrowserResponse
@@ -178,7 +205,7 @@ export type CloseBrowserResponse = Message<"inaba.v1.CloseBrowserResponse"> & {
  * Use `create(CloseBrowserResponseSchema)` to create a new message.
  */
 export const CloseBrowserResponseSchema: GenMessage<CloseBrowserResponse> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_browser, 7);
+  messageDesc(file_inaba_v1_browser, 8);
 
 /**
  * @generated from message inaba.v1.WatchPageRequest
@@ -227,7 +254,7 @@ export type WatchPageRequest = Message<"inaba.v1.WatchPageRequest"> & {
  * Use `create(WatchPageRequestSchema)` to create a new message.
  */
 export const WatchPageRequestSchema: GenMessage<WatchPageRequest> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_browser, 8);
+  messageDesc(file_inaba_v1_browser, 9);
 
 /**
  * @generated from message inaba.v1.PageFrame
@@ -264,6 +291,13 @@ export type PageFrame = Message<"inaba.v1.PageFrame"> & {
    * @generated from field: string title = 6;
    */
   title: string;
+
+  /**
+   * Who has the browser now. A frame without jpeg only says this changed.
+   *
+   * @generated from field: inaba.v1.BrowserControl control = 7;
+   */
+  control: BrowserControl;
 };
 
 /**
@@ -271,7 +305,7 @@ export type PageFrame = Message<"inaba.v1.PageFrame"> & {
  * Use `create(PageFrameSchema)` to create a new message.
  */
 export const PageFrameSchema: GenMessage<PageFrame> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_browser, 9);
+  messageDesc(file_inaba_v1_browser, 10);
 
 /**
  * @generated from message inaba.v1.BrowserInputRequest
@@ -328,7 +362,7 @@ export type BrowserInputRequest = Message<"inaba.v1.BrowserInputRequest"> & {
  * Use `create(BrowserInputRequestSchema)` to create a new message.
  */
 export const BrowserInputRequestSchema: GenMessage<BrowserInputRequest> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_browser, 10);
+  messageDesc(file_inaba_v1_browser, 11);
 
 /**
  * @generated from message inaba.v1.BrowserInputResponse
@@ -341,7 +375,7 @@ export type BrowserInputResponse = Message<"inaba.v1.BrowserInputResponse"> & {
  * Use `create(BrowserInputResponseSchema)` to create a new message.
  */
 export const BrowserInputResponseSchema: GenMessage<BrowserInputResponse> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_browser, 11);
+  messageDesc(file_inaba_v1_browser, 12);
 
 /**
  * @generated from message inaba.v1.MouseInput
@@ -401,7 +435,7 @@ export type MouseInput = Message<"inaba.v1.MouseInput"> & {
  * Use `create(MouseInputSchema)` to create a new message.
  */
 export const MouseInputSchema: GenMessage<MouseInput> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_browser, 12);
+  messageDesc(file_inaba_v1_browser, 13);
 
 /**
  * @generated from message inaba.v1.KeyInput
@@ -457,7 +491,7 @@ export type KeyInput = Message<"inaba.v1.KeyInput"> & {
  * Use `create(KeyInputSchema)` to create a new message.
  */
 export const KeyInputSchema: GenMessage<KeyInput> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_browser, 13);
+  messageDesc(file_inaba_v1_browser, 14);
 
 /**
  * @generated from message inaba.v1.NavigateRequest
@@ -502,7 +536,7 @@ export type NavigateRequest = Message<"inaba.v1.NavigateRequest"> & {
  * Use `create(NavigateRequestSchema)` to create a new message.
  */
 export const NavigateRequestSchema: GenMessage<NavigateRequest> = /*@__PURE__*/
-  messageDesc(file_inaba_v1_browser, 14);
+  messageDesc(file_inaba_v1_browser, 15);
 
 /**
  * Which sessions share a browser, and with it its profile: cookies, logins, storage.
@@ -538,6 +572,42 @@ export enum BrowserSharing {
  */
 export const BrowserSharingSchema: GenEnum<BrowserSharing> = /*@__PURE__*/
   enumDesc(file_inaba_v1_browser, 0);
+
+/**
+ * Who has the browser. While the agent does, people watch: their clicks, keys, navigation and
+ * window sizes are refused, so they do not get in its way. While a person does, the agent's
+ * commands wait until it is given back.
+ *
+ * @generated from enum inaba.v1.BrowserControl
+ */
+export enum BrowserControl {
+  /**
+   * No one: people use it as they like, and the agent takes it by using it.
+   *
+   * @generated from enum value: BROWSER_CONTROL_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * The agent is using it, until its turn ends or someone takes it.
+   *
+   * @generated from enum value: BROWSER_CONTROL_AGENT = 1;
+   */
+  AGENT = 1,
+
+  /**
+   * Someone took it from the agent, until they give it back or no one watches any more.
+   *
+   * @generated from enum value: BROWSER_CONTROL_USER = 2;
+   */
+  USER = 2,
+}
+
+/**
+ * Describes the enum inaba.v1.BrowserControl.
+ */
+export const BrowserControlSchema: GenEnum<BrowserControl> = /*@__PURE__*/
+  enumDesc(file_inaba_v1_browser, 1);
 
 /**
  * Each thread has a browser of its own on the host, started when first needed. The
@@ -597,6 +667,17 @@ export const BrowserService: GenService<{
   navigate: {
     methodKind: "unary";
     input: typeof NavigateRequestSchema;
+    output: typeof BrowserStateSchema;
+  },
+  /**
+   * Takes the browser from the agent, which then waits, or gives it back. Only BROWSER_CONTROL_USER
+   * and BROWSER_CONTROL_UNSPECIFIED, for no one, are asked for; the agent takes the browser by using it.
+   *
+   * @generated from rpc inaba.v1.BrowserService.SetBrowserControl
+   */
+  setBrowserControl: {
+    methodKind: "unary";
+    input: typeof SetBrowserControlRequestSchema;
     output: typeof BrowserStateSchema;
   },
   /**

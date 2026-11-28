@@ -33,6 +33,7 @@ import { attachmentProblem } from "@/lib/composer-input";
 import { showError } from "@/lib/errors";
 import { cached, keep } from "@/lib/host-cache";
 import { useI18n } from "@/lib/i18n";
+import { agentLanguageChoice, agentLanguageTag } from "@/lib/settings";
 import { shortPath } from "@/lib/utils";
 
 /**
@@ -60,7 +61,7 @@ export function NewThreadView({
   project: Project;
   onCreated: (threadId: string) => void;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const people = usePeople();
   // The list last read from the host first, so the composer is there at once on a slow link.
   const [providers, setProviders] = useState<Provider[]>(() => cached(link.hostId, "providers", ProviderSchema) ?? []);
@@ -160,6 +161,7 @@ export function NewThreadView({
         options: { ...Object.fromEntries(provider.options.map((o) => [o.id, o.value])), ...chosen },
         // The toggle is hidden outside a git repository, so a default of "worktree" cannot be turned off there; drop it.
         worktree: worktree && repository ? { branch: branch.trim(), base } : undefined,
+        language: agentLanguageTag(agentLanguageChoice(), locale),
       });
     } catch (e) {
       showError(e);

@@ -313,6 +313,8 @@ export function ThreadView({
     return () => clearTimeout(timer);
   }, [failures, fresh, refresh]);
   const retry = () => (setLoadError(undefined), setFailures(0), void refresh());
+  // A read that failed for want of the host goes again as soon as the host is back, not at the next step of its wait.
+  useEffect(() => link.onReachable(() => link.reachable && failures > 0 && !fresh && void refresh()), [link, failures, fresh, refresh]);
   // Opening the thread marks it read; the conversation marks newer events as they arrive.
   useMarkSeen(link.hostId, threadId, thread?.lastSeq);
   // The thread's project, for the header's path and the file tree's first step: the sidebar's, read only when it has none.
@@ -1423,7 +1425,8 @@ function Chat({
         } catch {
           // Retried below.
         }
-        await new Promise((r) => setTimeout(r, 1_000));
+        // Longer while the host is away, as while it restarts, and at once when it is back.
+        await link.settle(abort.signal);
       }
     })();
     return () => {
@@ -1667,6 +1670,7 @@ function Chat({
       cwd: thread.projectId ? "" : thread.cwd,
       title,
       options: Object.fromEntries(thread.options.map((o) => [o.id, o.value])),
+      language: thread.language,
     });
   // Set while a side chat, fork or fresh thread is being made, so a second press does not make two.
   const starting = useRef(false);

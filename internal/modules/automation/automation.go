@@ -417,7 +417,7 @@ func (s *service) runAutomation(id, trigger string, payload []byte) (*inabav1.Au
 	var err error
 	if run.ThreadId == "" {
 		ns := a.NewThread
-		create := &inabav1.CreateThreadRequest{Provider: ns.GetProvider(), ProjectId: ns.GetProjectId(), Cwd: ns.GetCwd(), Options: ns.GetOptions(), Title: a.Name + " · " + now.Format("Jan 2 15:04")}
+		create := &inabav1.CreateThreadRequest{Provider: ns.GetProvider(), ProjectId: ns.GetProjectId(), Cwd: ns.GetCwd(), Options: ns.GetOptions(), Language: ns.GetLanguage(), Title: a.Name + " · " + now.Format("Jan 2 15:04")}
 		if ns.GetWorktree() {
 			create.Worktree = &inabav1.Worktree{}
 		}

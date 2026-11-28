@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"net/url"
+	"sync"
 	"time"
 
 	"connectrpc.com/connect/v2"
@@ -47,12 +48,51 @@ func (s *service) WatchPage(ctx context.Context, req *inabav1.WatchPageRequest, 
 	}
 	in.touch(1)
 	defer in.touch(-1)
+	in.view(1)
+	defer in.view(-1)
 	// One viewer per page: a page streams to one place. This one takes over.
 	ctx, done := s.takeOver(ctx, string(p.TargetID))
 	defer done()
 	// A screencast a viewer gone astray left running would refuse this one.
 	_ = proto.PageStopScreencast{}.Call(p)
-	if req.WindowWidth > 0 && req.WindowHeight > 0 {
+	// The stream is written from here and from the hand-over below.
+	var sendMu sync.Mutex
+	closed := false
+	send := func(f *inabav1.PageFrame) error {
+		sendMu.Lock()
+		defer sendMu.Unlock()
+		if closed {
+			return context.Canceled
+		}
+		return stream.Send(f)
+	}
+	// Nothing is sent once the call is over: a hand-over heard just then is dropped, not written to a closed stream.
+	defer func() {
+		sendMu.Lock()
+		closed = true
+		sendMu.Unlock()
+	}()
+	// Who has the browser, now and whenever that changes, so the viewer knows whether it may act.
+	control, changed := in.watchControl()
+	if err := send(&inabav1.PageFrame{PageId: string(p.TargetID), Control: control}); err != nil {
+		return err
+	}
+	go func(changed <-chan struct{}) {
+		for {
+			select {
+			case <-changed:
+			case <-ctx.Done():
+				return
+			}
+			var now inabav1.BrowserControl
+			now, changed = in.watchControl()
+			if send(&inabav1.PageFrame{PageId: string(p.TargetID), Control: now}) != nil {
+				return
+			}
+		}
+	}(changed)
+	// The window stays as the agent has it while it works: a new size would change the page under it.
+	if req.WindowWidth > 0 && req.WindowHeight > 0 && control != inabav1.BrowserControl_BROWSER_CONTROL_AGENT {
 		if err := resize(p, int(req.WindowWidth), int(req.WindowHeight)); err != nil {
 			return connect.NewError(connect.CodeUnavailable, "could not size the window: "+err.Error())
 		}
@@ -68,14 +108,14 @@ func (s *service) WatchPage(ctx context.Context, req *inabav1.WatchPageRequest, 
 	}
 	var sendErr error
 	wait := p.EachEvent(func(f *proto.PageScreencastFrame) bool {
-		frame := &inabav1.PageFrame{PageId: string(p.TargetID), Jpeg: f.Data}
+		frame := &inabav1.PageFrame{PageId: string(p.TargetID), Jpeg: f.Data, Control: in.controlNow()}
 		if m := f.Metadata; m != nil {
 			frame.ViewportWidth, frame.ViewportHeight = m.DeviceWidth, m.DeviceHeight
 		}
 		if info, err := p.Info(); err == nil {
 			frame.Url, frame.Title = info.URL, info.Title
 		}
-		if sendErr = stream.Send(frame); sendErr != nil {
+		if sendErr = send(frame); sendErr != nil {
 			return true
 		}
 		// Chrome sends the next frame once this one is acknowledged: a slow viewer gets fewer.
@@ -161,6 +201,9 @@ func (s *service) Input(ctx context.Context, req *inabav1.BrowserInputRequest) (
 		return nil, err
 	}
 	in.touch(0)
+	if err := in.personMay(); err != nil {
+		return nil, err
+	}
 	switch e := req.Event.(type) {
 	case *inabav1.BrowserInputRequest_Mouse:
 		m := e.Mouse
@@ -229,6 +272,12 @@ func (s *service) Navigate(ctx context.Context, req *inabav1.NavigateRequest) (*
 	in, p, err := s.page(ctx, req.ThreadId, req.PageId)
 	if err != nil {
 		return nil, err
+	}
+	// Closing a page is closing its tab, which is the person's to do; going somewhere in it is not, while the agent works there.
+	if req.Action != "close" {
+		if err := in.personMay(); err != nil {
+			return nil, err
+		}
 	}
 	switch {
 	case req.Action == "back":

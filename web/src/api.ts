@@ -121,6 +121,13 @@ export class HostLink {
   readonly hostTerminals: Client<typeof HostTerminalService>;
   /** Whether calls currently go straight to the host. */
   direct = false;
+  /** Whether the host answers: false from a call that could not reach it until one does. */
+  reachable = true;
+  // Calls in a row that could not reach the host, for how long to wait before the next.
+  private failures = 0;
+  // Those waiting to try again, woken as soon as the host answers anything.
+  private readonly wakers = new Set<() => void>();
+  private readonly watchers = new Set<() => void>();
 
   private pc: RTCPeerConnection | undefined;
   private closed = false;
@@ -137,9 +144,17 @@ export class HostLink {
       baseUrl: location.origin + this.prefix,
       // Protobuf rather than JSON: bytes go as they are, not base64, and field names are not repeated.
       useBinaryFormat: true,
-      fetch: (input, init) => {
+      fetch: async (input, init) => {
         const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
-        return this.direct && this.pc ? channelFetch(this.pc, url.pathname.slice(this.prefix.length) + url.search, init) : fetch(input, init);
+        try {
+          const res = await (this.direct && this.pc ? channelFetch(this.pc, url.pathname.slice(this.prefix.length) + url.search, init) : fetch(input, init));
+          // The relay says so when the host never got the call; any other answer is the host's.
+          this.heard(res.headers.get("Inaba-Host") !== "unreachable");
+          return res;
+        } catch (e) {
+          if (!init?.signal?.aborted) this.heard(false);
+          throw e;
+        }
       },
     });
     this.threads = createClient(ThreadService, transport);
@@ -154,6 +169,56 @@ export class HostLink {
     this.shell = createClient(ShellService, transport);
     this.hostTerminals = createClient(HostTerminalService, transport);
     void this.connect();
+  }
+
+  /** Calls watch whenever the host goes out of reach or comes back. */
+  onReachable(watch: () => void): () => void {
+    this.watchers.add(watch);
+    return () => void this.watchers.delete(watch);
+  }
+
+  /**
+   * Waits before trying again after a call failed: a second while the host answers, and longer the
+   * longer it has been out of reach, up to 15 s, but only until it answers anything again. Every
+   * stream and poll waits here, so a host that restarts is not asked again by each of them every second.
+   */
+  settle(signal?: AbortSignal): Promise<void> {
+    const delay = this.reachable ? 1_000 : Math.min(15_000, 1_000 * 2 ** Math.min(this.failures - 1, 4)) * (0.8 + Math.random() * 0.4);
+    return new Promise((resolve) => {
+      const done = () => {
+        clearTimeout(timer);
+        this.wakers.delete(done);
+        signal?.removeEventListener("abort", done);
+        resolve();
+      };
+      const timer = setTimeout(done, delay);
+      this.wakers.add(done);
+      signal?.addEventListener("abort", done);
+    });
+  }
+
+  /** Has every stream and poll waiting on settle try again now, as when the server says the host is back. */
+  wake() {
+    for (const wake of [...this.wakers]) wake();
+  }
+
+  private heard(answered: boolean) {
+    if (answered) {
+      this.failures = 0;
+      if (this.reachable) return;
+      this.reachable = true;
+      for (const wake of [...this.wakers]) wake();
+      // The direct connection went with the host; ask for it again now rather than at its next try.
+      if (!this.pc && !this.closed) {
+        clearTimeout(this.retry);
+        void this.connect();
+      }
+    } else {
+      this.failures++;
+      if (!this.reachable) return;
+      this.reachable = false;
+    }
+    for (const watch of this.watchers) watch();
   }
 
   close() {

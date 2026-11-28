@@ -496,6 +496,10 @@ const en = {
   "browser.forward": "Forward",
   "browser.reload": "Reload",
   "browser.address": "Address",
+  "browser.agentUsing": "The agent is using this browser",
+  "browser.youHaveControl": "You have control; the agent waits",
+  "browser.takeControl": "Take control",
+  "browser.giveControl": "Give control back",
   "browser.addressHint": "Type an address",
   "browser.newPage": "New page",
   "browser.pages": "Pages",
@@ -937,6 +941,12 @@ const en = {
   "settings.general": "General",
   "settings.appearance": "Appearance",
   "settings.languageHelp": "The language of this app on this device.",
+  "errors.unreachable": "Can't connect right now; it may be restarting. Try again in a moment.",
+  "host.reconnecting": "Reconnecting to {name}…",
+  "settings.agentLanguage": "Agent language",
+  "settings.agentLanguageHelp": "What new threads' agents talk to you in: their replies, plans and titles. Code and commit messages follow the project.",
+  "settings.agentLanguageInterface": "Same as the app ({language})",
+  "settings.agentLanguageAuto": "Whatever I write in",
   "settings.themeHelp": "Light, dark, or whatever the system uses.",
   "settings.notify": "Thread notifications",
   "settings.notifyHelp": "Show a note here when a thread you are not looking at finishes or needs an answer.",
@@ -1674,6 +1684,10 @@ const ko: Record<MessageKey, string> = {
   "browser.forward": "앞으로",
   "browser.reload": "새로 고침",
   "browser.address": "주소",
+  "browser.agentUsing": "에이전트가 사용 중입니다",
+  "browser.youHaveControl": "제어권을 가져왔습니다. 에이전트는 기다립니다",
+  "browser.takeControl": "제어권 가져오기",
+  "browser.giveControl": "제어권 넘겨주기",
   "browser.addressHint": "주소 입력",
   "browser.newPage": "새 페이지",
   "browser.pages": "페이지",
@@ -2115,6 +2129,12 @@ const ko: Record<MessageKey, string> = {
   "settings.general": "일반",
   "settings.appearance": "모양",
   "settings.languageHelp": "이 기기에서 앱을 표시할 언어입니다.",
+  "errors.unreachable": "지금은 연결할 수 없습니다. 재시작 중일 수 있으니 잠시 후 다시 시도하세요.",
+  "host.reconnecting": "{name}에 다시 연결하는 중…",
+  "settings.agentLanguage": "에이전트 언어",
+  "settings.agentLanguageHelp": "새 스레드의 에이전트가 답변, 계획, 제목에 쓰는 언어입니다. 코드와 커밋 메시지는 프로젝트를 따릅니다.",
+  "settings.agentLanguageInterface": "앱과 같게 ({language})",
+  "settings.agentLanguageAuto": "내가 쓰는 언어대로",
   "settings.themeHelp": "라이트, 다크, 또는 시스템 설정을 따릅니다.",
   "settings.notify": "쓰레드 알림",
   "settings.notifyHelp": "보고 있지 않은 쓰레드가 끝나거나 응답을 기다리면 화면에 알려 줍니다.",
@@ -2421,6 +2441,9 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, [locale, setLocale]);
   return <I18nContext value={value}>{children}</I18nContext>;
 }
+
+/** A message in the language chosen, for what is said outside a component, as an error's text. */
+export const translateNow = (key: MessageKey) => dictionaries[initialLocale()][key];
 
 export function useI18n() {
   const value = useContext(I18nContext);

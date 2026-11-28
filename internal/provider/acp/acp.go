@@ -25,6 +25,8 @@ import (
 	"unicode/utf8"
 
 	sdk "github.com/coder/acp-go-sdk"
+	"golang.org/x/text/language"
+	"golang.org/x/text/language/display"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	inabav1 "github.com/Alex4386/inaba/gen/inaba/v1"
@@ -168,10 +170,15 @@ func (s *session) start(ctx context.Context, cfg provider.Config) error {
 	}
 	s.images = init.AgentCapabilities.PromptCapabilities.Image
 	servers := mcpServers(cfg.MCPServers, init.AgentCapabilities.McpCapabilities)
+	// Only to an agent that takes instructions of the client's; others keep their own way.
+	var instructions *sdk.SystemPrompt
+	if init.AgentCapabilities.SessionCapabilities.SystemPrompt != nil {
+		instructions = languagePrompt(cfg.Language)
+	}
 
 	if cfg.NativeSessionID != "" && init.AgentCapabilities.LoadSession {
 		s.setReplaying(true)
-		loaded, err := s.conn.LoadSession(ctx, sdk.LoadSessionRequest{SessionId: sdk.SessionId(cfg.NativeSessionID), Cwd: cfg.Cwd, McpServers: servers})
+		loaded, err := s.conn.LoadSession(ctx, sdk.LoadSessionRequest{SessionId: sdk.SessionId(cfg.NativeSessionID), Cwd: cfg.Cwd, McpServers: servers, SystemPrompt: instructions})
 		s.setReplaying(false)
 		if err == nil {
 			s.id = sdk.SessionId(cfg.NativeSessionID)
@@ -184,13 +191,30 @@ func (s *session) start(ctx context.Context, cfg provider.Config) error {
 		}
 		// The agent no longer has the session; continue in a new one.
 	}
-	created, err := s.conn.NewSession(ctx, sdk.NewSessionRequest{Cwd: cfg.Cwd, McpServers: servers})
+	created, err := s.conn.NewSession(ctx, sdk.NewSessionRequest{Cwd: cfg.Cwd, McpServers: servers, SystemPrompt: instructions})
 	if err != nil {
 		return fmt.Errorf("acp: session/new: %w", err)
 	}
 	s.id = created.SessionId
 	s.setup(created.ConfigOptions, created.Modes)
 	return nil
+}
+
+// languagePrompt is what an agent is told, on top of its own instructions, of the language it talks
+// to people in; nil for none. What it writes for the project itself follows the project.
+func languagePrompt(tag string) *sdk.SystemPrompt {
+	if tag == "" {
+		return nil
+	}
+	name := tag
+	if t, err := language.Parse(tag); err == nil {
+		if n := display.English.Tags().Name(t); n != "" {
+			name = n + " (" + tag + ")"
+		}
+	}
+	text := "Talk to the user in " + name + ": your replies, questions, plans and the titles you give this session, " +
+		"unless they ask for another language. Code, comments, commit messages and other files follow the project's own conventions."
+	return &sdk.SystemPrompt{Mode: sdk.SystemPromptModeAppend, Content: []sdk.ContentBlock{sdk.TextBlock(text)}}
 }
 
 // MCPBridge is the command that serves an HTTP MCP server on stdio, given its address

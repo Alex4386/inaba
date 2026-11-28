@@ -1,10 +1,10 @@
-import { ArrowLeftIcon, ArrowRightIcon, MonitorIcon, RotateCwIcon, ScanIcon } from "lucide-react";
+import { ArrowLeftIcon, ArrowRightIcon, BotIcon, HandIcon, MonitorIcon, RotateCwIcon, ScanIcon } from "lucide-react";
 import { type MouseEvent, type WheelEvent, useCallback, useEffect, useRef, useState } from "react";
 import type { HostLink } from "@/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import type { BrowserPage } from "@/gen/inaba/v1/browser_pb";
+import { BrowserControl, type BrowserPage } from "@/gen/inaba/v1/browser_pb";
 import { errorText, showError } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
 import { type Heard, modifierBits, translator } from "./ime";
@@ -69,6 +69,17 @@ export function BrowserPanel({
   const editing = useRef(false);
   const [image, setImage] = useState<string>();
   const [error, setError] = useState("");
+  // Who has the browser. While the agent does, this panel only watches: it sends no clicks, keys or window size.
+  const [control, setControl] = useState(BrowserControl.UNSPECIFIED);
+  const agentHas = control === BrowserControl.AGENT;
+  const [handing, setHanding] = useState(false);
+  const hand = (to: BrowserControl) => {
+    setHanding(true);
+    link.browser
+      .setBrowserControl({ threadId, control: to })
+      .then((st) => setControl(st.control), showError)
+      .finally(() => setHanding(false));
+  };
   // The browser's window follows the panel, or stays the size of a desktop one.
   const [fit, setFit] = useState(readFit);
   const [area, setArea] = useState<{ width: number; height: number }>();
@@ -107,6 +118,7 @@ export function BrowserPanel({
             if (mine) onBind(mine);
           }
           setPages(pages);
+          setControl(st.control);
           if (mine) setPageId(mine);
           onPages(pages.map((p) => p.id));
         },
@@ -167,11 +179,14 @@ export function BrowserPanel({
       while (!abort.signal.aborted) {
         try {
           const stream = link.browser.watchPage(
-            // A watcher leaves the window at the driver's size.
-            { threadId, pageId, windowWidth: driving ? size.width : 0, windowHeight: driving ? size.height : 0, maxWidth: Math.round(area.width * devicePixelRatio) },
+            // A watcher leaves the window at the driver's size, and everyone leaves it at the agent's while it works.
+            { threadId, pageId, windowWidth: driving && !agentHas ? size.width : 0, windowHeight: driving && !agentHas ? size.height : 0, maxWidth: Math.round(area.width * devicePixelRatio) },
             { signal: abort.signal },
           );
           for await (const frame of stream) {
+            setControl(frame.control);
+            // One without a picture only says who has the browser now.
+            if (frame.jpeg.length === 0) continue;
             viewport.current = { width: frame.viewportWidth, height: frame.viewportHeight };
             const next = URL.createObjectURL(new Blob([frame.jpeg as BlobPart], { type: "image/jpeg" }));
             setImage(next);
@@ -183,15 +198,16 @@ export function BrowserPanel({
           // Retried below.
         }
         if (abort.signal.aborted) break;
+        await link.settle(abort.signal);
+        if (abort.signal.aborted) break;
         await refresh();
-        await new Promise((r) => setTimeout(r, 1000));
       }
     })();
     return () => {
       abort.abort();
       if (shown) URL.revokeObjectURL(shown);
     };
-  }, [link, threadId, pageId, refresh, fit, area, driving]);
+  }, [link, threadId, pageId, refresh, fit, area, driving, agentHas]);
 
   // Inputs are separate calls; chained, they reach the page in the order they were made.
   const line = useRef<(event: PageInput) => Promise<unknown>>(undefined);
@@ -211,7 +227,7 @@ export function BrowserPanel({
   // The line outlives renders; it posts to the page shown now.
   const ids = useRef({ link, threadId, pageId });
   ids.current = { link, threadId, pageId };
-  const send = (event: PageInput) => (driving ? line.current!(event) : Promise.resolve());
+  const send = (event: PageInput) => (driving && !agentHas ? line.current!(event) : Promise.resolve());
   /** Passes what the catcher heard to the page, and says whether a key went. */
   const heard = (e: Heard) => {
     const out = translate.current(e);
@@ -281,7 +297,7 @@ export function BrowserPanel({
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex h-12 shrink-0 items-center gap-1 border-b px-2">
         {/* A watcher sees the controls but cannot use them until they take over. */}
-        <fieldset disabled={!driving} className="contents">
+        <fieldset disabled={!driving || agentHas} className="contents">
         <Button size="icon-sm" variant="ghost" aria-label={t("browser.back")} title={t("browser.back")} onClick={() => void go({ action: "back" })}>
           <ArrowLeftIcon />
         </Button>
@@ -320,6 +336,18 @@ export function BrowserPanel({
         </Button>
         </fieldset>
       </header>
+      {/* Who has the browser, and the way to take it from the agent or give it back. */}
+      {control !== BrowserControl.UNSPECIFIED && (
+        <div role="status" className="bg-muted/60 flex h-9 shrink-0 items-center gap-2 border-b px-3 text-xs">
+          {agentHas ? <BotIcon className="text-primary size-3.5 shrink-0 animate-pulse" /> : <HandIcon className="size-3.5 shrink-0" />}
+          <span className="min-w-0 flex-1 truncate">{t(agentHas ? "browser.agentUsing" : "browser.youHaveControl")}</span>
+          {driving && (
+            <Button size="xs" variant={agentHas ? "default" : "outline"} disabled={handing} onClick={() => hand(agentHas ? BrowserControl.USER : BrowserControl.UNSPECIFIED)}>
+              {t(agentHas ? "browser.takeControl" : "browser.giveControl")}
+            </Button>
+          )}
+        </div>
+      )}
       <div ref={screen} className="bg-muted/40 relative flex min-h-0 flex-1 items-start justify-center overflow-hidden">
         {error ? (
           <p className="text-destructive m-auto max-w-sm p-4 text-center text-sm">{error}</p>
@@ -333,8 +361,8 @@ export function BrowserPanel({
             alt={t("browser.screen")}
             draggable={false}
             className="block max-h-full max-w-full cursor-default object-contain select-none"
-            title={driving ? undefined : t("drive.spectating")}
-            onMouseDown={(e) => driving && onPress(e)}
+            title={agentHas ? t("browser.agentUsing") : driving ? undefined : t("drive.spectating")}
+            onMouseDown={(e) => driving && !agentHas && onPress(e)}
             onMouseUp={(e) => mouse("released", e)}
             onMouseMove={onMove}
             onWheel={onWheel}

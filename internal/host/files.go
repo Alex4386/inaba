@@ -30,7 +30,7 @@ func (h *Host) ForkThread(ctx context.Context, req *inabav1.ForkThreadRequest) (
 	if err != nil {
 		return nil, err
 	}
-	create := &inabav1.CreateThreadRequest{Provider: meta.Provider, ProjectId: meta.ProjectId, Cwd: meta.Cwd, Title: cmpOr(req.Title, meta.Title), Options: map[string]string{}}
+	create := &inabav1.CreateThreadRequest{Provider: meta.Provider, ProjectId: meta.ProjectId, Cwd: meta.Cwd, Title: cmpOr(req.Title, meta.Title), Options: map[string]string{}, Language: meta.Language}
 	for _, o := range meta.Options {
 		create.Options[o.Id] = o.Value
 	}

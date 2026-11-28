@@ -323,3 +323,34 @@ func TestFileURI(t *testing.T) {
 		t.Fatalf("%s, want %s", got, want)
 	}
 }
+
+// A thread's language reaches an agent that takes the client's instructions, named so it
+// need not know the tag; a thread without one adds nothing.
+func TestLanguageIsToldToTheAgent(t *testing.T) {
+	for _, c := range []struct{ language, want string }{
+		{"ko", "system: Talk to the user in Korean (ko):"},
+		{"", "system: "},
+	} {
+		rec := &recorder{notify: make(chan struct{}, 1)}
+		cfg := providerConfig(t, "")
+		cfg.Language = c.language
+		sess, err := fakeProvider(t).Open(context.Background(), cfg, rec.emit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := sess.Prompt(context.Background(), provider.Prompt{Text: "system"}); err != nil {
+			t.Fatal(err)
+		}
+		rec.waitFor(t, func(e *inabav1.Event) bool { return strings.HasPrefix(e.GetTextDelta().GetText(), "system:") })
+		rec.mu.Lock()
+		var text string
+		for _, e := range rec.events {
+			text += e.GetTextDelta().GetText()
+		}
+		rec.mu.Unlock()
+		sess.Close()
+		if !strings.HasPrefix(text, c.want) || (c.language == "" && text != c.want) {
+			t.Errorf("language %q: the agent was told %q", c.language, text)
+		}
+	}
+}

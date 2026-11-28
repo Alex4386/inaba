@@ -378,6 +378,10 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 }
 
 // writeError answers in the JSON shape Connect clients read errors from.
+// unreachableHeader marks a relayed call the host never got, as when it restarts, apart from
+// one it answered with an error of its own: the web waits for the host rather than show it.
+const unreachableHeader = "Inaba-Host"
+
 func writeError(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -780,6 +784,7 @@ func (s *Server) serveTunnel(w http.ResponseWriter, r *http.Request) {
 		// Streams must reach the client as they are produced.
 		FlushInterval: -1,
 		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, _ error) {
+			w.Header().Set(unreachableHeader, "unreachable")
 			writeError(w, http.StatusBadGateway, "unavailable", "the host did not answer")
 		},
 	}}
@@ -823,6 +828,7 @@ func (s *Server) serveHost(w http.ResponseWriter, r *http.Request, hostPath stri
 		return
 	}
 	if l == nil {
+		w.Header().Set(unreachableHeader, "unreachable")
 		writeError(w, http.StatusServiceUnavailable, "unavailable", "the host is not connected")
 		return
 	}

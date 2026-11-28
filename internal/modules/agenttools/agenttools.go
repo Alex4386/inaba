@@ -227,7 +227,8 @@ func (t *tools) start(_ context.Context, _ *mcp.CallToolRequest, in startIn) (*m
 	if busy >= maxBusyChildren {
 		return nil, startOut{}, fmt.Errorf("you have %d threads at work already; wait for some to finish", busy)
 	}
-	create := &inabav1.CreateThreadRequest{Provider: in.Provider, ProjectId: me.ProjectId, Title: in.Title}
+	// A thread it starts talks the language it does.
+	create := &inabav1.CreateThreadRequest{Provider: in.Provider, ProjectId: me.ProjectId, Title: in.Title, Language: me.Language}
 	if create.Provider == "" {
 		create.Provider = me.Provider
 	}
