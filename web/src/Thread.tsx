@@ -43,7 +43,7 @@ import {
 import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { bytes } from "@/components/metrics";
 import { useDefaultLayout } from "react-resizable-panels";
-import { createContext, type FormEvent, memo, type ReactNode, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
+import { createContext, type FormEvent, memo, type ReactNode, type RefObject, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useMarkSeen } from "@/lib/seen";
 import type { HostLink } from "./api";
@@ -534,7 +534,7 @@ export function ThreadView({
           DOCKS.filter((d) => !docks[d].open || (isMobile && d === "right")).map((d) => (
             <div
               key={d}
-              className={cn("border-primary/60 bg-primary/10 text-primary absolute z-20 flex items-center justify-center rounded-lg border-2 border-dashed text-xs font-medium", dropZone[d])}
+              className={cn("border-primary/60 bg-primary/10 text-primary motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 absolute z-20 flex items-center justify-center rounded-lg border-2 border-dashed text-xs font-medium", dropZone[d])}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
                 e.preventDefault();
@@ -818,6 +818,36 @@ const OPEN = 300;
  * one does not take over another's state (a step log left open). One without a mark of its own
  * is keyed after the last block before it that has one.
  */
+/**
+ * Slides a strip's tabs ([data-tab]) from where they were to where a new order puts them, and fades in one
+ * that joins it, so a reorder or a tab moved between docks is seen to happen. Nothing moves for a reader who
+ * asked for less motion.
+ */
+function useSlide(strip: RefObject<HTMLElement | null>, order: string) {
+  const was = useRef(new Map<string, number>());
+  useLayoutEffect(() => {
+    const el = strip.current;
+    if (!el) return;
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const now = new Map<string, number>();
+    for (const tab of el.querySelectorAll<HTMLElement>("[data-tab]")) {
+      // offsetLeft, unlike a bounding box, is where it is laid out, not where a running slide shows it.
+      const x = tab.offsetLeft;
+      const before = was.current.get(tab.dataset.tab!);
+      now.set(tab.dataset.tab!, x);
+      if (still) continue;
+      if (before === undefined) {
+        // Not on the strip's first drawing: only a tab that arrives later.
+        if (was.current.size) tab.animate([{ opacity: 0, transform: "scale(0.9)" }, { opacity: 1, transform: "none" }], { duration: 160, easing: "ease-out" });
+      } else if (before !== x) tab.animate([{ transform: `translateX(${before - x}px)` }, { transform: "none" }], { duration: 160, easing: "ease-out" });
+    }
+    was.current = now;
+  }, [strip, order]);
+}
+
+/** What the chat map says of a message of the user's: its text, or what it attached. */
+const exchangeText = (it: Extract<Item, { type: "user" }>) => it.text || it.attachments.map((a) => a.name || a.path).join(", ");
+
 function keyed(list: Block[]): [string, Block][] {
   let mark = "top";
   let n = 0;
@@ -926,6 +956,8 @@ function SidePanel({
   const own = draggingTab !== undefined && tabs.includes(draggingTab);
   // The tab whose right-click menu is open.
   const [menuFor, setMenuFor] = useState<TabId>();
+  const strip = useRef<HTMLDivElement>(null);
+  useSlide(strip, tabs.join("\n"));
   return (
     <Tabs
       value={active ?? null}
@@ -962,6 +994,7 @@ function SidePanel({
           </DropdownMenuContent>
         </DropdownMenu>
         <TabsList
+          ref={strip}
           variant="line"
           className="min-w-0 flex-1 justify-start gap-1 overflow-x-auto overflow-y-hidden group-data-horizontal/tabs:h-12"
         >
@@ -971,7 +1004,9 @@ function SidePanel({
               <TabsTrigger
                 key={tab}
                 value={tab}
-                className="flex-none"
+                data-tab={tab}
+                // Where the dragged tab will land, held open while it is carried.
+                className={cn("flex-none transition-opacity", draggingTab === tab && "opacity-40")}
                 draggable={!locked}
                 onDragStart={(e) => {
                   e.dataTransfer.effectAllowed = "move";
@@ -986,7 +1021,8 @@ function SidePanel({
                   const from = own ? draggingTab : undefined;
                   if (!from) return;
                   e.preventDefault();
-                  if (from !== tab) onMove(from, tab);
+                  // Not while it slides out of the way: it would pass back under the pointer and swap again.
+                  if (from !== tab && !e.currentTarget.getAnimations().length) onMove(from, tab);
                 }}
                 onDragEnd={() => onDragging(undefined)}
               >
@@ -1290,6 +1326,20 @@ function Chat({
   // The first event read: a thread opens at its last turns, and 1 means nothing is left above.
   const [first, setFirst] = useState<bigint>();
   const firstSeq = useRef<bigint>(undefined);
+  // The user's messages over the whole thread, for the map to show all of the conversation and not only what is read in.
+  const [whole, setWhole] = useState<Item[]>([]);
+  const [rewinds, setRewinds] = useState(0);
+  useEffect(() => {
+    let live = true;
+    link.threads.listEvents({ threadId, messages: true }).then(
+      ({ events }) => live && setWhole(applyAll({ items: [], lastSeq: 0n }, events).items),
+      // Without it the map shows what is read in.
+      () => {},
+    );
+    return () => {
+      live = false;
+    };
+  }, [link, threadId, rewinds]);
   // Messages on their way to the host, shown at once rather than when the host has them: one
   // with a screenshot can take a while over the relay.
   const [sending, setSending] = useState<{ key: number; text: string; attachments: Attachment[] }[]>([]);
@@ -1330,6 +1380,8 @@ function Chat({
       timer = undefined;
       const events = buffer;
       buffer = [];
+      // A rewind can take back messages not read in yet: the map reads them again.
+      if (events.some((e) => e.payload.case === "rewound")) setRewinds((n) => n + 1);
       folded.current.push(...events);
       dispatch(events);
       events$.current?.(events);
@@ -1371,12 +1423,14 @@ function Chat({
   // One read at a time; after one fails, none for a while, so scrolling does not repeat the error.
   const reading = useRef(false);
   const anchor = useRef<{ height: number; top: number }>(undefined);
-  const loadOlder = () => {
+  // to: read back as far as this event at least, as the map asks to jump to a message above what is read.
+  const loadOlder = (to?: bigint): Promise<void> => {
     // Found text is counted from the top: what comes in above would move it.
     // Not while the last turns are still arriving: that read is the one the reader waits for.
-    if (reading.current || find !== undefined || firstSeq.current === undefined || firstSeq.current <= 1n || lastSeq.current < opened.current) return;
+    if (reading.current || find !== undefined || firstSeq.current === undefined || firstSeq.current <= 1n || lastSeq.current < opened.current) return Promise.resolve();
     reading.current = true;
-    link.threads.listEvents({ threadId, beforeSeq: firstSeq.current, limit: PAGE }).then(
+    const limit = to === undefined ? PAGE : Math.max(PAGE, Number(firstSeq.current - to));
+    return link.threads.listEvents({ threadId, beforeSeq: firstSeq.current, limit }).then(
       ({ events }) => {
         reading.current = false;
         const el = scroller.current;
@@ -1708,14 +1762,17 @@ function Chat({
   );
 
   // One per message of the user's, with the answer shown under it, for the chat map: blocks() shows a turn's last assistant item and folds earlier ones.
+  // Those above what is read in come from the thread's list of messages, without their answers.
   const exchanges = useMemo(() => {
     const out: Exchange[] = [];
+    const above = first ?? 0n;
+    for (const it of whole) if (it.type === "user" && it.seq < above) out.push({ seq: String(it.seq), text: exchangeText(it), answer: "" });
     for (const it of log.items) {
-      if (it.type === "user") out.push({ seq: String(it.seq), text: it.text || it.attachments.map((a) => a.name || a.path).join(", "), answer: "" });
+      if (it.type === "user") out.push({ seq: String(it.seq), text: exchangeText(it), answer: "" });
       else if (it.type === "assistant" && out.length) out[out.length - 1].answer = it.text;
     }
     return out;
-  }, [log.items]);
+  }, [log.items, whole, first]);
   const scroller = useRef<HTMLDivElement>(null);
 
   return (
@@ -1723,7 +1780,7 @@ function Chat({
       <style>{`::highlight(inaba-find){background-color:color-mix(in oklab,var(--warning) 35%,transparent)}::highlight(inaba-find-current){background-color:var(--warning);color:var(--warning-foreground)}.dark ::highlight(inaba-find-current){color:var(--background)}`}</style>
       {/* --warning is bright yellow in both themes, but dark's --warning-foreground is yellow too, so the current match takes dark's near-black background as its text. */}
       <div className="@container/chat relative flex min-h-0 flex-1 flex-col">
-      <ChatMap exchanges={exchanges} scroller={scroller} />
+      <ChatMap exchanges={exchanges} scroller={scroller} reach={(seq) => loadOlder(BigInt(seq))} />
       {find !== undefined && (
         <div
           role="search"

@@ -788,6 +788,9 @@ message ListEventsRequest {
   // Set, the events before this one instead, for a viewer reading further back: as many as
   // limit asks for and back to where that turn began, light as Subscribe sends them.
   uint64 before_seq = 4;
+  // Set, only the user's messages and the rewinds that took some back, from the whole thread
+  // and with their text cut to its start: a map of the conversation, cheap to read on opening.
+  bool messages = 5;
 }
 message ListEventsResponse {
   repeated Event events = 1;

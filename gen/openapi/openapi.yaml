@@ -3127,6 +3127,13 @@ paths:
                      limit asks for and back to where that turn began, light as Subscribe sends them.
                   schema:
                     type: string
+                - name: messages
+                  in: query
+                  description: |-
+                    Set, only the user's messages and the rewinds that took some back, from the whole thread
+                     and with their text cut to its start: a map of the conversation, cheap to read on opening.
+                  schema:
+                    type: boolean
             responses:
                 "200":
                     description: OK

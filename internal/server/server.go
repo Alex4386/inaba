@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -195,6 +196,11 @@ func (s *Server) Handler() (http.Handler, error) {
 			r.Header.Set(hookTokenHeader, token)
 		}
 		s.serveHost(w, r, "/hooks/"+r.PathValue("automation"))
+	})
+	// Each server is someone's own: nothing on it is for search engines.
+	mux.HandleFunc("GET /robots.txt", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, _ = io.WriteString(w, "User-agent: *\nDisallow: /\n")
 	})
 	mux.HandleFunc("GET /openapi.yaml", serveYAML(openapi.Document))
 	mux.Handle("GET /docs", http.RedirectHandler("/ui/docs.html", http.StatusFound))

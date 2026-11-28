@@ -4749,7 +4749,10 @@ type ListEventsRequest struct {
 	Limit uint32 `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
 	// Set, the events before this one instead, for a viewer reading further back: as many as
 	// limit asks for and back to where that turn began, light as Subscribe sends them.
-	BeforeSeq     uint64 `protobuf:"varint,4,opt,name=before_seq,json=beforeSeq,proto3" json:"before_seq,omitempty"`
+	BeforeSeq uint64 `protobuf:"varint,4,opt,name=before_seq,json=beforeSeq,proto3" json:"before_seq,omitempty"`
+	// Set, only the user's messages and the rewinds that took some back, from the whole thread
+	// and with their text cut to its start: a map of the conversation, cheap to read on opening.
+	Messages      bool `protobuf:"varint,5,opt,name=messages,proto3" json:"messages,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4810,6 +4813,13 @@ func (x *ListEventsRequest) GetBeforeSeq() uint64 {
 		return x.BeforeSeq
 	}
 	return 0
+}
+
+func (x *ListEventsRequest) GetMessages() bool {
+	if x != nil {
+		return x.Messages
+	}
+	return false
 }
 
 type ListEventsResponse struct {
@@ -9888,13 +9898,14 @@ const file_inaba_v1_host_proto_rawDesc = "" +
 	"\x06method\x18\x02 \x01(\tR\x06method\x12.\n" +
 	"\x06params\x18\x03 \x01(\v2\x16.google.protobuf.ValueR\x06params\"=\n" +
 	"\vRawResponse\x12.\n" +
-	"\x06result\x18\x01 \x01(\v2\x16.google.protobuf.ValueR\x06result\"\x82\x01\n" +
+	"\x06result\x18\x01 \x01(\v2\x16.google.protobuf.ValueR\x06result\"\x9e\x01\n" +
 	"\x11ListEventsRequest\x12\x1b\n" +
 	"\tthread_id\x18\x01 \x01(\tR\bthreadId\x12\x1b\n" +
 	"\tafter_seq\x18\x02 \x01(\x04R\bafterSeq\x12\x14\n" +
 	"\x05limit\x18\x03 \x01(\rR\x05limit\x12\x1d\n" +
 	"\n" +
-	"before_seq\x18\x04 \x01(\x04R\tbeforeSeq\"=\n" +
+	"before_seq\x18\x04 \x01(\x04R\tbeforeSeq\x12\x1a\n" +
+	"\bmessages\x18\x05 \x01(\bR\bmessages\"=\n" +
 	"\x12ListEventsResponse\x12'\n" +
 	"\x06events\x18\x01 \x03(\v2\x0f.inaba.v1.EventR\x06events\"[\n" +
 	"\x14GetAttachmentRequest\x12\x1b\n" +

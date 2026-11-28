@@ -313,6 +313,42 @@ func TestSubscribeLeavesHeavyPartsToTheLog(t *testing.T) {
 
 // A long thread opens at its last turns, and reading back goes a turn at a time, starting
 // mid-turn only in a turn too long to read whole.
+// A turn too long to start at its message starts where a message of its own does, not
+// partway into one's text, which would show its markdown from the middle.
+func TestTurnStartNeverSplitsAMessage(t *testing.T) {
+	text := func(kind inabav1.TextDelta_Kind) *inabav1.Event {
+		return &inabav1.Event{Payload: &inabav1.Event_TextDelta{TextDelta: &inabav1.TextDelta{Kind: kind, Text: "x"}}}
+	}
+	msg, thought := inabav1.TextDelta_KIND_MESSAGE, inabav1.TextDelta_KIND_THOUGHT
+	th := &thread{events: []*inabav1.Event{
+		{Payload: &inabav1.Event_UserMessage{UserMessage: &inabav1.UserMessage{Text: "hi"}}}, // seq 1
+		text(thought), text(thought), // 2-3
+		{Payload: &inabav1.Event_ToolCall{ToolCall: &inabav1.ToolCall{Id: "a", Title: "ls"}}}, // 4
+		text(msg), text(msg), // 5-6: one message, with usage inside it
+		{Payload: &inabav1.Event_UsageChanged{UsageChanged: &inabav1.UsageChanged{}}}, // 7
+		text(msg), text(msg), text(msg), // 8-10
+	}}
+	for i, e := range th.events {
+		e.Seq = uint64(i + 1)
+	}
+	for _, c := range []struct {
+		before uint64
+		n      int
+		want   uint64
+	}{
+		{0, 2, 4}, // seq 9 is inside the message from seq 5
+		{0, 3, 4}, // seq 8 too, past the usage between
+		{0, 4, 4}, // seq 7, the usage, is inside it as well
+		{0, 5, 0}, // the turn's start is within reach
+		{4, 1, 1}, // before seq 4: seq 3 is inside the thought from seq 2
+		{5, 1, 3}, // before seq 5: the tool call, a start of its own
+	} {
+		if got := th.turnStart(c.before, c.n); got != c.want {
+			t.Errorf("turnStart(%d, %d) = %d, want %d", c.before, c.n, got, c.want)
+		}
+	}
+}
+
 func TestTurnStartBeginsAtAUserMessage(t *testing.T) {
 	th := &thread{}
 	// Turns begin at seqs 1, 4 and 9.
@@ -330,16 +366,37 @@ func TestTurnStartBeginsAtAUserMessage(t *testing.T) {
 	}{
 		{0, 2, 8},  // the last turn, from seq 9
 		{0, 4, 3},  // seq 7 is in the turn from seq 4, within 4 more
-		{0, 3, 7},  // seq 8 is more than 3 into its turn: start there
+		{0, 3, 4},  // seq 8 is more than 3 into its turn, and inside the text from seq 5
 		{0, 1, 8},  // seq 10 is within 1 more of its turn's start
 		{0, 50, 0}, // all of it
 		{8, 3, 3},  // before seq 8: the turn from seq 4
-		{9, 1, 7},  // before the last turn, not within reach of its start
+		{9, 1, 4},  // before the last turn, not within reach of its start: the text from seq 5
 		{1, 5, 0},  // nothing before the first event
 		{99, 2, 8}, // past the end reads as the end
 	} {
 		if got := th.turnStart(c.before, c.n); got != c.want {
 			t.Errorf("turnStart(%d, %d) = %d, want %d", c.before, c.n, got, c.want)
 		}
+	}
+}
+
+// The map of a conversation gets every message and rewind, with long text cut and no image bytes.
+func TestMessagesAreTheConversationsMap(t *testing.T) {
+	long := strings.Repeat("가", mapText+50)
+	th := &thread{events: []*inabav1.Event{
+		{Seq: 1, Payload: &inabav1.Event_UserMessage{UserMessage: &inabav1.UserMessage{Text: long, Attachments: []*inabav1.Attachment{{Data: []byte("png")}}}}},
+		{Seq: 2, Payload: &inabav1.Event_TextDelta{TextDelta: &inabav1.TextDelta{Text: "hi"}}},
+		{Seq: 3, Payload: &inabav1.Event_UserMessage{UserMessage: &inabav1.UserMessage{Text: "again"}}},
+		{Seq: 4, Payload: &inabav1.Event_Rewound{Rewound: &inabav1.Rewound{ToSeq: 3}}},
+	}}
+	got := th.messages()
+	if len(got) != 3 || got[0].Seq != 1 || got[1].Seq != 3 || got[2].Seq != 4 {
+		t.Fatalf("messages: %v", got)
+	}
+	if m := got[0].GetUserMessage(); len([]rune(m.Text)) != mapText || m.Attachments[0].Data != nil {
+		t.Fatalf("first message not cut: %d runes, %d bytes", len([]rune(m.Text)), len(m.Attachments[0].Data))
+	}
+	if th.events[0].GetUserMessage().Text != long {
+		t.Fatal("the log's own message was cut")
 	}
 }

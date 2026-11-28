@@ -89,6 +89,13 @@ func TestLoginHostAndRelayedTurn(t *testing.T) {
 	srv := httptest.NewServer(handler)
 	defer srv.Close()
 
+	// Not for search engines, and said to anyone, signed in or not.
+	if res, err := http.Get(srv.URL + "/robots.txt"); err != nil || res.StatusCode != 200 {
+		t.Fatalf("robots.txt: %v %v", res, err)
+	} else if body, _ := io.ReadAll(res.Body); string(body) != "User-agent: *\nDisallow: /\n" {
+		t.Fatalf("robots.txt: %q", body)
+	}
+
 	jar, _ := cookiejar.New(nil)
 	browser := &http.Client{Jar: jar}
 

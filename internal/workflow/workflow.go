@@ -243,10 +243,10 @@ func brief(input map[string]any, sep string) string {
 }
 
 // Limits on what a transcript returns, so a long-running agent stays a reasonable read.
+// What the agent was asked and said is sent whole: it is markdown, which cut short shows wrong.
 const (
 	maxSteps  = 400
 	maxOutput = 8 << 10
-	maxText   = 32 << 10
 )
 
 // harness starts the messages Claude Code's workflow harness wraps a task in.
@@ -301,7 +301,7 @@ func (tr *transcript) user(blocks []block) {
 		switch b.Type {
 		case "text":
 			if task, ok := taskText(b.Text); ok {
-				tr.add(&inabav1.WorkflowStep{Kind: "prompt", Text: shorten(task, maxText)})
+				tr.add(&inabav1.WorkflowStep{Kind: "prompt", Text: task})
 			}
 		case "tool_result":
 			if t := tr.tools[b.ToolUseID]; t != nil {
@@ -316,11 +316,11 @@ func (tr *transcript) assistant(blocks []block) {
 	for _, b := range blocks {
 		switch {
 		case b.Type == "text" && strings.TrimSpace(b.Text) != "":
-			tr.add(&inabav1.WorkflowStep{Kind: "text", Text: shorten(b.Text, maxText)})
+			tr.add(&inabav1.WorkflowStep{Kind: "text", Text: b.Text})
 		case b.Type == "tool_use" && b.Name == "StructuredOutput":
 			// How a workflow agent answers: its result, said rather than called.
 			out, _ := json.Marshal(b.Input)
-			tr.add(&inabav1.WorkflowStep{Kind: "text", Text: shorten(resultText(out), maxText)})
+			tr.add(&inabav1.WorkflowStep{Kind: "text", Text: resultText(out)})
 		case b.Type == "tool_use":
 			t := &inabav1.WorkflowStep{Kind: "tool", Tool: b.Name, Input: oneLine(brief(b.Input, ""), 300)}
 			tr.tools[b.ID] = t

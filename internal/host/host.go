@@ -347,6 +347,7 @@ func (t *thread) after(seq uint64, limit int) ([]*inabav1.Event, <-chan struct{}
 // turnStart is where reading n events back from before (0: the end) starts, as the seq to read
 // after: moved back to the user's message that began that turn, so a viewer starts at a turn,
 // unless that is more than n further back, as one long turn can be tens of thousands of events.
+// Even then it starts where a message does, never partway into one's text.
 func (t *thread) turnStart(before uint64, n int) uint64 {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -366,7 +367,65 @@ func (t *thread) turnStart(before uint64, n int) uint64 {
 			return 0
 		}
 	}
-	return start
+	return t.messageStart(start)
+}
+
+// messages is the thread's user messages and rewinds, light and with each message's text cut
+// to what a map of the conversation shows of it.
+func (t *thread) messages() []*inabav1.Event {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	var out []*inabav1.Event
+	for _, e := range t.events {
+		switch m := e.Payload.(type) {
+		case *inabav1.Event_Rewound:
+			out = append(out, e)
+		case *inabav1.Event_UserMessage:
+			c := light(e)
+			if r := []rune(m.UserMessage.Text); len(r) > mapText {
+				if c == e {
+					c = proto.Clone(e).(*inabav1.Event)
+				}
+				c.GetUserMessage().Text = string(r[:mapText])
+			}
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// How much of a message's text the map of a conversation gets: its first line, and some.
+const mapText = 300
+
+// messageStart moves i back to the first event of the message the event at i is a piece of:
+// a viewer joins a run of text pieces of one kind into one message, and markdown read from
+// partway through it, as from inside a code block, shows wrong. Called with t.mu held.
+func (t *thread) messageStart(i uint64) uint64 {
+	for i > 0 && quiet(t.events[i]) {
+		i--
+	}
+	for d := t.events[i].GetTextDelta(); d != nil && i > 0; {
+		j := i - 1
+		// What adds nothing to the conversation does not end a message.
+		for j > 0 && quiet(t.events[j]) {
+			j--
+		}
+		prev := t.events[j].GetTextDelta()
+		if prev == nil || prev.Kind != d.Kind {
+			break
+		}
+		i = j
+	}
+	return i
+}
+
+// quiet is whether an event leaves the conversation as it reads, so text either side of it is one message.
+func quiet(e *inabav1.Event) bool {
+	switch e.Payload.(type) {
+	case *inabav1.Event_OptionsChanged, *inabav1.Event_CommandsChanged, *inabav1.Event_UsageChanged, *inabav1.Event_LayoutChanged, *inabav1.Event_ThreadTitle:
+		return true
+	}
+	return false
 }
 
 func (t *thread) openSession(ctx context.Context) error {
@@ -1305,6 +1364,9 @@ func (h *Host) ListEvents(_ context.Context, req *inabav1.ListEventsRequest) (*i
 	t, err := h.thread(req.ThreadId)
 	if err != nil {
 		return nil, err
+	}
+	if req.Messages {
+		return &inabav1.ListEventsResponse{Events: t.messages()}, nil
 	}
 	limit := int(req.Limit)
 	if limit == 0 {
