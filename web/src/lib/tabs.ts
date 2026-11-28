@@ -58,3 +58,9 @@ export function oneChanges<D extends string>(docks: Docks<D>): Docks<D> {
   const extra = allTabs(docks).filter((tab) => tab.startsWith("changes-")).slice(1);
   return extra.reduce((next, tab) => withoutTab(next, tab), docks);
 }
+
+/**
+ * Whether a tool call's title names one of Playwright MCP's tools, which are all browser_*: Claude titles it
+ * mcp__browser__browser_navigate, others browser.browser_navigate or browser_navigate (browser MCP Server).
+ */
+export const isBrowserTool = (title: string) => /(^|[^a-z])browser_[a-z]/i.test(title);

@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -39,7 +40,9 @@ var Module = module.Module{
 	Name:        "browser",
 	Title:       "Browser",
 	Description: "A browser for each thread, which its agent drives through Playwright MCP and you can watch and use. Needs Chrome or Chromium, and Node, on the host.",
-	Default:     false,
+	// On, as an agent that can see and use a page does more; a host without Chrome or Node
+	// keeps it off by itself, saying which it lacks.
+	Default: true,
 	Option: fx.Options(
 		fx.Provide(newService),
 		module.Provide((*service).contribution),
@@ -133,6 +136,10 @@ func newService(threads module.Threads, events module.Events, dataDir module.Dat
 			return nil, errors.New("no Chrome or Chromium found on this host; install one, or set INABA_BROWSER to its path")
 		}
 		bin = found
+	}
+	// The agent's Playwright MCP runs with npx: without it every agent would be given a tool that never starts.
+	if _, err := exec.LookPath("npx"); err != nil {
+		return nil, errors.New("no Node found on this host, which the agent's Playwright MCP runs with; install Node, so npx is on the PATH")
 	}
 	dir := filepath.Join(string(dataDir), "browser")
 	if dataDir == "" {

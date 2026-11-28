@@ -71,7 +71,7 @@ import { TerminalView } from "./Terminal";
 import { ChangesPanel, LineCounts, type TurnScope } from "@/components/changes-panel";
 
 import { WhereCard } from "@/components/where-card";
-import { allTabs, dockOf, type Docks, type DockState, moveTab, newTabId, oneChanges, placeTab, type Surface, type TabId, withoutTab } from "@/lib/tabs";
+import { allTabs, dockOf, isBrowserTool, type Docks, type DockState, moveTab, newTabId, oneChanges, placeTab, type Surface, type TabId, withoutTab } from "@/lib/tabs";
 import { CLIENT, PeopleStack, usePresent, WatchingBanner } from "@/components/presence";
 import { type Host, PresenceService } from "./gen/inaba/v1/server_pb";
 import { createClient } from "@connectrpc/connect";
@@ -526,6 +526,22 @@ export function ThreadView({
       .finally(() => setSwitching(false));
   };
 
+  // The agent's browser is seen once it uses it: its first browser tool opens a browser tab for the driver when none
+  // is open, and that tab takes the agent's page. Only a call made just now, not one replayed as the thread opens,
+  // and once a visit, so a tab closed on purpose stays closed.
+  const browserShown = useRef(false);
+  useEffect(() => {
+    browserShown.current = false;
+  }, [threadId]);
+  const agentEvents = (events: Event[]) => {
+    onEvents(events);
+    if (browserShown.current || !now$.current.driving || !modules.has("browser")) return;
+    if (allTabs(now.current.docks).some((tab) => surfaceOf(tab) === "browser")) return;
+    const recent = Date.now() - 30_000;
+    if (!events.some((e) => e.payload.case === "toolCall" && isBrowserTool(e.payload.value.title) && millis(e) > recent)) return;
+    browserShown.current = true;
+    openSurface("right", "browser");
+  };
   const sideChat = side && <SideChat key={side.id} link={link} threadId={side.id} aside={side.aside} providers={providers} mentions={modules.has("files")} stealth={stealth} onOpen={onOpen} onSide={(id, aside) => setSide({ id, aside })} onClose={() => setSide(undefined)} />;
   const main = (
       <div className="@container relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
@@ -717,7 +733,7 @@ export function ThreadView({
           // A wrapper that is always there, so opening the side chat never remounts the conversation.
           <div className="flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col">
-              <Chat link={link} thread={thread} busy={busy} refresh={refresh} onStatus={loadGit} onOpen={onOpen} mentions={modules.has("files")} provider={provider} providers={providers} locked={!driving} pending={pending} onEvents={onEvents} onTurns={setTurns} onTurnChanges={showTurn} onSide={(id, aside) => setSide({ id, aside })} />
+              <Chat link={link} thread={thread} busy={busy} refresh={refresh} onStatus={loadGit} onOpen={onOpen} mentions={modules.has("files")} provider={provider} providers={providers} locked={!driving} pending={pending} onEvents={agentEvents} onTurns={setTurns} onTurnChanges={showTurn} onSide={(id, aside) => setSide({ id, aside })} />
             </div>
             {sideChat && !isMobile && <div className="flex w-[min(32rem,45%)] shrink-0 flex-col border-l">{sideChat}</div>}
           </div>

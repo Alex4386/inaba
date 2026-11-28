@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -51,6 +52,9 @@ const testPage = `<!doctype html><title>start</title>
 func TestABrowserForEachThread(t *testing.T) {
 	if _, ok := launcher.LookPath(); !ok && os.Getenv("INABA_BROWSER") == "" {
 		t.Skip("no Chrome or Chromium on this machine")
+	}
+	if _, err := exec.LookPath("npx"); err != nil {
+		t.Skip("no Node on this machine")
 	}
 	ctx := rpc.Trusted(context.Background())
 	h := host.New(idleAgent{})
@@ -347,6 +351,9 @@ func TestStaleProfileLocksAreCleared(t *testing.T) {
 func TestAStoppedModuleStartsNoBrowser(t *testing.T) {
 	if _, ok := launcher.LookPath(); !ok && os.Getenv("INABA_BROWSER") == "" {
 		t.Skip("no Chrome or Chromium on this machine")
+	}
+	if _, err := exec.LookPath("npx"); err != nil {
+		t.Skip("no Node on this machine")
 	}
 	ctx := rpc.Trusted(context.Background())
 	h := host.New(idleAgent{})
