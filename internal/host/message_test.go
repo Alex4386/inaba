@@ -15,6 +15,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	inabav1 "github.com/Alex4386/inaba/gen/inaba/v1"
+	"github.com/Alex4386/inaba/internal/testdir"
 	"github.com/Alex4386/inaba/pkg/provider"
 )
 
@@ -563,7 +564,8 @@ func (failingImport) Open(_ context.Context, cfg provider.Config, emit provider.
 
 // A session that fails to come in leaves no thread behind, not even after a restart.
 func TestAFailedImportLeavesNothing(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "inaba.db")
+	// testdir, not TempDir: Windows keeps the database file open until the host's cleanup runs.
+	path := filepath.Join(testdir.New(t), "inaba.db")
 	ctx := Trusted(context.Background())
 	h := New(failingImport{})
 	if err := h.OpenData(path); err != nil {
