@@ -319,6 +319,10 @@
   body {
     @apply bg-background text-foreground;
     }
+  html, body {
+    /* The app scrolls its own panes; the page itself never pulls or bounces, as iOS would have it. */
+    overscroll-behavior: none;
+    }
   html {
     @apply font-sans;
     /* Set from the visual viewport in main.tsx. */

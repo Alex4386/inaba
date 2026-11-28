@@ -79,11 +79,11 @@ type session struct {
 	importing bool
 	// skip is how many of the person's messages an import still passes over, with what follows each,
 	// as the thread has them; skipping is set from the start of one of those until the next.
-	skip      int
-	skipping  bool
-	inSaid    bool
-	said      strings.Builder
-	pending   map[string]chan string
+	skip     int
+	skipping bool
+	inSaid   bool
+	said     strings.Builder
+	pending  map[string]chan string
 	// modes is set for an agent that offers session modes but no config options.
 	modes *sdk.SessionModeState
 	// booleans are the config options that are on/off switches, by id.
