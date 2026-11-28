@@ -131,9 +131,9 @@ export function AccountsPanel({ me, onOpen }: { me: string; /** Opens an account
                 <span className="text-muted-foreground">{t("accounts.member")}</span>
               ),
           },
-          { header: t("accounts.signIn"), sortBy: (u) => u.oidc, cell: (u) => <span className="text-muted-foreground">{t(u.oidc ? "accounts.oidc" : "accounts.password")}</span> },
+          { header: t("accounts.signIn"), className: "hidden md:table-cell", sortBy: (u) => u.oidc, cell: (u) => <span className="text-muted-foreground">{t(u.oidc ? "accounts.oidc" : "accounts.password")}</span> },
           {
-            header: t("profile.totp"),
+            header: t("profile.totp"), className: "hidden md:table-cell",
             sortBy: (u) => u.totp,
             cell: (u) =>
               u.oidc ? (
@@ -148,7 +148,7 @@ export function AccountsPanel({ me, onOpen }: { me: string; /** Opens an account
                 </Badge>
               ),
           },
-          { header: t("accounts.ownHosts"), align: "right", sortBy: (u) => owned[u.id] ?? 0, cell: (u) => <span className="text-muted-foreground tabular-nums">{owned[u.id] ?? 0}</span> },
+          { header: t("accounts.ownHosts"), className: "hidden md:table-cell", align: "right", sortBy: (u) => owned[u.id] ?? 0, cell: (u) => <span className="text-muted-foreground tabular-nums">{owned[u.id] ?? 0}</span> },
         ]}
         rowActions={[
           { label: t("accountDetail.setPassword"), icon: KeyRoundIcon, hidden: (u) => u.oidc, onSelect: (u) => setResetting(u) },
@@ -161,7 +161,7 @@ export function AccountsPanel({ me, onOpen }: { me: string; /** Opens an account
         open={removing !== undefined}
         onClose={() => setRemoving(undefined)}
         title={t("accounts.removeTitle", { name: removing?.name ?? "" })}
-        description={t("accounts.removeHelp")}
+        description={t("accounts.removeHelp", { count: String(removing ? (owned[removing.id] ?? 0) : 0) })}
         cancel={t("project.keep")}
         confirm={t("accounts.remove", { name: removing?.name ?? "" })}
         destructive

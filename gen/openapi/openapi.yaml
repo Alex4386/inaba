@@ -2564,6 +2564,46 @@ paths:
                   description: The id of the host, from GET /v1/hosts.
                   schema:
                     type: string
+    /v1/hosts/{host_id}/providers/{provider}/sessions:
+        get:
+            tags:
+                - ThreadService
+            description: The sessions a provider's agent keeps in a folder, newest first, for CreateThread to take one up.
+            operationId: ThreadService_ListProviderSessions
+            parameters:
+                - name: host_id
+                  in: path
+                  required: true
+                  description: The id of the host, from GET /v1/hosts.
+                  schema:
+                    type: string
+                - name: provider
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: project_id
+                  in: query
+                  description: The project whose folder to list; or cwd, for a folder outside any project.
+                  schema:
+                    type: string
+                - name: cwd
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListProviderSessionsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/push/config:
         get:
             tags:
@@ -5434,6 +5474,11 @@ components:
                     description: |-
                         The language its agent talks to people in, as a BCP 47 tag such as ko; empty leaves it
                          to the agent. Said to an agent that takes instructions of the client's.
+                native_session_id:
+                    type: string
+                    description: |-
+                        Take up a session the provider's agent keeps, as one started outside inaba, from
+                         ListProviderSessions: the thread goes on with it, its conversation brought in.
         CreateTokenRequest:
             type: object
             properties:
@@ -6248,6 +6293,13 @@ components:
                 path:
                     type: string
                     description: The config file they live in, on the host.
+        ListProviderSessionsResponse:
+            type: object
+            properties:
+                sessions:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ProviderSession'
         ListProvidersResponse:
             type: object
             properties:
@@ -6804,6 +6856,22 @@ components:
                     description: |-
                         A picture chosen for it, as a data: URL of an image of at most 128 KiB; empty
                          shows the ACP registry's icon for the agent it runs.
+        ProviderSession:
+            type: object
+            properties:
+                id:
+                    type: string
+                title:
+                    type: string
+                cwd:
+                    type: string
+                updated_at:
+                    type: string
+                    format: date-time
+                thread_id:
+                    type: string
+                    description: The thread that already goes on with it, if one does.
+            description: A session a provider's agent keeps itself.
         ProviderStatus:
             type: object
             properties:
@@ -7538,6 +7606,13 @@ components:
                     description: |-
                         The language its agent talks to people in, as a BCP 47 tag such as ko; empty leaves that
                          to the agent, which mostly answers in the language it is written to.
+                resume_command:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        How to go on with its agent's session at a terminal on the host, as the provider's resume
+                         command with the session filled in. Only GetThread says it, and only when there is one.
         ThreadSeen:
             type: object
             properties:
@@ -7720,6 +7795,11 @@ components:
                     description: |-
                         Moves the thread to another provider's agent while it is idle. The new agent does not share the
                          old one's memory, so its first turn is handed the conversation so far.
+                language:
+                    type: string
+                    description: |-
+                        The language its agent talks in, as a BCP 47 tag; empty leaves it to the agent. Changed while the
+                         thread is idle; its agent picks up the conversation again with the new instructions on the next turn.
             description: Changes what is set; a field left out stays as it is.
         UpgradeHostRequest:
             type: object

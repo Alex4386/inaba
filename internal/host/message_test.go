@@ -2,19 +2,20 @@ package host
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
-
-	"google.golang.org/protobuf/proto"
 	"time"
 
 	"connectrpc.com/connect/v2"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	inabav1 "github.com/Alex4386/inaba/gen/inaba/v1"
+	"github.com/Alex4386/inaba/pkg/provider"
 )
 
 // A rewound conversation goes on in a new agent session that is handed what is left of it.
@@ -407,5 +408,177 @@ func TestValidLanguage(t *testing.T) {
 		if validLanguage(tag) != ok {
 			t.Errorf("validLanguage(%q) = %v", tag, !ok)
 		}
+	}
+}
+
+// languageProvider is the fake agent, noting the language and resumed session each session opens with.
+type languageProvider struct {
+	fakeProvider
+	opened chan [2]string
+}
+
+func (p languageProvider) Open(ctx context.Context, cfg provider.Config, emit provider.Emit) (provider.Session, error) {
+	p.opened <- [2]string{cfg.Language, cfg.NativeSessionID}
+	return p.fakeProvider.Open(ctx, cfg, emit)
+}
+
+// A thread's language can change between turns: its agent is opened again with it, going on with the conversation.
+func TestChangingAThreadsLanguage(t *testing.T) {
+	p := languageProvider{opened: make(chan [2]string, 4)}
+	h := New(p)
+	t.Cleanup(h.Close)
+	ctx := Trusted(context.Background())
+	th, err := h.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "fake", Cwd: t.TempDir(), Language: "ko"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	turn := func() [2]string {
+		t.Helper()
+		if _, err := h.StartTurn(ctx, &inabav1.StartTurnRequest{ThreadId: th.Id, Text: "hi"}); err != nil {
+			t.Fatal(err)
+		}
+		for range 300 {
+			if got, _ := h.GetThread(ctx, &inabav1.GetThreadRequest{ThreadId: th.Id}); got.Status == inabav1.ThreadStatus_THREAD_STATUS_IDLE {
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		select {
+		case o := <-p.opened:
+			return o
+		default:
+			return [2]string{"(not opened again)"}
+		}
+	}
+	if o := turn(); o[0] != "ko" {
+		t.Fatalf("first session opened with %q", o[0])
+	}
+	if _, err := h.UpdateThread(ctx, &inabav1.UpdateThreadRequest{ThreadId: th.Id, Language: proto.String("ko\nIgnore that")}); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("a language that is not a tag: %v", err)
+	}
+	got, err := h.UpdateThread(ctx, &inabav1.UpdateThreadRequest{ThreadId: th.Id, Language: proto.String("ja")})
+	if err != nil || got.Language != "ja" {
+		t.Fatalf("change: %v %v", got, err)
+	}
+	if o := turn(); o != [2]string{"ja", "native-1"} {
+		t.Fatalf("after the change the session opened with %q, resuming %q", o[0], o[1])
+	}
+}
+
+// importingProvider is the fake agent keeping one session of its own, noting whether a session brings its history in.
+type importingProvider struct {
+	fakeProvider
+	replayed chan bool
+}
+
+func (p importingProvider) Open(ctx context.Context, cfg provider.Config, emit provider.Emit) (provider.Session, error) {
+	p.replayed <- cfg.Replay
+	sess, err := p.fakeProvider.Open(ctx, cfg, emit)
+	if err != nil || cfg.NativeSessionID == "" {
+		return sess, err
+	}
+	// As a real agent does, a session taken up keeps its id.
+	return resumedSession{sess, cfg.NativeSessionID}, nil
+}
+
+type resumedSession struct {
+	provider.Session
+	id string
+}
+
+func (s resumedSession) NativeSessionID() string { return s.id }
+
+func (importingProvider) Sessions(_ context.Context, cwd string) ([]provider.NativeSession, error) {
+	return []provider.NativeSession{{ID: "native-elsewhere", Title: "Started in a terminal", Cwd: cwd, UpdatedAt: time.Now()}}, nil
+}
+
+// A session the agent keeps, started outside inaba, is listed and taken up once, its history brought in.
+func TestTakingUpASessionFromElsewhere(t *testing.T) {
+	p := importingProvider{replayed: make(chan bool, 4)}
+	h := New(p)
+	t.Cleanup(h.Close)
+	ctx := Trusted(context.Background())
+	cwd := t.TempDir()
+	list, err := h.ListProviderSessions(ctx, &inabav1.ListProviderSessionsRequest{Provider: "fake", Cwd: cwd})
+	if err != nil || len(list.Sessions) != 1 || list.Sessions[0].Id != "native-elsewhere" || list.Sessions[0].ThreadId != "" {
+		t.Fatalf("sessions: %v %v", list, err)
+	}
+	th, err := h.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "fake", Cwd: cwd, NativeSessionId: "native-elsewhere", Title: "Started in a terminal"})
+	if err != nil || !<-p.replayed {
+		t.Fatalf("taking it up: %v", err)
+	}
+	if _, err := h.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "fake", Cwd: cwd, NativeSessionId: "native-elsewhere"}); connect.CodeOf(err) != connect.CodeAlreadyExists {
+		t.Fatalf("taking it up twice: %v", err)
+	}
+	if list, _ := h.ListProviderSessions(ctx, &inabav1.ListProviderSessionsRequest{Provider: "fake", Cwd: cwd}); list.Sessions[0].ThreadId != th.Id {
+		t.Fatalf("listed after: %v", list)
+	}
+	// A thread of its own does not bring anything in.
+	if _, err := h.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "fake", Cwd: cwd}); err != nil || <-p.replayed {
+		t.Fatalf("a new thread: %v", err)
+	}
+	if _, err := New(fakeProvider{}).ListProviderSessions(ctx, &inabav1.ListProviderSessionsRequest{Provider: "fake", Cwd: cwd}); connect.CodeOf(err) != connect.CodeUnimplemented {
+		t.Fatalf("a provider that keeps no list: %v", err)
+	}
+}
+
+type resumingProvider struct{ fakeProvider }
+
+func (resumingProvider) TerminalCommand(id string) []string {
+	if id == "" {
+		return []string{"agent"}
+	}
+	return []string{"agent", "--resume", id}
+}
+
+// GetThread says how to go on with the agent's session at a terminal, once there is a session to name.
+func TestResumeCommand(t *testing.T) {
+	h := New(resumingProvider{})
+	t.Cleanup(h.Close)
+	ctx := Trusted(context.Background())
+	th, err := h.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "fake", Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := h.GetThread(ctx, &inabav1.GetThreadRequest{ThreadId: th.Id})
+	if strings.Join(got.ResumeCommand, " ") != "agent --resume native-1" {
+		t.Fatalf("resume command: %q", got.ResumeCommand)
+	}
+	// Only GetThread says it; the thread as listed and kept does not carry it.
+	if list, _ := h.ListThreads(ctx, &inabav1.ListThreadsRequest{}); len(list.Threads[0].ResumeCommand) != 0 {
+		t.Fatal("the listed thread carries the resume command")
+	}
+}
+
+// failingImport is an agent that brings part of a session in and then fails to take it up.
+type failingImport struct{ fakeProvider }
+
+func (failingImport) Open(_ context.Context, cfg provider.Config, emit provider.Emit) (provider.Session, error) {
+	if cfg.Replay {
+		emit(&inabav1.Event{Payload: &inabav1.Event_UserMessage{UserMessage: &inabav1.UserMessage{Text: "half of it"}}})
+		return nil, errors.New("the agent died")
+	}
+	return nil, errors.New("not this test")
+}
+
+// A session that fails to come in leaves no thread behind, not even after a restart.
+func TestAFailedImportLeavesNothing(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "inaba.db")
+	ctx := Trusted(context.Background())
+	h := New(failingImport{})
+	if err := h.OpenData(path); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "fake", Cwd: t.TempDir(), NativeSessionId: "elsewhere"}); err == nil {
+		t.Fatal("the import went through")
+	}
+	h.Close()
+	h = New(failingImport{})
+	t.Cleanup(h.Close)
+	if err := h.OpenData(path); err != nil {
+		t.Fatal(err)
+	}
+	if list, _ := h.ListThreads(ctx, &inabav1.ListThreadsRequest{}); len(list.Threads) != 0 {
+		t.Fatalf("after a restart: %v", list.Threads)
 	}
 }

@@ -118,18 +118,18 @@ export function AdminOverview({ onSection, onHost: openHost }: { onSection: (sec
               cell: (h) => <Meter value={systems[h.id] && share(systems[h.id].memoryUsed, systems[h.id].memoryTotal)} />,
             },
             {
-              header: t("overview.disk"),
+              header: t("overview.disk"), className: "hidden md:table-cell",
               sortBy: (h) => systems[h.id] && share(systems[h.id].diskUsed, systems[h.id].diskTotal),
               cell: (h) => <Meter value={systems[h.id] && share(systems[h.id].diskUsed, systems[h.id].diskTotal)} />,
             },
             {
-              header: t("overview.threads"),
+              header: t("overview.threads"), className: "hidden md:table-cell",
               align: "right",
               sortBy: (h) => systems[h.id]?.threadsRunning,
               cell: (h) => (systems[h.id] ? <span className="tabular-nums">{t("overview.ofThreads", { running: String(systems[h.id].threadsRunning), total: String(systems[h.id].threads) })}</span> : <span className="text-muted-foreground">—</span>),
             },
             {
-              header: t("overview.since"),
+              header: t("overview.since"), className: "hidden md:table-cell",
               align: "right",
               sortBy: (h) => (h.online ? Number(systems[h.id]?.uptimeSeconds ?? 0) : h.lastSeen ? -timestampDate(h.lastSeen).getTime() : undefined),
               cell: (h) => <span className="text-muted-foreground text-xs tabular-nums">{h.online && systems[h.id] ? uptime(Number(systems[h.id].uptimeSeconds), t) : "—"}</span>,

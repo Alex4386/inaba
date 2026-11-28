@@ -1,6 +1,7 @@
 import {
   ArrowUpIcon,
   FolderIcon,
+  HistoryIcon,
   GitForkIcon,
   PanelTopIcon,
   SquareTerminalIcon,
@@ -20,6 +21,7 @@ import {
 import type { Host } from "./gen/inaba/v1/server_pb";
 import { AttachmentImage } from "@/components/composer";
 import { WhereCard } from "@/components/where-card";
+import { ImportSessionDialog } from "@/components/import-session-dialog";
 import { PeopleStack, usePeople } from "@/components/presence";
 import { ProjectIcon } from "@/components/project-tree";
 import { Button } from "@/components/ui/button";
@@ -119,8 +121,12 @@ export function NewThreadView({
     providers.find((p) => p.id === providerId) ??
     providers.find((p) => p.structured) ??
     providers[0];
+  // Taking up a session the agent keeps, started outside inaba.
+  const [importing, setImporting] = useState(false);
+  // An agent that also has a terminal can be started there instead of the chat.
+  const [terminalMode, setTerminalMode] = useState(false);
   // Until the providers are in, the message box is offered as for an agent: typing need not wait, only sending does.
-  const structured = provider?.structured ?? true;
+  const structured = (provider?.structured ?? true) && !(terminalMode && provider?.terminal);
 
   // As the thread's composer adds them, checked against the same limits.
   const addFiles = async (list: FileList) => {
@@ -156,7 +162,7 @@ export function NewThreadView({
       thread = made.current ? { id: made.current } : await link.threads.createThread({
         provider: provider.id,
         projectId: project.id,
-        mode: ThreadMode.STRUCTURED,
+        mode: structured ? ThreadMode.STRUCTURED : ThreadMode.TERMINAL,
         // What the picker shows is what the thread starts with: the values offered, as changed here.
         options: { ...Object.fromEntries(provider.options.map((o) => [o.id, o.value])), ...chosen },
         // The toggle is hidden outside a git repository, so a default of "worktree" cannot be turned off there; drop it.
@@ -171,7 +177,7 @@ export function NewThreadView({
     // The thread exists now. A failed first message stays here with its files, and sending again
     // goes to the same thread instead of starting a second one.
     made.current = thread.id;
-    if (provider.structured && (text || images.length > 0)) {
+    if (structured && (text || images.length > 0)) {
       try {
         await link.threads.startTurn({ threadId: thread.id, text, attachments: images });
       } catch (e) {
@@ -218,6 +224,16 @@ export function NewThreadView({
               ? undefined
               : "ml-auto"
           }
+          size="sm"
+          variant="ghost"
+          disabled={!provider?.structured}
+          title={t("import.title")}
+          onClick={() => setImporting(true)}
+        >
+          <HistoryIcon data-icon="inline-start" />
+          <span className="hidden sm:inline">{t("import.title")}</span>
+        </Button>
+        <Button
           size="icon-sm"
           variant={info ? "secondary" : "ghost"}
           aria-pressed={info}
@@ -228,6 +244,16 @@ export function NewThreadView({
           <PanelTopIcon />
         </Button>
       </header>
+      {importing && provider && (
+        <ImportSessionDialog
+          link={link}
+          provider={provider}
+          projectId={project.id}
+          language={agentLanguageTag(agentLanguageChoice(), locale)}
+          onClose={() => setImporting(false)}
+          onThread={onCreated}
+        />
+      )}
       {info && (
         <WhereCard
           host={host}
@@ -333,7 +359,8 @@ export function NewThreadView({
               {/* What this agent offered the last time it ran here; applied once the new thread is up. */}
               {provider && (
                 <OptionsBar
-                  options={provider.options.map((o) => ({
+                  // In its terminal the agent's CLI has its own settings; the host applies none of these there.
+                  options={!structured ? [] : provider.options.map((o) => ({
                     ...o,
                     value: chosen[o.id] ?? o.value,
                   }))}
@@ -345,9 +372,12 @@ export function NewThreadView({
                     name: p.displayName || p.id,
                     icon: p.icon,
                     terminal: !p.structured,
+                    switchable: p.structured && p.terminal,
                   }))}
                   provider={provider.id}
                   onProvider={switchProvider}
+                  terminalMode={terminalMode}
+                  onTerminalMode={setTerminalMode}
                 />
               )}
               {structured ? (

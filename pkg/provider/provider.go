@@ -8,6 +8,8 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -23,7 +25,27 @@ type Config struct {
 	MCPServers []MCPServer
 	// The language the agent talks to people in, as a BCP 47 tag; empty leaves it to the agent.
 	Language string
+	// Bring the resumed session's conversation in as events: a thread taking up a session started
+	// elsewhere has none of it yet. Otherwise a resume adds nothing the thread does not have.
+	Replay bool
 }
+
+// NativeSession is a session an agent keeps itself, as one started outside inaba.
+type NativeSession struct {
+	ID        string
+	Title     string
+	Cwd       string
+	UpdatedAt time.Time
+}
+
+// SessionLister is a provider whose agent lists the sessions it keeps, for a thread to take one up.
+type SessionLister interface {
+	// Sessions are the agent's sessions in cwd, newest first; ErrNoSessionList when it keeps no list.
+	Sessions(ctx context.Context, cwd string) ([]NativeSession, error)
+}
+
+// ErrNoSessionList is a provider's agent that does not list its sessions.
+var ErrNoSessionList = errors.New("this agent does not list its sessions")
 
 // MCPServer is an MCP server an agent can use: a command it starts, or an address
 // it reaches over HTTP.

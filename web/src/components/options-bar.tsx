@@ -15,7 +15,15 @@ import { cn } from "@/lib/utils";
 const optionOrder = ["model", "thought_level", "mode"];
 
 /** A provider the model picker can switch to, before a thread exists. */
-export type PickerProvider = { id: string; name: string; icon?: string; /** A plain terminal rather than an agent. */ terminal?: boolean };
+export type PickerProvider = {
+  id: string;
+  name: string;
+  icon?: string;
+  /** A plain terminal rather than an agent. */
+  terminal?: boolean;
+  /** An agent that can also start in its own terminal. */
+  switchable?: boolean;
+};
 
 const FAVORITES_KEY = "inaba.favoriteModels";
 function loadFavorites(): string[] {
@@ -43,9 +51,14 @@ function ModelPicker({
   providers,
   provider,
   onProvider,
+  terminalMode = false,
+  onTerminalMode,
   field = false,
   busy = false,
 }: {
+  /** Start the agent in its terminal rather than the chat; offered, with onTerminalMode, for a provider that can. */
+  terminalMode?: boolean;
+  onTerminalMode?: (on: boolean) => unknown;
   /** Shown as a field in a settings row, like a select, rather than by the composer. */
   field?: boolean;
   /** A change made here is still on its way. */
@@ -87,7 +100,8 @@ function ModelPicker({
   // The model shortcuts (⌘1 to ⌘4 unless changed) pick the models shown first while the picker is open.
   useKeybindings();
   useEffect(() => {
-    if (!open) return;
+    // Not in terminal mode, where the models are not shown to pick.
+    if (!open || inTerminal) return;
     const key = (e: KeyboardEvent) => {
       const i = listed.slice(0, FIRST).findIndex((_, i) => matches(e, `model.${i + 1}`));
       if (i >= 0) {
@@ -100,6 +114,7 @@ function ModelPicker({
   });
   const current = choices.find((c) => c.value === model?.value);
   const shownProvider = providers?.find((p) => p.id === provider);
+  const inTerminal = terminalMode && Boolean(shownProvider?.switchable);
   const currentEffort = effort?.choices.find((c) => c.value === effort.value);
 
   return (
@@ -108,8 +123,8 @@ function ModelPicker({
       <PopoverTrigger
         render={field ? <button type="button" data-size="default" className={cn(selectTriggerClass, "max-w-64")} /> : <Button type="button" size="sm" variant="ghost" className="max-w-64" />}
       >
-        {busy ? <Spinner /> : !model && shownProvider && (shownProvider.terminal ? <SquareTerminalIcon /> : <BotIcon />)}
-        <span className="truncate">{current?.name ?? model?.value ?? shownProvider?.name}</span>
+        {busy ? <Spinner /> : inTerminal ? <SquareTerminalIcon /> : !model && shownProvider && (shownProvider.terminal ? <SquareTerminalIcon /> : <BotIcon />)}
+        <span className="truncate">{inTerminal ? shownProvider?.name : (current?.name ?? model?.value ?? shownProvider?.name)}</span>
         {currentEffort && effort?.value !== "default" && <span className="text-muted-foreground">{currentEffort.name}</span>}
         {field ? (
           <ChevronDownIcon className={cn("text-muted-foreground size-4 transition-transform", open && "rotate-180")} />
@@ -145,7 +160,16 @@ function ModelPicker({
             ))}
           </div>
           <div className="grid max-h-[min(24rem,60svh)] min-w-0 flex-1 content-start gap-1 overflow-y-auto p-2">
-            <div className={cn("bg-popover sticky top-0 z-10", !model && "hidden")}>
+            {/* An agent that has a terminal of its own can start there instead; its models are then its CLI's to pick. */}
+            {onTerminalMode && shownProvider?.switchable && (
+              <label className="hover:bg-muted flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm">
+                <SquareTerminalIcon className="text-muted-foreground size-4" />
+                <span className="min-w-0 flex-1">{t("picker.startInTerminal")}</span>
+                <Switch checked={inTerminal} onCheckedChange={(on) => onTerminalMode(on)} />
+              </label>
+            )}
+            {inTerminal && <p className="text-muted-foreground px-2 py-3 text-sm">{t("picker.terminalModeHelp")}</p>}
+            <div className={cn("bg-popover sticky top-0 z-10", (!model || inTerminal) && "hidden")}>
               <SearchIcon className="text-muted-foreground absolute top-1/2 left-2 size-4 -translate-y-1/2" />
               <input
                 autoFocus
@@ -155,12 +179,12 @@ function ModelPicker({
                 className="focus-visible:border-ring h-8 w-full rounded-md border-b border-transparent bg-transparent pl-8 text-sm outline-none"
               />
             </div>
-            {listed.length === 0 && (
+            {!inTerminal && listed.length === 0 && (
               <p className="text-muted-foreground px-2 py-3 text-sm">
                 {t(!model ? (shownProvider?.terminal ? "picker.terminal" : "picker.noModels") : onlyFavorites && favorites.length === 0 ? "picker.noFavorites" : "picker.none")}
               </p>
             )}
-            {listed.map((c, i) => (
+            {!inTerminal && listed.map((c, i) => (
               <div key={c.value} className={cn("hover:bg-muted group flex items-center gap-2 rounded-md px-2", c.value === model?.value && "bg-muted")}>
                 <button type="button" className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left text-sm" title={c.description || c.value} onClick={() => pick(c.value)}>
                   <span className="truncate">{c.name}</span>
@@ -235,6 +259,8 @@ export function OptionsBar({
   providers,
   provider,
   onProvider,
+  terminalMode,
+  onTerminalMode,
   field = false,
 }: {
   options: SessionOption[];
@@ -244,6 +270,9 @@ export function OptionsBar({
   providers?: PickerProvider[];
   provider?: string;
   onProvider?: (id: string) => unknown;
+  /** Before a thread exists: start the provider's agent in its terminal. */
+  terminalMode?: boolean;
+  onTerminalMode?: (on: boolean) => unknown;
   /** In a settings row: the picker looks like the selects beside it. */
   field?: boolean;
 }) {
@@ -287,6 +316,8 @@ export function OptionsBar({
           providers={providers}
           provider={switching ?? provider}
           onProvider={switchTo}
+          terminalMode={terminalMode}
+          onTerminalMode={onTerminalMode}
           field={field}
           busy={switching !== undefined || Object.keys(pending).length > 0}
         />

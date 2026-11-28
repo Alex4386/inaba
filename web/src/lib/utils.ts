@@ -14,3 +14,6 @@ export function shortPath(path: string): string {
   const tail = names.slice(-2);
   return tail.length < names.length ? ["…", ...tail].join("/") : path;
 }
+
+/** An argument as a POSIX shell takes it: as it is when plain, single-quoted otherwise. */
+export const quoted = (arg: string) => (/^[\w@%+=:,./-]+$/.test(arg) ? arg : `'${arg.replaceAll("'", `'\\''`)}'`);

@@ -13,7 +13,7 @@ import { Picker } from "@/components/picker";
 import { UserAvatar } from "@/components/presence";
 import { Badge } from "@/components/reui/badge";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { UserPickerDialog } from "@/components/user-picker-dialog";
 import { Switch } from "@/components/ui/switch";
 import { type SystemInfo, SystemService } from "@/gen/inaba/v1/host_pb";
 import type { Host, ListHostMembersResponse, User } from "@/gen/inaba/v1/server_pb";
@@ -70,6 +70,8 @@ export function AdminHostAccess({
   const [host, setHost] = useState<Host>();
   const [members, setMembers] = useState<ListHostMembersResponse>();
   const [users, setUsers] = useState<User[]>([]);
+  // The search for people to let in, open.
+  const [adding, setAdding] = useState(false);
   const load = useCallback(() => {
     hostsApi.listHosts({ all: true }).then((r) => setHost(r.hosts.find((h) => h.id === id)), showError);
     hostsApi.listHostMembers({ hostId: id }).then(setMembers, showError);
@@ -181,6 +183,7 @@ export function AdminHostAccess({
           label: t("hostAccess.members"),
           content: (
             <div className="flex flex-col gap-4">
+              <UserPickerDialog open={adding} onOpenChange={setAdding} users={addable} title={t("hostAccess.add")} onPick={(u) => setRole(u.id, "member")} />
               {host.shared && (
                 <div className="bg-card flex items-center justify-between gap-4 rounded-lg border px-4 py-3">
                   <div className="grid gap-0.5">
@@ -198,19 +201,10 @@ export function AdminHostAccess({
                 empty={{ icon: UsersIcon, title: t("hostAccess.noMembers") }}
                 actions={
                   addable.length > 0 && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger render={<Button size="sm" variant="outline" />}>
-                        <UserPlusIcon data-icon="inline-start" />
-                        {t("hostAccess.add")}
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {addable.map((u) => (
-                          <DropdownMenuItem key={u.id} onClick={() => void setRole(u.id, "member")}>
-                            {u.displayName || u.name}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
+                      <UserPlusIcon data-icon="inline-start" />
+                      {t("hostAccess.add")}
+                    </Button>
                   )
                 }
                 columns={[

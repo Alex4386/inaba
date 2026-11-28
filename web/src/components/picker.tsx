@@ -8,7 +8,9 @@ export function Picker<T extends string>({
   label,
   size,
   className,
+  disabled,
 }: {
+  disabled?: boolean;
   value: T;
   onChange: (value: T) => void;
   options: { value: T; label: string }[];
@@ -18,7 +20,7 @@ export function Picker<T extends string>({
   className?: string;
 }) {
   return (
-    <Select items={options} value={value} onValueChange={(next) => next && onChange(next as T)}>
+    <Select items={options} value={value} disabled={disabled} onValueChange={(next) => next && onChange(next as T)}>
       <SelectTrigger size={size} className={className} aria-label={label}>
         <SelectValue />
       </SelectTrigger>

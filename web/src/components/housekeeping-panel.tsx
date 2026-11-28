@@ -81,7 +81,9 @@ function ServerSection() {
 function HostSection({ hosts }: { hosts: Host[] }) {
   const { t } = useI18n();
   const online = hosts.filter((h) => h.online);
-  const [hostId, setHostId] = useState(online[0]?.id ?? "");
+  // The one picked, or the first online once the list is in: it can arrive after this first draws.
+  const [picked, setHostId] = useState("");
+  const hostId = picked || online[0]?.id || "";
   const client = useMemo(() => (hostId ? housekeepingOf(hostId) : undefined), [hostId]);
   const [state, setState] = useState<Housekeeping>();
   const [error, setError] = useState("");

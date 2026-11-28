@@ -50,6 +50,9 @@ const (
 	ThreadServiceListProvidersProcedure = "/inaba.v1.ThreadService/ListProviders"
 	// ThreadServiceCreateThreadProcedure is the procedure name of the ThreadService's CreateThread RPC.
 	ThreadServiceCreateThreadProcedure = "/inaba.v1.ThreadService/CreateThread"
+	// ThreadServiceListProviderSessionsProcedure is the procedure name of the ThreadService's
+	// ListProviderSessions RPC.
+	ThreadServiceListProviderSessionsProcedure = "/inaba.v1.ThreadService/ListProviderSessions"
 	// ThreadServiceListThreadsProcedure is the procedure name of the ThreadService's ListThreads RPC.
 	ThreadServiceListThreadsProcedure = "/inaba.v1.ThreadService/ListThreads"
 	// ThreadServiceSearchThreadsProcedure is the procedure name of the ThreadService's SearchThreads
@@ -205,6 +208,13 @@ var (
 			StreamType: connect.StreamTypeUnary,
 			Schema:     v1.File_inaba_v1_host_proto.Services().ByName("ThreadService").Methods().ByName("CreateThread"),
 			Procedure:  ThreadServiceCreateThreadProcedure,
+		}
+	})
+	threadServiceListProviderSessionsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_inaba_v1_host_proto.Services().ByName("ThreadService").Methods().ByName("ListProviderSessions"),
+			Procedure:  ThreadServiceListProviderSessionsProcedure,
 		}
 	})
 	threadServiceListThreadsSpec = sync.OnceValue(func() connect.Spec {
@@ -383,6 +393,8 @@ var (
 type ThreadServiceClient interface {
 	ListProviders(context.Context, *v1.ListProvidersRequest) (*v1.ListProvidersResponse, error)
 	CreateThread(context.Context, *v1.CreateThreadRequest) (*v1.Thread, error)
+	// The sessions a provider's agent keeps in a folder, newest first, for CreateThread to take one up.
+	ListProviderSessions(context.Context, *v1.ListProviderSessionsRequest) (*v1.ListProviderSessionsResponse, error)
 	ListThreads(context.Context, *v1.ListThreadsRequest) (*v1.ListThreadsResponse, error)
 	// Finds the threads whose conversation says something: what people wrote and what the
 	// agents answered, newest first. Text of three or more characters goes through the host's
@@ -497,6 +509,8 @@ func (s ThreadServiceSubscribeClientStream) Close() error {
 type ThreadServiceHandler interface {
 	ListProviders(context.Context, *v1.ListProvidersRequest) (*v1.ListProvidersResponse, error)
 	CreateThread(context.Context, *v1.CreateThreadRequest) (*v1.Thread, error)
+	// The sessions a provider's agent keeps in a folder, newest first, for CreateThread to take one up.
+	ListProviderSessions(context.Context, *v1.ListProviderSessionsRequest) (*v1.ListProviderSessionsResponse, error)
 	ListThreads(context.Context, *v1.ListThreadsRequest) (*v1.ListThreadsResponse, error)
 	// Finds the threads whose conversation says something: what people wrote and what the
 	// agents answered, newest first. Text of three or more characters goes through the host's
@@ -567,6 +581,7 @@ func RegisterThreadServiceHandler(server *connect.Server, svc ThreadServiceHandl
 	server.Register(
 		connect.Method{Spec: threadServiceListProvidersSpec(), Handler: adapter.listProviders},
 		connect.Method{Spec: threadServiceCreateThreadSpec(), Handler: adapter.createThread},
+		connect.Method{Spec: threadServiceListProviderSessionsSpec(), Handler: adapter.listProviderSessions},
 		connect.Method{Spec: threadServiceListThreadsSpec(), Handler: adapter.listThreads},
 		connect.Method{Spec: threadServiceSearchThreadsSpec(), Handler: adapter.searchThreads},
 		connect.Method{Spec: threadServiceGetThreadSpec(), Handler: adapter.getThread},
@@ -634,6 +649,10 @@ func (UnimplementedThreadServiceHandler) ListProviders(context.Context, *v1.List
 
 func (UnimplementedThreadServiceHandler) CreateThread(context.Context, *v1.CreateThreadRequest) (*v1.Thread, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.ThreadService.CreateThread is not implemented")
+}
+
+func (UnimplementedThreadServiceHandler) ListProviderSessions(context.Context, *v1.ListProviderSessionsRequest) (*v1.ListProviderSessionsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "inaba.v1.ThreadService.ListProviderSessions is not implemented")
 }
 
 func (UnimplementedThreadServiceHandler) ListThreads(context.Context, *v1.ListThreadsRequest) (*v1.ListThreadsResponse, error) {
@@ -747,6 +766,14 @@ func (c *threadServiceClient) ListProviders(ctx context.Context, req *v1.ListPro
 func (c *threadServiceClient) CreateThread(ctx context.Context, req *v1.CreateThreadRequest) (*v1.Thread, error) {
 	var res v1.Thread
 	if err := c.client.CallUnary(ctx, threadServiceCreateThreadSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *threadServiceClient) ListProviderSessions(ctx context.Context, req *v1.ListProviderSessionsRequest) (*v1.ListProviderSessionsResponse, error) {
+	var res v1.ListProviderSessionsResponse
+	if err := c.client.CallUnary(ctx, threadServiceListProviderSessionsSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -964,6 +991,18 @@ func (h threadServiceHandler) createThread(ctx context.Context, _ connect.Spec, 
 		return err
 	}
 	res, err := h.svc.CreateThread(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h threadServiceHandler) listProviderSessions(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ListProviderSessionsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ListProviderSessions(ctx, &req)
 	if err != nil {
 		return err
 	}

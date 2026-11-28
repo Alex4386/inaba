@@ -39,6 +39,7 @@ import {
   Trash2Icon,
   WrenchIcon,
   FileIcon,
+  SettingsIcon,
 } from "lucide-react";
 import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { bytes } from "@/components/metrics";
@@ -99,6 +100,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { errorText, showError } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
+import { ThreadSettingsDialog, type ThreadSection } from "@/components/thread-settings-dialog";
 import { bindingOf, formatBinding, matches, useKeybindings } from "@/lib/keybindings";
 import { cn, pathNames } from "@/lib/utils";
 import { matchOffsets, planMarkdown, quoteMarkdown } from "@/lib/thread-text";
@@ -160,6 +162,8 @@ export function ThreadView({
   const askToTake = (from: string) => grab(from).then((s) => s && s.driver !== CLIENT && toast.error(t("drive.denied")));
   const [ending, setEnding] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  // The thread's settings, open at this section.
+  const [settingsAt, setSettingsAt] = useState<ThreadSection>();
   const [git, setGit] = useState<GitStatus>();
   // The two docks beside the thread, each with its tabs in the user's order and the one shown.
   // A tab lives in one dock at a time.
@@ -426,6 +430,11 @@ export function ThreadView({
     [link, threadId],
   );
 
+  // Before the return below, as every hook must be: whether the agent's browser has been shown this visit.
+  const browserShown = useRef(false);
+  useEffect(() => {
+    browserShown.current = false;
+  }, [threadId]);
   if (!thread)
     return loadError ? (
       <div className="m-auto grid justify-items-center gap-2 p-4 text-center">
@@ -531,10 +540,6 @@ export function ThreadView({
   // The agent's browser is seen once it uses it: its first browser tool opens a browser tab for the driver when none
   // is open, and that tab takes the agent's page. Only a call made just now, not one replayed as the thread opens,
   // and once a visit, so a tab closed on purpose stays closed.
-  const browserShown = useRef(false);
-  useEffect(() => {
-    browserShown.current = false;
-  }, [threadId]);
   const agentEvents = (events: Event[]) => {
     onEvents(events);
     if (browserShown.current || !now$.current.driving || !modules.has("browser")) return;
@@ -571,7 +576,8 @@ export function ThreadView({
           {/* Where the thread sits, as the project's own pages show it: project / thread. */}
           {project && (
             <>
-              <button type="button" className="text-muted-foreground hover:text-foreground flex min-w-0 shrink items-center gap-2 text-sm" onClick={() => onProject?.(project)}>
+              {/* Only the name gives way to a long title: with it hidden, the icon keeps its room and the gap before the slash. */}
+              <button type="button" className="text-muted-foreground hover:text-foreground flex min-w-0 shrink-0 items-center gap-2 text-sm @md:shrink" onClick={() => onProject?.(project)}>
                 <ProjectIcon project={project} />
                 <span className="hidden truncate @md:inline">{project.name}</span>
               </button>
@@ -683,6 +689,10 @@ export function ThreadView({
                   <PencilIcon />
                   {t("thread.rename")}
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSettingsAt("general")}>
+                  <SettingsIcon />
+                  {t("threadSettings.title")}
+                </DropdownMenuItem>
                 {/* The driver hands back control for someone watching to take. */}
                 {driving && (clients?.length ?? 0) > 0 && (
                   <DropdownMenuItem onClick={() => void release().then((s) => s && (settled(s), sendLayout(undefined)))}>
@@ -754,6 +764,16 @@ export function ThreadView({
           cancel={t("thread.stayInChat")}
           confirm={t("thread.openInTerminal")}
           onConfirm={() => setMode(ThreadMode.TERMINAL)}
+        />
+        <ThreadSettingsDialog
+          link={link}
+          thread={thread}
+          section={settingsAt}
+          onSection={setSettingsAt}
+          onClose={() => setSettingsAt(undefined)}
+          driving={driving}
+          onThread={setThread}
+          providerName={provider?.displayName || thread.provider}
         />
         <RenameDialog
           open={renaming}
@@ -832,11 +852,6 @@ const PAGE = 1000;
 const OPEN = 300;
 
 /**
- * Keys for the conversation's blocks that stay with them as older turns are read in above, so
- * one does not take over another's state (a step log left open). One without a mark of its own
- * is keyed after the last block before it that has one.
- */
-/**
  * Slides a strip's tabs ([data-tab]) from where they were to where a new order puts them, and fades in one
  * that joins it, so a reorder or a tab moved between docks is seen to happen. Nothing moves for a reader who
  * asked for less motion.
@@ -866,6 +881,11 @@ function useSlide(strip: RefObject<HTMLElement | null>, order: string) {
 /** What the chat map says of a message of the user's: its text, or what it attached. */
 const exchangeText = (it: Extract<Item, { type: "user" }>) => it.text || it.attachments.map((a) => a.name || a.path).join(", ");
 
+/**
+ * Keys for the conversation's blocks that stay with them as older turns are read in above, so
+ * one does not take over another's state (a step log left open). One without a mark of its own
+ * is keyed after the last block before it that has one.
+ */
 function keyed(list: Block[]): [string, Block][] {
   let mark = "top";
   let n = 0;

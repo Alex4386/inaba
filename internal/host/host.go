@@ -168,6 +168,10 @@ type thread struct {
 	// closing is set, under mu, as the host closes: a turn its agent's end cuts short stays
 	// open in the log, for the next start to resume.
 	closing bool
+	// importing is a thread made to take up a session from elsewhere, until that session first opens:
+	// only then is its conversation brought in.
+	// shortcut: kept in memory, as CreateThread opens it at once; persist it if imports may start in the terminal.
+	importing bool
 	// closed is set once the host has closed: what its agents still say after that is not
 	// saved, as the data may already be another host's, which a late save would set back.
 	closed bool
@@ -455,6 +459,10 @@ func (t *thread) openSession(ctx context.Context) error {
 	defer cancel()
 	meta := t.snapshot()
 	cfg := provider.Config{Cwd: meta.Cwd, NativeSessionID: meta.NativeSessionId, Language: meta.Language}
+	// A thread taking up a session from elsewhere has none of its conversation yet: it is brought in.
+	t.mu.Lock()
+	cfg.Replay = t.importing
+	t.mu.Unlock()
 	if t.mcp != nil {
 		cfg.MCPServers = t.mcp(meta)
 	}
@@ -472,6 +480,7 @@ func (t *thread) openSession(ctx context.Context) error {
 	closing := t.closing
 	if !closing {
 		t.sess = sess
+		t.importing = false
 		t.meta.NativeSessionId = sess.NativeSessionID()
 		t.save.meta(t.meta)
 	}
@@ -605,6 +614,11 @@ func (h *Host) CreateThread(ctx context.Context, req *inabav1.CreateThreadReques
 	if !validLanguage(req.Language) {
 		return nil, connect.NewError(connect.CodeInvalidArgument, "language must be a BCP 47 tag such as ko or zh-Hant")
 	}
+	if req.NativeSessionId != "" {
+		if taken := h.threadOf(req.Provider, req.NativeSessionId); taken != "" {
+			return nil, connect.NewError(connect.CodeAlreadyExists, "thread "+taken+" already goes on with that session")
+		}
+	}
 	t := &thread{
 		prov:    prov,
 		save:    h.save,
@@ -613,12 +627,15 @@ func (h *Host) CreateThread(ctx context.Context, req *inabav1.CreateThreadReques
 		bus:     h.bus,
 		mcp:     h.sessionMCP,
 		changed: make(chan struct{}),
+		// Taking up a session from elsewhere brings its conversation in as it opens.
+		importing: req.NativeSessionId != "",
 		meta: &inabav1.Thread{
 			Id: id, Provider: req.Provider, Cwd: req.Cwd, Title: req.Title, ProjectId: req.ProjectId, Worktree: req.Worktree != nil, Language: req.Language,
-			Mode:      inabav1.ThreadMode_THREAD_MODE_STRUCTURED,
-			Status:    inabav1.ThreadStatus_THREAD_STATUS_IDLE,
-			CreatedAt: timestamppb.Now(),
-			UpdatedAt: timestamppb.Now(),
+			NativeSessionId: req.NativeSessionId,
+			Mode:            inabav1.ThreadMode_THREAD_MODE_STRUCTURED,
+			Status:          inabav1.ThreadStatus_THREAD_STATUS_IDLE,
+			CreatedAt:       timestamppb.Now(),
+			UpdatedAt:       timestamppb.Now(),
 		},
 	}
 	var err error
@@ -631,7 +648,13 @@ func (h *Host) CreateThread(ctx context.Context, req *inabav1.CreateThreadReques
 		t.applyOptions(ctx, sess, req.Options)
 	}
 	if err != nil {
-		// The thread never came to be; neither should the worktree made for it.
+		// The thread never came to be; neither should the worktree made for it, nor what its agent said while
+		// starting, as the part of a conversation it was bringing in: closed first, so nothing writes it again.
+		t.mu.Lock()
+		t.closed = true
+		t.mu.Unlock()
+		t.save.delete(t.meta.Id)
+		h.bus.gone(t.meta.Id)
 		h.removeWorktree(ctx, t.meta)
 		return nil, err
 	}
@@ -682,7 +705,14 @@ func (h *Host) GetThread(_ context.Context, req *inabav1.GetThreadRequest) (*ina
 	if err != nil {
 		return nil, err
 	}
-	return t.snapshot(), nil
+	meta := t.snapshot()
+	if tr, ok := t.prov.(provider.TerminalResumer); ok && meta.NativeSessionId != "" {
+		// Only a command that names the session resumes it; the plain one starts afresh.
+		if argv := tr.TerminalCommand(meta.NativeSessionId); strings.Contains(strings.Join(argv, " "), meta.NativeSessionId) {
+			meta.ResumeCommand = argv
+		}
+	}
+	return meta, nil
 }
 
 func (h *Host) UpdateThread(ctx context.Context, req *inabav1.UpdateThreadRequest) (*inabav1.Thread, error) {
@@ -706,6 +736,11 @@ func (h *Host) UpdateThread(ctx context.Context, req *inabav1.UpdateThreadReques
 		t.save.meta(t.meta)
 		t.mu.Unlock()
 	}
+	if req.Language != nil {
+		if err := setLanguage(t, *req.Language); err != nil {
+			return nil, err
+		}
+	}
 	if req.Pinned != nil {
 		pinned := ""
 		if *req.Pinned {
@@ -725,6 +760,95 @@ func (h *Host) UpdateThread(ctx context.Context, req *inabav1.UpdateThreadReques
 		}
 	}
 	return t.snapshot(), nil
+}
+
+// threadOf is the thread that goes on with a provider's native session, if one does.
+func (h *Host) threadOf(providerID, nativeID string) string {
+	h.mu.Lock()
+	threads := make([]*thread, 0, len(h.threads))
+	for _, t := range h.threads {
+		threads = append(threads, t)
+	}
+	h.mu.Unlock()
+	for _, t := range threads {
+		if m := t.snapshot(); m.Provider == providerID && m.NativeSessionId == nativeID {
+			return m.Id
+		}
+	}
+	return ""
+}
+
+// ListProviderSessions lists the sessions a provider's agent keeps in a project's folder, or another
+// folder for those who may start threads anywhere, marking those a thread already goes on with.
+func (h *Host) ListProviderSessions(ctx context.Context, req *inabav1.ListProviderSessionsRequest) (*inabav1.ListProviderSessionsResponse, error) {
+	prov, info := h.provider(req.Provider)
+	if prov == nil || info.Disabled {
+		return nil, connect.NewError(connect.CodeInvalidArgument, "unknown provider "+req.Provider)
+	}
+	lister, ok := prov.(provider.SessionLister)
+	if !ok {
+		return nil, connect.NewError(connect.CodeUnimplemented, provider.ErrNoSessionList.Error())
+	}
+	cwd := req.Cwd
+	if req.ProjectId != "" {
+		var project *Project
+		if h.projects != nil {
+			var err error
+			if project, err = h.projects.Get(req.ProjectId); err != nil {
+				return nil, connect.NewError(connect.CodeInternal, "could not read the project").WithCause(err)
+			}
+		}
+		if project == nil {
+			return nil, connect.NewError(connect.CodeNotFound, "no project "+req.ProjectId)
+		}
+		cwd = project.Cwd
+	} else if err := may(ctx, rpc.PermThreadsAnywhere); err != nil {
+		return nil, err
+	}
+	if err := checkDir(cwd); err != nil {
+		return nil, err
+	}
+	list, err := lister.Sessions(ctx, cwd)
+	if errors.Is(err, provider.ErrNoSessionList) {
+		return nil, connect.NewError(connect.CodeUnimplemented, err.Error())
+	} else if err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, "could not ask "+req.Provider+" for its sessions: "+err.Error())
+	}
+	res := &inabav1.ListProviderSessionsResponse{}
+	for _, s := range list {
+		ps := &inabav1.ProviderSession{Id: s.ID, Title: s.Title, Cwd: s.Cwd, ThreadId: h.threadOf(req.Provider, s.ID)}
+		if !s.UpdatedAt.IsZero() {
+			ps.UpdatedAt = timestamppb.New(s.UpdatedAt)
+		}
+		res.Sessions = append(res.Sessions, ps)
+	}
+	return res, nil
+}
+
+// setLanguage changes the language an idle thread's agent talks in. The agent is told it as its session
+// opens, so the session is let go: the next turn opens it again, resuming it where the agent can.
+func setLanguage(t *thread, tag string) error {
+	if !validLanguage(tag) {
+		return connect.NewError(connect.CodeInvalidArgument, "language must be a BCP 47 tag such as ko or zh-Hant")
+	}
+	t.op.Lock()
+	defer t.op.Unlock()
+	meta := t.snapshot()
+	if meta.Language == tag {
+		return nil
+	}
+	// Closing the session would also end agents it still runs in the background.
+	if meta.Status != inabav1.ThreadStatus_THREAD_STATUS_IDLE || meta.BackgroundAgents > 0 {
+		return connect.NewError(connect.CodeFailedPrecondition, "the language can be changed only while the thread is idle")
+	}
+	if meta.Mode == inabav1.ThreadMode_THREAD_MODE_STRUCTURED {
+		t.closeSession()
+	}
+	t.mu.Lock()
+	t.meta.Language = tag
+	t.save.meta(t.meta)
+	t.mu.Unlock()
+	return nil
 }
 
 // switchProvider moves an idle thread to another provider's agent. The old agent's memory does

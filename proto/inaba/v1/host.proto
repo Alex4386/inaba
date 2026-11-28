@@ -104,6 +104,9 @@ message Thread {
   // The language its agent talks to people in, as a BCP 47 tag such as ko; empty leaves that
   // to the agent, which mostly answers in the language it is written to.
   string language = 28;
+  // How to go on with its agent's session at a terminal on the host, as the provider's resume
+  // command with the session filled in. Only GetThread says it, and only when there is one.
+  repeated string resume_command = 29;
 }
 
 // A slash command the agent offers, run by sending "/name" and its input as a message.
@@ -434,6 +437,10 @@ service ThreadService {
       body: "*"
     };
   }
+  // The sessions a provider's agent keeps in a folder, newest first, for CreateThread to take one up.
+  rpc ListProviderSessions(ListProviderSessionsRequest) returns (ListProviderSessionsResponse) {
+    option (google.api.http) = {get: "/v1/providers/{provider}/sessions"};
+  }
   rpc ListThreads(ListThreadsRequest) returns (ListThreadsResponse) {
     option (google.api.http) = {get: "/v1/threads"};
   }
@@ -601,6 +608,28 @@ message CreateThreadRequest {
   // The language its agent talks to people in, as a BCP 47 tag such as ko; empty leaves it
   // to the agent. Said to an agent that takes instructions of the client's.
   string language = 8;
+  // Take up a session the provider's agent keeps, as one started outside inaba, from
+  // ListProviderSessions: the thread goes on with it, its conversation brought in.
+  string native_session_id = 9;
+}
+
+message ListProviderSessionsRequest {
+  string provider = 1;
+  // The project whose folder to list; or cwd, for a folder outside any project.
+  string project_id = 2;
+  string cwd = 3;
+}
+message ListProviderSessionsResponse {
+  repeated ProviderSession sessions = 1;
+}
+// A session a provider's agent keeps itself.
+message ProviderSession {
+  string id = 1;
+  string title = 2;
+  string cwd = 3;
+  google.protobuf.Timestamp updated_at = 4;
+  // The thread that already goes on with it, if one does.
+  string thread_id = 5;
 }
 
 message Worktree {
@@ -655,6 +684,9 @@ message UpdateThreadRequest {
   // Moves the thread to another provider's agent while it is idle. The new agent does not share the
   // old one's memory, so its first turn is handed the conversation so far.
   optional string provider = 5;
+  // The language its agent talks in, as a BCP 47 tag; empty leaves it to the agent. Changed while the
+  // thread is idle; its agent picks up the conversation again with the new instructions on the next turn.
+  optional string language = 6;
 }
 
 // The thread moved to another provider's agent.

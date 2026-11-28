@@ -72,6 +72,10 @@ type session struct {
 	mu sync.Mutex
 	// Loading a session replays its history as updates the event log already holds.
 	replaying bool
+	// Loading one a thread takes up from elsewhere keeps its history, the person's messages
+	// included, gathered here until what follows them.
+	importing bool
+	said      strings.Builder
 	pending   map[string]chan string
 	// modes is set for an agent that offers session modes but no config options.
 	modes *sdk.SessionModeState
@@ -176,17 +180,26 @@ func (s *session) start(ctx context.Context, cfg provider.Config) error {
 		instructions = languagePrompt(cfg.Language)
 	}
 
+	if cfg.Replay && !init.AgentCapabilities.LoadSession {
+		return errors.New("acp: this agent cannot take up its sessions")
+	}
 	if cfg.NativeSessionID != "" && init.AgentCapabilities.LoadSession {
-		s.setReplaying(true)
+		s.mu.Lock()
+		s.replaying, s.importing = !cfg.Replay, cfg.Replay
+		s.mu.Unlock()
 		loaded, err := s.conn.LoadSession(ctx, sdk.LoadSessionRequest{SessionId: sdk.SessionId(cfg.NativeSessionID), Cwd: cfg.Cwd, McpServers: servers, SystemPrompt: instructions})
-		s.setReplaying(false)
+		s.mu.Lock()
+		s.replaying, s.importing = false, false
+		s.mu.Unlock()
+		s.flushSaid()
 		if err == nil {
 			s.id = sdk.SessionId(cfg.NativeSessionID)
 			s.setup(loaded.ConfigOptions, loaded.Modes)
 			return nil
 		}
 		var rpcErr *sdk.RequestError
-		if !errors.As(err, &rpcErr) {
+		// Taking it up was the point: a new session in its place would be a different conversation.
+		if !errors.As(err, &rpcErr) || cfg.Replay {
 			return fmt.Errorf("acp: session/load: %w", err)
 		}
 		// The agent no longer has the session; continue in a new one.
@@ -265,10 +278,56 @@ func sortedKeys(m map[string]string) []string {
 	return keys
 }
 
-func (s *session) setReplaying(on bool) {
+// flushSaid emits the person's message an imported history has gathered so far, if any.
+func (s *session) flushSaid() {
 	s.mu.Lock()
-	s.replaying = on
+	text := s.said.String()
+	s.said.Reset()
 	s.mu.Unlock()
+	if strings.TrimSpace(text) != "" {
+		s.emit(&inabav1.Event{Payload: &inabav1.Event_UserMessage{UserMessage: &inabav1.UserMessage{Text: text}}})
+	}
+}
+
+// Sessions lists the sessions the agent keeps for cwd, newest first, for a thread to take one up.
+func (p *Provider) Sessions(ctx context.Context, cwd string) ([]provider.NativeSession, error) {
+	s, err := p.spawn(cwd, func(*inabav1.Event) {})
+	if err != nil {
+		return nil, err
+	}
+	defer s.Close()
+	init, err := s.initialize(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if init.AgentCapabilities.SessionCapabilities.List == nil {
+		return nil, provider.ErrNoSessionList
+	}
+	var out []provider.NativeSession
+	var cursor *string
+	// shortcut: at most 20 pages; an agent with more sessions in one folder shows its newest.
+	for range 20 {
+		res, err := s.conn.ListSessions(ctx, sdk.ListSessionsRequest{Cwd: &cwd, Cursor: cursor})
+		if err != nil {
+			return nil, fmt.Errorf("acp: session/list: %w", err)
+		}
+		for _, si := range res.Sessions {
+			ns := provider.NativeSession{ID: string(si.SessionId), Cwd: si.Cwd}
+			if si.Title != nil {
+				ns.Title = *si.Title
+			}
+			if si.UpdatedAt != nil {
+				ns.UpdatedAt, _ = time.Parse(time.RFC3339, *si.UpdatedAt)
+			}
+			out = append(out, ns)
+		}
+		if res.NextCursor == nil || *res.NextCursor == "" {
+			break
+		}
+		cursor = res.NextCursor
+	}
+	slices.SortStableFunc(out, func(a, b provider.NativeSession) int { return b.UpdatedAt.Compare(a.UpdatedAt) })
+	return out, nil
 }
 
 func (s *session) NativeSessionID() string { return string(s.id) }
@@ -385,13 +444,22 @@ func describesSession(u sdk.SessionUpdate) bool {
 
 func (s *session) onUpdate(u sdk.SessionUpdate) {
 	s.mu.Lock()
-	replaying := s.replaying
+	replaying, importing := s.replaying, s.importing
+	if importing && u.UserMessageChunk != nil {
+		if c := u.UserMessageChunk.Content; c.Text != nil {
+			s.said.WriteString(c.Text.Text)
+		}
+		s.mu.Unlock()
+		return
+	}
 	s.mu.Unlock()
 	// A replay repeats the conversation the event log already holds; what the session
 	// offers and how full it is are news all the same.
 	if replaying && !describesSession(u) {
 		return
 	}
+	// A message of the person's, replayed, ends where the answer to it begins.
+	s.flushSaid()
 	text := func(kind inabav1.TextDelta_Kind, c sdk.ContentBlock) {
 		if c.Text != nil {
 			s.emit(&inabav1.Event{Payload: &inabav1.Event_TextDelta{TextDelta: &inabav1.TextDelta{Kind: kind, Text: c.Text.Text}}})

@@ -80,6 +80,8 @@ export function AccountDetail({
   const [detail, setDetail] = useState<UserDetail>();
   const [resetting, setResetting] = useState(false);
   const [removing, setRemoving] = useState(false);
+  // A change of access on its way: each is built from the access as last read, so the next waits for it.
+  const [saving, setSaving] = useState(false);
   const load = useCallback(() => admin.getUserDetail({ user: id }).then(setDetail, showError), [id]);
   useEffect(() => {
     void load();
@@ -91,7 +93,13 @@ export function AccountDetail({
   const user = detail?.user;
   if (!detail || !user) return <DetailPage loading title="" tabs={[]} onTab={onTab} />;
 
-  const setAccess = (isAdmin: boolean, permissions: Permission[]) => admin.setAccess({ user: user.id, admin: isAdmin, permissions }).then(load, showError);
+  const setAccess = (isAdmin: boolean, permissions: Permission[]) => {
+    setSaving(true);
+    return admin
+      .setAccess({ user: user.id, admin: isAdmin, permissions })
+      .then(load, showError)
+      .finally(() => setSaving(false));
+  };
   const setRole = (hostId: string, role: string) => hostsApi.setHostMember({ hostId, userId: user.id, role }).then(load, showError);
   const count = (role: string) => detail.hosts.filter((a) => a.role === role).length;
   const owned = count("owner");
@@ -153,7 +161,7 @@ export function AccountDetail({
             menu={[
               user.admin
                 ? { label: t("accountDetail.revokeAdmin"), icon: UserIcon, onClick: () => void setAccess(false, user.permissions), hidden: user.id === me }
-                : { label: t("accountDetail.grantAdmin"), icon: UserCogIcon, onClick: () => void setAccess(true, []) },
+                : { label: t("accountDetail.grantAdmin"), icon: UserCogIcon, onClick: () => void setAccess(true, user.permissions) },
               { label: t("accounts.remove", { name: user.name }), icon: UserXIcon, destructive: true, separatorBefore: true, onClick: () => setRemoving(true), hidden: user.id === me },
             ]}
           />
@@ -211,17 +219,19 @@ export function AccountDetail({
                 getRowKey={(r) => String(r.permission)}
                 empty={{ title: "" }}
                 columns={[
-                  { header: t("detail.permission"), cell: (r) => <span className="font-medium">{t(r.label)}</span> },
-                  { header: t("detail.allows"), cell: (r) => <span className="text-muted-foreground">{t(`${r.label}Help`)}</span>, className: "whitespace-normal" },
+                  { header: t("detail.permission"), cell: (r) => <span className="font-medium">{t(r.label)}</span>, className: "whitespace-normal wrap-anywhere" },
+                  { header: t("detail.allows"), cell: (r) => <span className="text-muted-foreground">{t(`${r.label}Help`)}</span>, className: "whitespace-normal wrap-anywhere" },
                   {
                     header: t("detail.granted"),
                     align: "right",
+                    // Room for the switch's touch area, which reaches past it, so the table does not scroll for it.
+                    className: "pr-4",
                     // An administrator has every permission, so there is nothing to choose.
                     cell: (r) => (
                       <Switch
                         aria-label={t(r.label)}
                         checked={user.admin || user.permissions.includes(r.permission)}
-                        disabled={user.admin}
+                        disabled={user.admin || saving}
                         onCheckedChange={(on) => void setAccess(user.admin, on ? [...user.permissions, r.permission] : user.permissions.filter((p) => p !== r.permission))}
                       />
                     ),
@@ -251,7 +261,7 @@ export function AccountDetail({
                       </span>
                     ),
                   },
-                  { header: t("adminHosts.owner"), sortBy: (a) => a.host!.ownerName, cell: (a) => <span className="text-muted-foreground">{a.host!.shared ? t(a.host!.restricted ? "hostAccess.restrictedShared" : "adminHosts.shared") : a.host!.ownerName}</span> },
+                  { header: t("adminHosts.owner"), className: "hidden md:table-cell", sortBy: (a) => a.host!.ownerName, cell: (a) => <span className="text-muted-foreground">{a.host!.shared ? t(a.host!.restricted ? "hostAccess.restrictedShared" : "adminHosts.shared") : a.host!.ownerName}</span> },
                   { header: t("hostAccess.role"), sortBy: (a) => a.role, cell: (a) => <AccessPicker access={a} onChange={(role) => void setRole(a.host!.id, role)} /> },
                 ]}
                 rowActions={[
@@ -270,8 +280,8 @@ export function AccountDetail({
                 getRowKey={(r) => r.id}
                 empty={{ title: "" }}
                 columns={[
-                  { header: t("detail.method"), cell: (r) => <span className="font-medium">{t(r.label)}</span> },
-                  { header: t("detail.status"), cell: (r) => <span className="text-muted-foreground">{r.status}</span> },
+                  { header: t("detail.method"), cell: (r) => <span className="font-medium">{t(r.label)}</span>, className: "whitespace-normal" },
+                  { header: t("detail.status"), cell: (r) => <span className="text-muted-foreground">{r.status}</span>, className: "whitespace-normal" },
                   {
                     header: <span className="sr-only">{t("table.actions")}</span>,
                     align: "right",
@@ -294,7 +304,7 @@ export function AccountDetail({
         open={removing}
         onClose={() => setRemoving(false)}
         title={t("accounts.removeTitle", { name: user.name })}
-        description={t("accounts.removeHelp")}
+        description={t("accounts.removeHelp", { count: String(owned) })}
         cancel={t("project.keep")}
         confirm={t("accounts.remove", { name: user.name })}
         destructive

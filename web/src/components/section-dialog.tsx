@@ -7,12 +7,14 @@ import { cn } from "@/lib/utils";
 /** One setting: what it is on the left, its control on the right. */
 export function Row({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
-      <div className="grid min-w-48 flex-1 gap-0.5">
+    // Side by side at any width: the words wrap in their column rather than push the control below them.
+    <div className="flex items-center justify-between gap-4 px-4 py-3">
+      <div className="grid min-w-0 flex-1 gap-0.5">
         <span className="text-sm font-medium">{title}</span>
         <span className="text-muted-foreground text-xs">{description}</span>
       </div>
-      {children}
+      {/* Its controls give way within their own column, wrapping there if they must, never past the edge. */}
+      <div className="flex max-w-[60%] min-w-0 flex-wrap items-center justify-end gap-2 [&>*]:min-w-0">{children}</div>
     </div>
   );
 }
@@ -76,7 +78,9 @@ export function SectionDialog<T extends string>({
             )}
             <DialogDescription className="sr-only">{title}</DialogDescription>
           </header>
-          <div className="grid content-start gap-4 overflow-y-auto p-4 sm:p-5">{children(current[0])}</div>
+          {/* One column no wider than the dialog, and so is every single-column grid in it (a grid sizes an implicit
+              column by its widest child): nothing in a section may push it sideways into a scrollbar. */}
+          <div className="grid grid-cols-[minmax(0,1fr)] content-start gap-4 overflow-x-hidden overflow-y-auto p-4 sm:p-5 [&_.grid]:auto-cols-[minmax(0,1fr)]">{children(current[0])}</div>
         </div>
       </DialogContent>
     </Dialog>

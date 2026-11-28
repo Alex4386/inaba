@@ -6,7 +6,7 @@ import { AdminHostAccess } from "@/components/admin-host-access";
 import { AdminHostsPanel } from "@/components/admin-hosts-panel";
 import { AdminOverview } from "@/components/admin-overview";
 import { HousekeepingPanel } from "@/components/housekeeping-panel";
-import { SidebarGroup, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarGroup, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import type { Host } from "@/gen/inaba/v1/server_pb";
 import { type MessageKey, useI18n } from "@/lib/i18n";
 
@@ -26,11 +26,13 @@ const sections: [AdminSection, MessageKey, ReactNode][] = [
  */
 export function AdminNav({ section, onSection, onLeave }: { section: AdminSection; onSection: (s: AdminSection) => void; onLeave: () => void }) {
   const { t } = useI18n();
+  // On a phone the sidebar is a sheet over the page: going somewhere closes it, as the project tree's links do.
+  const { setOpenMobile } = useSidebar();
   return (
     <>
       <SidebarMenu className="px-2 pt-2">
         <SidebarMenuItem>
-          <SidebarMenuButton tooltip={t("admin.leave")} onClick={onLeave}>
+          <SidebarMenuButton tooltip={t("admin.leave")} onClick={() => (setOpenMobile(false), onLeave())}>
             <ArrowLeftIcon />
             <span>{t("admin.leave")}</span>
           </SidebarMenuButton>
@@ -41,7 +43,7 @@ export function AdminNav({ section, onSection, onLeave }: { section: AdminSectio
         <SidebarMenu>
           {sections.map(([id, label, icon]) => (
             <SidebarMenuItem key={id}>
-              <SidebarMenuButton tooltip={t(label)} isActive={section === id} onClick={() => onSection(id)}>
+              <SidebarMenuButton tooltip={t(label)} isActive={section === id} onClick={() => (setOpenMobile(false), onSection(id))}>
                 {icon}
                 <span>{t(label)}</span>
               </SidebarMenuButton>
@@ -101,7 +103,7 @@ export function AdminPage({
         )}
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto grid w-full max-w-6xl grid-cols-[minmax(0,1fr)] gap-4 p-6">{section === "overview" ? (
+        <div className="mx-auto grid w-full max-w-6xl grid-cols-[minmax(0,1fr)] gap-4 p-4 sm:p-6">{section === "overview" ? (
             <AdminOverview onSection={(s) => onItem(s)} onHost={(id) => onItem("hosts", id)} />
           ) : section === "accounts" ? (
             item ? (

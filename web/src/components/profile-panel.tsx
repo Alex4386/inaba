@@ -237,13 +237,13 @@ export function ProfilePanel({ user, onUser }: { user: User; onUser: (user: User
         </Row>
         <Row title={t("profile.displayName")} description={t("profile.displayNameHelp")}>
           <form
-            className="flex gap-2"
+            className="flex min-w-0 gap-2"
             onSubmit={(e) => {
               e.preventDefault();
               void update({ displayName: name.trim() });
             }}
           >
-            <Input className="w-48" value={name} onChange={(e) => setName(e.target.value)} maxLength={64} placeholder={user.name} />
+            <Input className="w-48 min-w-0 shrink" value={name} onChange={(e) => setName(e.target.value)} maxLength={64} placeholder={user.name} />
             <Button type="submit" variant="outline" disabled={busy || name.trim() === user.displayName}>
               {busy && <Spinner data-icon="inline-start" />}
               {t("providers.save")}

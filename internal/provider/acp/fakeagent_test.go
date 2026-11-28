@@ -48,7 +48,7 @@ func fakeOptions(model string, fast bool) []sdk.SessionConfigOption {
 func (a *fakeAgentImpl) Initialize(context.Context, sdk.InitializeRequest) (sdk.InitializeResponse, error) {
 	return sdk.InitializeResponse{
 		ProtocolVersion:   sdk.ProtocolVersionNumber,
-		AgentCapabilities: sdk.AgentCapabilities{LoadSession: true, PromptCapabilities: sdk.PromptCapabilities{Image: true}, McpCapabilities: sdk.McpCapabilities{Http: true}, SessionCapabilities: sdk.SessionCapabilities{SystemPrompt: &sdk.SessionSystemPromptCapabilities{}}},
+		AgentCapabilities: sdk.AgentCapabilities{LoadSession: true, PromptCapabilities: sdk.PromptCapabilities{Image: true}, McpCapabilities: sdk.McpCapabilities{Http: true}, SessionCapabilities: sdk.SessionCapabilities{SystemPrompt: &sdk.SessionSystemPromptCapabilities{}, List: &sdk.SessionListCapabilities{}}},
 		AuthMethods:       []sdk.AuthMethod{},
 		AgentInfo:         &sdk.Implementation{Name: "fake-agent", Version: "1.2.3"},
 	}, nil
@@ -87,6 +87,9 @@ func (a *fakeAgentImpl) NewSession(_ context.Context, req sdk.NewSessionRequest)
 }
 
 func (a *fakeAgentImpl) LoadSession(_ context.Context, req sdk.LoadSessionRequest) (sdk.LoadSessionResponse, error) {
+	// What was said before, in two pieces as an agent sends a message with more than one block.
+	a.update(sdk.UpdateUserMessageText("old "))
+	a.update(sdk.UpdateUserMessageText("question"))
 	a.update(sdk.UpdateAgentMessageText("old history"))
 	return sdk.LoadSessionResponse{}, nil
 }
@@ -201,9 +204,20 @@ func (a *fakeAgentImpl) CloseSession(context.Context, sdk.CloseSessionRequest) (
 func (a *fakeAgentImpl) DeleteSession(context.Context, sdk.DeleteSessionRequest) (sdk.DeleteSessionResponse, error) {
 	return sdk.DeleteSessionResponse{}, nil
 }
-func (a *fakeAgentImpl) ListSessions(context.Context, sdk.ListSessionsRequest) (sdk.ListSessionsResponse, error) {
-	return sdk.ListSessionsResponse{}, nil
+func (a *fakeAgentImpl) ListSessions(_ context.Context, req sdk.ListSessionsRequest) (sdk.ListSessionsResponse, error) {
+	cwd := ""
+	if req.Cwd != nil {
+		cwd = *req.Cwd
+	}
+	// Two pages, oldest first, so the client is seen to follow the cursor and sort.
+	if req.Cursor == nil {
+		next := "2"
+		return sdk.ListSessionsResponse{NextCursor: &next, Sessions: []sdk.SessionInfo{{SessionId: "s-old", Cwd: cwd, Title: ptrTo("Fix the build"), UpdatedAt: ptrTo("2026-11-01T10:00:00Z")}}}, nil
+	}
+	return sdk.ListSessionsResponse{Sessions: []sdk.SessionInfo{{SessionId: "s-new", Cwd: cwd, UpdatedAt: ptrTo("2026-11-20T10:00:00Z")}}}, nil
 }
+
+func ptrTo[T any](v T) *T { return &v }
 func (a *fakeAgentImpl) ResumeSession(context.Context, sdk.ResumeSessionRequest) (sdk.ResumeSessionResponse, error) {
 	return sdk.ResumeSessionResponse{}, sdk.NewMethodNotFound("session/resume")
 }

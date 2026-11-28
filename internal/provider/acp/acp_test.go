@@ -354,3 +354,36 @@ func TestLanguageIsToldToTheAgent(t *testing.T) {
 		}
 	}
 }
+
+// An agent's own sessions are listed newest first across pages, and one taken up from elsewhere brings
+// its conversation in: the person's messages whole, then the answers.
+func TestImportingASession(t *testing.T) {
+	p := fakeProvider(t)
+	cwd := t.TempDir()
+	list, err := p.Sessions(context.Background(), cwd)
+	if err != nil || len(list) != 2 || list[0].ID != "s-new" || list[1].ID != "s-old" || list[1].Title != "Fix the build" || list[1].Cwd != cwd {
+		t.Fatalf("sessions: %+v %v", list, err)
+	}
+	rec := &recorder{notify: make(chan struct{}, 1)}
+	cfg := providerConfig(t, "s-old")
+	cfg.Replay = true
+	sess, err := p.Open(context.Background(), cfg, rec.emit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sess.Close()
+	rec.waitFor(t, func(e *inabav1.Event) bool { return e.GetTextDelta().GetText() == "old history" })
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	var said []string
+	for _, e := range rec.events {
+		if m := e.GetUserMessage(); m != nil {
+			said = append(said, "user:"+m.Text)
+		} else if d := e.GetTextDelta(); d != nil {
+			said = append(said, "agent:"+d.Text)
+		}
+	}
+	if strings.Join(said, "|") != "user:old question|agent:old history" {
+		t.Fatalf("imported history: %v", said)
+	}
+}

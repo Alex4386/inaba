@@ -60,7 +60,7 @@ export function AdminHostsPanel({ onDetail, onAdd }: { onDetail: (id: string) =>
                 <span className="text-muted-foreground">{h.ownerName}</span>
               ),
           },
-          { header: t("adminHosts.system"), sortBy: (h) => platformName(h), cell: (h) => <span className="text-muted-foreground">{platformName(h) || "—"}</span> },
+          { header: t("adminHosts.system"), className: "hidden md:table-cell", sortBy: (h) => platformName(h), cell: (h) => <span className="text-muted-foreground">{platformName(h) || "—"}</span> },
           {
             header: t("detail.status"),
             sortBy: (h) => (h.online ? 0 : h.lastSeen ? 1 : 2),
