@@ -11,6 +11,7 @@ import (
 // The agent takes a free browser by using it, waits while a person has it, and lets go when done;
 // a person who took it and stopped watching gives it back after a while.
 func TestControlChangesHands(t *testing.T) {
+	defer func(was time.Duration) { unwatchedGrace = was }(unwatchedGrace)
 	unwatchedGrace = 20 * time.Millisecond
 	in := &instance{}
 	ctx := context.Background()

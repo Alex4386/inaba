@@ -120,6 +120,9 @@ func ptr[T any](v T) *T { return &v }
 // The smallest window the browser is made, so a page still lays itself out sensibly.
 const minWindowWidth, minWindowHeight = 320, 240
 
+// maxFrame is the most a window's frame around its page is taken to be, either way.
+const maxFrame = 160
+
 // resize makes the window of the page this size, in CSS pixels. In a headless browser
 // the window is the viewport, so pages see a real size, not an emulated one, and so
 // does the agent's Playwright.
@@ -129,16 +132,25 @@ func resize(p *rod.Page, width, height int) error {
 		return err
 	}
 	// Even headless, a window can be taller or wider than its page, by a frame no one
-	// sees; measure it and add it, so the page gets the size asked for.
-	inner, err := proto.RuntimeEvaluate{Expression: "[innerWidth, innerHeight]", ReturnByValue: true}.Call(p)
-	if err != nil {
-		return err
-	}
-	size := inner.Result.Value.Arr()
+	// sees; measure it and add it, so the page gets the size asked for. A page still at a
+	// size just taken off it (an agent's viewport) reads as a frame far larger than any
+	// is: it is read again a moment later, and a frame is never taken as more than one can be.
 	extraW, extraH := 0, 0
-	if len(size) == 2 && win.Bounds != nil && win.Bounds.Width != nil && win.Bounds.Height != nil {
-		extraW, extraH = max(0, *win.Bounds.Width-size[0].Int()), max(0, *win.Bounds.Height-size[1].Int())
+	for try := 0; ; try++ {
+		inner, err := proto.RuntimeEvaluate{Expression: "[innerWidth, innerHeight]", ReturnByValue: true}.Call(p)
+		if err != nil {
+			return err
+		}
+		size := inner.Result.Value.Arr()
+		if len(size) == 2 && win.Bounds != nil && win.Bounds.Width != nil && win.Bounds.Height != nil {
+			extraW, extraH = *win.Bounds.Width-size[0].Int(), *win.Bounds.Height-size[1].Int()
+		}
+		if (extraW >= 0 && extraW <= maxFrame && extraH >= 0 && extraH <= maxFrame) || try == 10 {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
+	extraW, extraH = min(max(0, extraW), maxFrame), min(max(0, extraH), maxFrame)
 	return proto.BrowserSetWindowBounds{WindowID: win.WindowID, Bounds: &proto.BrowserBounds{
 		Width: ptr(max(width, minWindowWidth) + extraW), Height: ptr(max(height, minWindowHeight) + extraH),
 	}}.Call(p)

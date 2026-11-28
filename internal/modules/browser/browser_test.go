@@ -338,7 +338,8 @@ func TestABrowserForEachThread(t *testing.T) {
 	if err := (proto.EmulationSetDeviceMetricsOverride{Width: 390, Height: 844, DeviceScaleFactor: 1}).Call(pages[0]); err != nil {
 		t.Fatal(err)
 	}
-	for _, size := range [][2]uint32{{640, 420}, {480, 700}} {
+	// No narrower than 500: Chrome on Windows makes no window narrower.
+	for _, size := range [][2]uint32{{640, 420}, {520, 700}} {
 		watching, stop := context.WithCancel(ctx)
 		sized, err := client.WatchPage(watching, &inabav1.WatchPageRequest{ThreadId: th.Id, PageId: page, WindowWidth: size[0], WindowHeight: size[1]})
 		if err != nil {
