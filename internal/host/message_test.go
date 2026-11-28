@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -541,6 +543,13 @@ func TestResumeCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Nothing said yet: the agent keeps no conversation to resume, though its session is named.
+	if got, _ := h.GetThread(ctx, &inabav1.GetThreadRequest{ThreadId: th.Id}); len(got.ResumeCommand) != 0 {
+		t.Fatalf("resume command before anything was said: %q", got.ResumeCommand)
+	}
+	if _, err := h.StartTurn(ctx, &inabav1.StartTurnRequest{ThreadId: th.Id, Text: "hi"}); err != nil {
+		t.Fatal(err)
+	}
 	got, _ := h.GetThread(ctx, &inabav1.GetThreadRequest{ThreadId: th.Id})
 	if strings.Join(got.ResumeCommand, " ") != "agent --resume native-1" {
 		t.Fatalf("resume command: %q", got.ResumeCommand)
@@ -582,5 +591,27 @@ func TestAFailedImportLeavesNothing(t *testing.T) {
 	}
 	if list, _ := h.ListThreads(ctx, &inabav1.ListThreadsRequest{}); len(list.Threads) != 0 {
 		t.Fatalf("after a restart: %v", list.Threads)
+	}
+}
+
+// A CLI that will not resume its session at once gives way to a new one in the same terminal; one that ran
+// and ended does not.
+func TestResumeOrAnew(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("by sh")
+	}
+	run := func(resume []string) string {
+		argv := resumeOrAnew(resume, []string{"echo", "fresh"})
+		out, _ := exec.Command(argv[0], argv[1:]...).CombinedOutput()
+		return string(out)
+	}
+	if out := run([]string{"sh", "-c", "echo 'No conversation found'; exit 1"}); !strings.Contains(out, "No conversation found") || !strings.Contains(out, "fresh") {
+		t.Fatalf("a refused resume: %q", out)
+	}
+	if out := run([]string{"sh", "-c", "echo resumed"}); strings.Contains(out, "fresh") {
+		t.Fatalf("a resume that ended well started anew: %q", out)
+	}
+	if out := run([]string{"sh", "-c", "it's; exit 1", "x"}); !strings.Contains(out, "fresh") {
+		t.Fatalf("quoting: %q", out)
 	}
 }

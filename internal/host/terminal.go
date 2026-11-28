@@ -2,6 +2,8 @@ package host
 
 import (
 	"context"
+	"runtime"
+	"strings"
 
 	"connectrpc.com/connect/v2"
 
@@ -11,15 +13,65 @@ import (
 	"github.com/Alex4386/inaba/pkg/provider"
 )
 
-// terminalArgv returns the CLI to run for terminal mode.
+// terminalArgv returns the CLI to run for terminal mode: resuming the agent's session when it has a
+// conversation to resume, the plain CLI otherwise.
 func (t *thread) terminalArgv() ([]string, error) {
-	meta := t.snapshot()
+	resume := t.resumable()
+	argv, err := t.terminalCommand(resume)
+	if err != nil || resume == "" {
+		return argv, err
+	}
+	if fresh, err := t.terminalCommand(""); err == nil {
+		argv = resumeOrAnew(argv, fresh)
+	}
+	return argv, nil
+}
+
+// terminalCommand is the provider's CLI, resuming nativeID when one is given.
+func (t *thread) terminalCommand(nativeID string) ([]string, error) {
 	if tr, ok := t.prov.(provider.TerminalResumer); ok {
-		if argv := tr.TerminalCommand(meta.NativeSessionId); len(argv) > 0 {
+		if argv := tr.TerminalCommand(nativeID); len(argv) > 0 {
 			return argv, nil
 		}
 	}
-	return nil, connect.NewError(connect.CodeUnimplemented, "provider "+meta.Provider+" has no terminal mode")
+	return nil, connect.NewError(connect.CodeUnimplemented, "provider "+t.snapshot().Provider+" has no terminal mode")
+}
+
+// resumable is the agent session a terminal can go on with, if any: one where something was said. A
+// session opened for a thread is named at once, before its first message, and an agent's CLI asked to
+// resume one with no conversation gives up ("no conversation found"), leaving a dead terminal.
+func (t *thread) resumable() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.meta.NativeSessionId == "" {
+		return ""
+	}
+	for _, e := range t.events {
+		if e.GetUserMessage() != nil {
+			return t.meta.NativeSessionId
+		}
+	}
+	return ""
+}
+
+// resumeOrAnew runs resume, and the plain CLI in the same terminal if resume gives up within a few
+// seconds, as an agent's CLI does when it keeps no conversation under the session asked for: a terminal to
+// work in rather than one that only says why not. One that ran a while and ended stays ended.
+// shortcut: by sh, so not on Windows, where a session that cannot be resumed leaves the terminal ended.
+func resumeOrAnew(resume, fresh []string) []string {
+	if runtime.GOOS == "windows" {
+		return resume
+	}
+	quote := func(argv []string) string {
+		out := make([]string, len(argv))
+		for i, a := range argv {
+			out[i] = "'" + strings.ReplaceAll(a, "'", `'\''`) + "'"
+		}
+		return strings.Join(out, " ")
+	}
+	return []string{"sh", "-c", `started=$(date +%s); ` + quote(resume) + ` && exit 0; ` +
+		`[ $(( $(date +%s) - started )) -lt 5 ] || exit 1; ` +
+		`printf '\r\n[no conversation to resume: starting a new one]\r\n'; exec ` + quote(fresh)}
 }
 
 func (t *thread) startTerminal() error {

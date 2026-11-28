@@ -706,9 +706,9 @@ func (h *Host) GetThread(_ context.Context, req *inabav1.GetThreadRequest) (*ina
 		return nil, err
 	}
 	meta := t.snapshot()
-	if tr, ok := t.prov.(provider.TerminalResumer); ok && meta.NativeSessionId != "" {
-		// Only a command that names the session resumes it; the plain one starts afresh.
-		if argv := tr.TerminalCommand(meta.NativeSessionId); strings.Contains(strings.Join(argv, " "), meta.NativeSessionId) {
+	// Only a session with a conversation, and a command that names it: the plain one starts afresh.
+	if native := t.resumable(); native != "" {
+		if argv, err := t.terminalCommand(native); err == nil && strings.Contains(strings.Join(argv, " "), native) {
 			meta.ResumeCommand = argv
 		}
 	}

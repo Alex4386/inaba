@@ -162,6 +162,8 @@ export function ThreadView({
   const askToTake = (from: string) => grab(from).then((s) => s && s.driver !== CLIENT && toast.error(t("drive.denied")));
   const [ending, setEnding] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  // A browser page handed to the agent, on its way into the composer.
+  const [handoff, setHandoff] = useState<Draft>();
   // The thread's settings, open at this section.
   const [settingsAt, setSettingsAt] = useState<ThreadSection>();
   const [git, setGit] = useState<GitStatus>();
@@ -471,6 +473,14 @@ export function ThreadView({
           <BrowserPanel
             link={link}
             threadId={threadId}
+            onHand={(page) =>
+              setHandoff({
+                text: t("browser.handoffText", { title: page.title || page.url, url: page.url }),
+                images: page.jpeg.length ? [{ $typeName: "inaba.v1.Attachment", name: "page.jpg", mimeType: "image/jpeg", data: page.jpeg, path: "" }] : [],
+                // Ahead of whatever is typed already, which stays.
+                restore: true,
+              })
+            }
             page={pageOf[tab]}
             taken={Object.entries(pageOf).flatMap(([t, id]) => (t === tab ? [] : [id]))}
             onBind={(id) => setPageOf((b) => ({ ...b, [tab]: id }))}
@@ -745,7 +755,7 @@ export function ThreadView({
           // A wrapper that is always there, so opening the side chat never remounts the conversation.
           <div className="flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col">
-              <Chat link={link} thread={thread} busy={busy} refresh={refresh} onStatus={loadGit} onOpen={onOpen} mentions={modules.has("files")} provider={provider} providers={providers} locked={!driving} pending={pending} onEvents={agentEvents} onTurns={setTurns} onTurnChanges={showTurn} onSide={(id, aside) => setSide({ id, aside })} />
+              <Chat link={link} thread={thread} busy={busy} refresh={refresh} onStatus={loadGit} onOpen={onOpen} mentions={modules.has("files")} provider={provider} providers={providers} locked={!driving} pending={pending} onEvents={agentEvents} onTurns={setTurns} onTurnChanges={showTurn} onSide={(id, aside) => setSide({ id, aside })} incoming={handoff} />
             </div>
             {sideChat && !isMobile && <div className="flex w-[min(32rem,45%)] shrink-0 flex-col border-l">{sideChat}</div>}
           </div>
@@ -1327,7 +1337,10 @@ function Chat({
   onTurns,
   onTurnChanges,
   onSide,
+  incoming,
 }: {
+  /** Something handed to the composer from beside the conversation, as a browser page given to the agent. */
+  incoming?: Draft;
   providers: Provider[];
   link: HostLink;
   thread: Thread;
@@ -1357,6 +1370,9 @@ function Chat({
   const [rewinding, setRewinding] = useState<Extract<Item, { type: "user" }>>();
   // What a rewind hands back to the composer.
   const [draft, setDraft] = useState<Draft>();
+  useEffect(() => {
+    if (incoming) setDraft(incoming);
+  }, [incoming]);
   // New events fold onto the log; older ones, read back on scrolling up, rebuild it from all of them.
   const [log, dispatch] = useReducer((log: Log, a: Event[] | { all: Event[] }) => (Array.isArray(a) ? applyAll(log, a) : applyAll({ items: [], lastSeq: 0n }, a.all)), { items: [], lastSeq: 0n });
   // Every event folded so far, oldest first, to fold again with older ones in front.
