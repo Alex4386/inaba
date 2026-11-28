@@ -600,7 +600,7 @@ function Workspace({ config, user, onUser, onSignedOut }: { config: GetConfigRes
             onOpenThread={openThread}
           />
         ) : link && threadId ? (
-          <ThreadView key={threadId} link={link} host={host} threadId={threadId} onEnded={() => home()} onOpen={openThread} onProject={(p) => navigate(`/hosts/${shownHost}/projects/${p.id}/threads`)} modules={modulesOn} stealth={user.admin && user.stealth} />
+          <ThreadView key={threadId} link={link} host={host} threadId={threadId} onEnded={() => home()} onOpen={openThread} onProject={(p) => navigate(`/hosts/${shownHost}/projects/${p.id}/threads`)} modules={modulesOn} admin={user.admin} stealth={user.admin && user.stealth} />
         ) : (
           <>
             <header className="flex h-12 shrink-0 items-center px-3">
