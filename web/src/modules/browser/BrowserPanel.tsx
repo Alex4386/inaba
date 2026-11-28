@@ -2,7 +2,7 @@ import { ArrowLeftIcon, ArrowRightIcon, BotIcon, HandIcon, MonitorIcon, MoreHori
 import { type MouseEvent, type TouchEvent, type WheelEvent, useCallback, useEffect, useRef, useState } from "react";
 import type { HostLink } from "@/api";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { type AgentCursor, BrowserControl, type BrowserPage } from "@/gen/inaba/v1/browser_pb";
@@ -42,7 +42,6 @@ export function BrowserPanel({
   onPages,
   onTitle,
   driving = true,
-  onHand,
 }: {
   link: HostLink;
   threadId: string;
@@ -60,8 +59,6 @@ export function BrowserPanel({
   onTitle?: (title: string | undefined) => void;
   /** This browser holds the thread's driver seat: its size is the window's, and its hands are on the page. Others watch. */
   driving?: boolean;
-  /** Hands the page shown to the agent: the browser is given back to it, and the page goes into the composer. */
-  onHand?: (page: { url: string; title: string; jpeg: Uint8Array }) => void;
 }) {
   const { t } = useI18n();
   const [pages, setPages] = useState<BrowserPage[]>();
@@ -80,14 +77,6 @@ export function BrowserPanel({
   // Who has the browser. While the agent does, this panel only watches: it sends no clicks, keys or window size.
   const [control, setControl] = useState(BrowserControl.UNSPECIFIED);
   const agentHas = control === BrowserControl.AGENT;
-  // The page as last seen, for handing it to the agent.
-  const lastFrame = useRef<{ jpeg: Uint8Array; url: string; title: string }>(undefined);
-  const handToAgent = () => {
-    const page = lastFrame.current ?? { jpeg: new Uint8Array(), url: address, title: "" };
-    // Held by this person: let go first, so the agent can act on it at once.
-    if (control === BrowserControl.USER) hand(BrowserControl.UNSPECIFIED);
-    onHand?.(page);
-  };
   // Where the agent last put the mouse, in the page's CSS pixels, shown over the picture while it works.
   const [agentCursor, setAgentCursor] = useState<AgentCursor>();
   const [handing, setHanding] = useState(false);
@@ -206,7 +195,6 @@ export function BrowserPanel({
             setAgentCursor(frame.agentCursor);
             // One without a picture only says who has the browser now.
             if (frame.jpeg.length === 0) continue;
-            lastFrame.current = { jpeg: frame.jpeg, url: frame.url, title: frame.title };
             viewport.current = { width: frame.viewportWidth, height: frame.viewportHeight };
             const next = URL.createObjectURL(new Blob([frame.jpeg as BlobPart], { type: "image/jpeg" }));
             setImage(next);
@@ -416,12 +404,6 @@ export function BrowserPanel({
               <MonitorIcon />
               {t("browser.desktopView")}
             </DropdownMenuCheckboxItem>
-            {onHand && (
-              <DropdownMenuItem disabled={!driving || agentHas} onClick={handToAgent}>
-                <BotIcon />
-                {t("browser.handPage")}
-              </DropdownMenuItem>
-            )}
           </DropdownMenuContent>
         </DropdownMenu>
         </fieldset>
@@ -431,12 +413,6 @@ export function BrowserPanel({
         <div role="status" className="bg-muted/60 flex h-9 shrink-0 items-center gap-2 border-b px-3 text-xs">
           {agentHas ? <BotIcon className="text-primary size-3.5 shrink-0 animate-pulse" /> : <HandIcon className="size-3.5 shrink-0" />}
           <span className="min-w-0 flex-1 truncate">{t(agentHas ? "browser.agentUsing" : "browser.youHaveControl")}</span>
-          {driving && !agentHas && onHand && (
-            <Button size="xs" disabled={handing} onClick={handToAgent}>
-              <BotIcon data-icon="inline-start" />
-              {t("browser.handToAgent")}
-            </Button>
-          )}
           {driving && (
             <Button size="xs" variant={agentHas ? "default" : "outline"} disabled={handing} onClick={() => hand(agentHas ? BrowserControl.USER : BrowserControl.UNSPECIFIED)}>
               {t(agentHas ? "browser.takeControl" : "browser.giveControl")}
