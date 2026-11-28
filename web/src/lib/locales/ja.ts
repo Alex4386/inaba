@@ -531,6 +531,8 @@ export const ja: Record<MessageKey, string> = {
   "browser.keyboard": "ページに入力中",
   "browser.desktopSize": "デスクトップサイズで表示（1280×800）",
   "browser.fitSize": "ページをパネルに合わせる",
+  "browser.more": "その他",
+  "browser.desktopView": "デスクトップ表示 (1280×800)",
   "mcp.title": "MCP サーバー",
   "mcp.description": "このホストがスレッドのエージェントに、エージェント自身のものに加えて提供する MCP サーバーです。エージェントの起動時にスレッドに渡されます。",
   "mcp.add": "MCP サーバーを追加",

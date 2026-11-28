@@ -1,16 +1,21 @@
-import { ArrowLeftIcon, ArrowRightIcon, BotIcon, HandIcon, MonitorIcon, RotateCwIcon, ScanIcon } from "lucide-react";
-import { type MouseEvent, type WheelEvent, useCallback, useEffect, useRef, useState } from "react";
+import { ArrowLeftIcon, ArrowRightIcon, BotIcon, HandIcon, MonitorIcon, MoreHorizontalIcon, MousePointer2Icon, RotateCwIcon } from "lucide-react";
+import { type MouseEvent, type TouchEvent, type WheelEvent, useCallback, useEffect, useRef, useState } from "react";
 import type { HostLink } from "@/api";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { BrowserControl, type BrowserPage } from "@/gen/inaba/v1/browser_pb";
+import { type AgentCursor, BrowserControl, type BrowserPage } from "@/gen/inaba/v1/browser_pb";
 import { errorText, showError } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
 import { type Heard, modifierBits, translator } from "./ime";
 import { inputLine } from "./input-line";
 
 const buttons = ["left", "middle", "right"];
+// A finger on the picture: where it was last, and whether it is still deciding, scrolling, or dragging.
+type Finger = { x: number; y: number; mode: "pending" | "scroll" | "drag"; timer: ReturnType<typeof setTimeout> };
+// What of a mouse event, React's or the window's, goes to the page.
+type Pointer = Pick<globalThis.MouseEvent, "clientX" | "clientY" | "button" | "buttons" | "detail" | "altKey" | "ctrlKey" | "metaKey" | "shiftKey">;
 // What one Input call carries to the page: a mouse event, a key, text or a composition.
 type PageInput = NonNullable<Parameters<HostLink["browser"]["input"]>[0]["event"]>;
 
@@ -72,6 +77,8 @@ export function BrowserPanel({
   // Who has the browser. While the agent does, this panel only watches: it sends no clicks, keys or window size.
   const [control, setControl] = useState(BrowserControl.UNSPECIFIED);
   const agentHas = control === BrowserControl.AGENT;
+  // Where the agent last put the mouse, in the page's CSS pixels, shown over the picture while it works.
+  const [agentCursor, setAgentCursor] = useState<AgentCursor>();
   const [handing, setHanding] = useState(false);
   const hand = (to: BrowserControl) => {
     setHanding(true);
@@ -185,6 +192,7 @@ export function BrowserPanel({
           );
           for await (const frame of stream) {
             setControl(frame.control);
+            setAgentCursor(frame.agentCursor);
             // One without a picture only says who has the browser now.
             if (frame.jpeg.length === 0) continue;
             viewport.current = { width: frame.viewportWidth, height: frame.viewportHeight };
@@ -236,17 +244,19 @@ export function BrowserPanel({
   };
 
   /** Where on the page a point of the picture is, in the page's CSS pixels. */
-  const at = (e: MouseEvent | WheelEvent) => {
+  const at = (e: { clientX: number; clientY: number }) => {
     const box = img.current!.getBoundingClientRect();
     return { x: ((e.clientX - box.left) / box.width) * viewport.current.width, y: ((e.clientY - box.top) / box.height) * viewport.current.height };
   };
-  const mouse = (type: string, e: MouseEvent) => {
+  const mouse = (type: string, e: Pointer) => {
     const { x, y } = at(e);
-    void send({ case: "mouse", value: { type, x, y, button: type === "moved" ? "" : buttons[e.button], clicks: type === "moved" ? 0 : e.detail || 1, modifiers: modifierBits(e), deltaX: 0, deltaY: 0 } });
+    // A move with a button held is a drag, and says which button, as a real mouse does.
+    const held = e.buttons & 1 ? "left" : e.buttons & 2 ? "right" : e.buttons & 4 ? "middle" : "";
+    void send({ case: "mouse", value: { type, x, y, button: type === "moved" ? held : buttons[e.button], buttons: e.buttons, clicks: type === "moved" ? 0 : e.detail || 1, modifiers: modifierBits(e), deltaX: 0, deltaY: 0 } });
   };
   // Moves matter while a button is held, for dragging and selecting; otherwise a few are enough for hovering.
   const lastMove = useRef(0);
-  const onMove = (e: MouseEvent) => {
+  const onMove = (e: Pointer) => {
     const now = performance.now();
     if (e.buttons === 0 && now - lastMove.current < 100) return;
     lastMove.current = now;
@@ -256,6 +266,56 @@ export function BrowserPanel({
     const { x, y } = at(e);
     void send({ case: "mouse", value: { type: "wheel", x, y, button: "", clicks: 0, modifiers: modifierBits(e), deltaX: e.deltaX, deltaY: e.deltaY } });
   };
+  // A finger: one that moves scrolls the page, as on a phone; one held still a moment drags, as a held mouse button
+  // does; a tap clicks, through the mouse events the browser makes of it.
+  const touch = useRef<Finger>(undefined);
+  const finger = (t: { clientX: number; clientY: number }, buttons: number): Pointer => ({ clientX: t.clientX, clientY: t.clientY, button: 0, buttons, detail: 1, altKey: false, ctrlKey: false, metaKey: false, shiftKey: false });
+  const onTouchStart = (e: TouchEvent<HTMLImageElement>) => {
+    clearTimeout(touch.current?.timer);
+    touch.current = undefined;
+    if (!driving || agentHas || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const held: Finger = { x: t.clientX, y: t.clientY, mode: "pending", timer: setTimeout(() => {
+      if (touch.current?.mode !== "pending") return;
+      touch.current.mode = "drag";
+      mouse("pressed", finger({ clientX: touch.current.x, clientY: touch.current.y }, 1));
+      navigator.vibrate?.(10);
+    }, 400) };
+    touch.current = held;
+  };
+  const onTouchMove = (e: TouchEvent<HTMLImageElement>) => {
+    const s = touch.current;
+    const t = e.touches[0];
+    if (!s || !t) return;
+    const dx = t.clientX - s.x;
+    const dy = t.clientY - s.y;
+    if (s.mode === "pending" && Math.hypot(dx, dy) > 8) {
+      clearTimeout(s.timer);
+      s.mode = "scroll";
+    }
+    if (s.mode === "scroll") {
+      // The page moves with the finger: a drag down scrolls up, in the page's own pixels.
+      const scale = viewport.current.width / (img.current?.clientWidth || 1);
+      const { x, y } = at(t);
+      void send({ case: "mouse", value: { type: "wheel", x, y, button: "", clicks: 0, modifiers: 0, deltaX: -dx * scale, deltaY: -dy * scale } });
+      s.x = t.clientX;
+      s.y = t.clientY;
+    } else if (s.mode === "drag") {
+      s.x = t.clientX;
+      s.y = t.clientY;
+      mouse("moved", finger(t, 1));
+    }
+  };
+  const onTouchEnd = (e: TouchEvent<HTMLImageElement>) => {
+    const s = touch.current;
+    touch.current = undefined;
+    if (!s) return;
+    clearTimeout(s.timer);
+    // A tap goes on to the mouse events the browser makes of it; a scroll or drag is not also a click.
+    if (s.mode === "pending") return;
+    e.preventDefault();
+    if (s.mode === "drag") mouse("released", finger({ clientX: s.x, clientY: s.y }, 0));
+  };
   const onPress = (e: MouseEvent<HTMLImageElement>) => {
     // Keep the keys with the catcher, and move it to where the page was clicked.
     e.preventDefault();
@@ -263,6 +323,16 @@ export function BrowserPanel({
     setCaret({ x: e.clientX - box.left, y: e.clientY - box.top });
     catcher.current?.focus();
     mouse("pressed", e);
+    // Until the button comes up, the drag is followed wherever the pointer goes, off the picture too, and its release is
+    // not lost there.
+    const move = (m: globalThis.MouseEvent) => m.target !== img.current && onMove(m);
+    const up = (u: globalThis.MouseEvent) => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up, true);
+      mouse("released", u);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up, true);
   };
 
   const [navigating, setNavigating] = useState(false);
@@ -324,16 +394,18 @@ export function BrowserPanel({
             onChange={(e) => setAddress(e.target.value)}
           />
         </form>
-        <Button
-          size="icon-sm"
-          variant={fit ? "ghost" : "secondary"}
-          aria-pressed={!fit}
-          aria-label={t(fit ? "browser.desktopSize" : "browser.fitSize")}
-          title={t(fit ? "browser.desktopSize" : "browser.fitSize")}
-          onClick={toggleFit}
-        >
-          {fit ? <MonitorIcon /> : <ScanIcon />}
-        </Button>
+        {/* How the page is shown, out of the way of the address: more ways go here as they come. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger render={<Button size="icon-sm" variant="ghost" aria-label={t("browser.more")} title={t("browser.more")} />}>
+            <MoreHorizontalIcon />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuCheckboxItem checked={!fit} onCheckedChange={toggleFit}>
+              <MonitorIcon />
+              {t("browser.desktopView")}
+            </DropdownMenuCheckboxItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         </fieldset>
       </header>
       {/* Who has the browser, and the way to take it from the agent or give it back. */}
@@ -360,14 +432,31 @@ export function BrowserPanel({
             src={image}
             alt={t("browser.screen")}
             draggable={false}
-            className="block max-h-full max-w-full cursor-default object-contain select-none"
+            className="block max-h-full max-w-full cursor-default touch-none object-contain select-none [-webkit-touch-callout:none]"
             title={agentHas ? t("browser.agentUsing") : driving ? undefined : t("drive.spectating")}
             onMouseDown={(e) => driving && !agentHas && onPress(e)}
-            onMouseUp={(e) => mouse("released", e)}
             onMouseMove={onMove}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+            onTouchCancel={onTouchEnd}
             onWheel={onWheel}
             onContextMenu={(e) => e.preventDefault()}
           />
+        )}
+        {/* The agent's mouse, where it last put it on the page: placed over the picture as the picture is scaled. */}
+        {agentHas && agentCursor && image && img.current && viewport.current.width > 0 && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute z-10 transition-[left,top] duration-150 ease-out"
+            style={{
+              left: img.current.offsetLeft + (agentCursor.x / viewport.current.width) * img.current.clientWidth,
+              top: img.current.offsetTop + (agentCursor.y / viewport.current.height) * img.current.clientHeight,
+            }}
+          >
+            {agentCursor.pressed && <span className="bg-primary/30 absolute -top-3 -left-3 size-6 animate-ping rounded-full" />}
+            <MousePointer2Icon className="fill-primary text-primary-foreground size-5 -translate-x-0.5 -translate-y-0.5 drop-shadow" />
+          </div>
         )}
         <textarea
           ref={catcher}

@@ -531,6 +531,8 @@ export const zhHant: Record<MessageKey, string> = {
   "browser.keyboard": "在頁面中輸入",
   "browser.desktopSize": "以桌面尺寸顯示（1280×800）",
   "browser.fitSize": "將頁面調整至面板大小",
+  "browser.more": "更多",
+  "browser.desktopView": "以桌面版檢視 (1280×800)",
   "mcp.title": "MCP 伺服器",
   "mcp.description": "這台主機額外提供給對話代理程式的 MCP 伺服器，會加在代理程式自身的伺服器之上。代理程式啟動時套用。",
   "mcp.add": "新增 MCP 伺服器",

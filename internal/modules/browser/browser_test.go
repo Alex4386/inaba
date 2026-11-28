@@ -19,6 +19,7 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/cdp"
 	"github.com/go-rod/rod/lib/launcher"
+	"github.com/go-rod/rod/lib/proto"
 
 	inabav1 "github.com/Alex4386/inaba/gen/inaba/v1"
 	"github.com/Alex4386/inaba/gen/inaba/v1/inabav1connect"
@@ -331,6 +332,33 @@ func TestABrowserForEachThread(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("the agent's command never went once the browser was given back")
 	}
+	// Where the agent puts the mouse is shown to whoever watches the page.
+	cursorCtx, stopCursor := context.WithCancel(ctx)
+	watched, err := client.WatchPage(cursorCtx, &inabav1.WatchPageRequest{ThreadId: th.Id, PageId: page})
+	if err != nil {
+		stopCursor()
+		t.Fatal(err)
+	}
+	if err := pages[0].Mouse.MoveTo(proto.Point{X: 57, Y: 63}); err != nil {
+		stopCursor()
+		t.Fatal(err)
+	}
+	var seen *inabav1.AgentCursor
+	for range 50 {
+		f, err := watched.Receive()
+		if err != nil {
+			break
+		}
+		if c := f.AgentCursor; c != nil && c.X == 57 && c.Y == 63 {
+			seen = c
+			break
+		}
+	}
+	stopCursor()
+	if seen == nil {
+		t.Fatal("the agent's mouse never showed")
+	}
+
 	// Its turn over, the agent lets go.
 	s.turnEnded(th.Id)
 	if c := controlOf(); c != inabav1.BrowserControl_BROWSER_CONTROL_UNSPECIFIED {

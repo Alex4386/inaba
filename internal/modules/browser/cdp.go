@@ -1,6 +1,7 @@
 package browser
 
 import (
+	"bytes"
 	"context"
 	"crypto/subtle"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/coder/websocket"
 )
@@ -74,11 +76,33 @@ func (s *service) relay(w http.ResponseWriter, r *http.Request, in *instance, th
 	up.SetReadLimit(-1)
 	down.SetReadLimit(-1)
 	defer in.agentDone(thread)
+	// Which page each of the agent's DevTools sessions is on, so its mouse is shown on the right one.
+	var pagesMu sync.Mutex
+	pageOf := map[string]string{}
 	go func() {
 		defer cancel()
 		for {
 			typ, data, err := up.Read(ctx)
-			if err != nil || down.Write(ctx, typ, data) != nil {
+			if err != nil {
+				return
+			}
+			// Only the rare message that attaches a session is read; the rest, screenshots among them, pass as they are.
+			if bytes.Contains(data, []byte(`"Target.attachedToTarget"`)) {
+				var ev struct {
+					Params struct {
+						SessionID  string `json:"sessionId"`
+						TargetInfo struct {
+							TargetID string `json:"targetId"`
+						} `json:"targetInfo"`
+					} `json:"params"`
+				}
+				if json.Unmarshal(data, &ev) == nil && ev.Params.SessionID != "" {
+					pagesMu.Lock()
+					pageOf[ev.Params.SessionID] = ev.Params.TargetInfo.TargetID
+					pagesMu.Unlock()
+				}
+			}
+			if down.Write(ctx, typ, data) != nil {
 				return
 			}
 		}
@@ -91,11 +115,26 @@ func (s *service) relay(w http.ResponseWriter, r *http.Request, in *instance, th
 		// Only a command that does something to a page is the agent using the browser; Playwright's own
 		// bookkeeping, as it attaches to a tab or frame someone opened, goes straight through, at any time.
 		var msg struct {
-			Method string `json:"method"`
+			Method    string `json:"method"`
+			SessionID string `json:"sessionId"`
+			Params    struct {
+				Type string  `json:"type"`
+				X    float64 `json:"x"`
+				Y    float64 `json:"y"`
+			} `json:"params"`
 		}
 		_ = json.Unmarshal(data, &msg)
 		if !passive(msg.Method) && in.agentActs(ctx, thread) != nil {
 			return
+		}
+		// Its mouse, shown where it goes; only once it may act, so a waiting click is not shown early.
+		if msg.Method == "Input.dispatchMouseEvent" {
+			pagesMu.Lock()
+			page := pageOf[msg.SessionID]
+			pagesMu.Unlock()
+			if page != "" {
+				in.agentMouse(page, msg.Params.Type, msg.Params.X, msg.Params.Y)
+			}
 		}
 		if up.Write(ctx, typ, data) != nil {
 			return

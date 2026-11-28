@@ -144,8 +144,18 @@ message PageFrame {
   double viewport_height = 4;
   string url = 5;
   string title = 6;
-  // Who has the browser now. A frame without jpeg only says this changed.
+  // Who has the browser now. A frame without jpeg only says this or agent_cursor changed.
   BrowserControl control = 7;
+  // Where the agent last put the mouse on this page, for a viewer to see it act; unset until it has.
+  AgentCursor agent_cursor = 8;
+}
+
+// The agent's mouse on a page, in the viewport's CSS pixels, as the page's input coordinates are.
+message AgentCursor {
+  double x = 1;
+  double y = 2;
+  // A button is held down.
+  bool pressed = 3;
 }
 
 message BrowserInputRequest {
@@ -177,6 +187,9 @@ message MouseInput {
   double delta_y = 7;
   // Alt 1, Ctrl 2, Meta 4, Shift 8.
   int32 modifiers = 8;
+  // The buttons held, as MouseEvent.buttons has them: left 1, right 2, middle 4. A move with one
+  // held is a drag.
+  uint32 buttons = 9;
 }
 
 message KeyInput {

@@ -130,3 +130,32 @@ func (s *service) SetBrowserControl(ctx context.Context, req *inabav1.SetBrowser
 	in.view(0)
 	return state(in)
 }
+
+// cursorOf is where the agent last put the mouse on a page, if it has.
+func (in *instance) cursorOf(pageID string) *inabav1.AgentCursor {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	return in.cursors[pageID]
+}
+
+// agentMouse notes the agent's mouse on a page, for those watching it to see.
+func (in *instance) agentMouse(pageID, kind string, x, y float64) {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	if in.cursors == nil {
+		in.cursors = map[string]*inabav1.AgentCursor{}
+	}
+	pressed := in.cursors[pageID].GetPressed()
+	switch kind {
+	case "mousePressed":
+		pressed = true
+	case "mouseReleased":
+		pressed = false
+	}
+	in.cursors[pageID] = &inabav1.AgentCursor{X: x, Y: y, Pressed: pressed}
+	// Woken like a change of hands: the page's watchers send it on.
+	if in.changed != nil {
+		close(in.changed)
+	}
+	in.changed = make(chan struct{})
+}

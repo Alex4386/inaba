@@ -76,8 +76,10 @@ type instance struct {
 	control     inabav1.BrowserControl
 	agentThread string
 	viewers     int
-	// changed is closed, and replaced, whenever control changes.
+	// changed is closed, and replaced, whenever control or an agent's cursor changes.
 	changed chan struct{}
+	// Where the agent last put the mouse, by page (target) id.
+	cursors map[string]*inabav1.AgentCursor
 	// unwatched gives back a taken browser once no one has watched it for a while; restarted by each who leaves.
 	unwatched *time.Timer
 }

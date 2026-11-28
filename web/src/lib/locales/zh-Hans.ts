@@ -531,6 +531,8 @@ export const zhHans: Record<MessageKey, string> = {
   "browser.keyboard": "在页面中输入",
   "browser.desktopSize": "以桌面尺寸显示（1280×800）",
   "browser.fitSize": "让页面适应面板",
+  "browser.more": "更多",
+  "browser.desktopView": "以桌面版查看 (1280×800)",
   "mcp.title": "MCP 服务器",
   "mcp.description": "此主机在对话智能体自带的服务器之外额外提供的 MCP 服务器。对话的智能体启动时获得它们。",
   "mcp.add": "添加 MCP 服务器",

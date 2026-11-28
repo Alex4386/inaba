@@ -74,7 +74,8 @@ func (s *service) WatchPage(ctx context.Context, req *inabav1.WatchPageRequest, 
 	}()
 	// Who has the browser, now and whenever that changes, so the viewer knows whether it may act.
 	control, changed := in.watchControl()
-	if err := send(&inabav1.PageFrame{PageId: string(p.TargetID), Control: control}); err != nil {
+	pageID := string(p.TargetID)
+	if err := send(&inabav1.PageFrame{PageId: pageID, Control: control, AgentCursor: in.cursorOf(pageID)}); err != nil {
 		return err
 	}
 	go func(changed <-chan struct{}) {
@@ -86,7 +87,7 @@ func (s *service) WatchPage(ctx context.Context, req *inabav1.WatchPageRequest, 
 			}
 			var now inabav1.BrowserControl
 			now, changed = in.watchControl()
-			if send(&inabav1.PageFrame{PageId: string(p.TargetID), Control: now}) != nil {
+			if send(&inabav1.PageFrame{PageId: pageID, Control: now, AgentCursor: in.cursorOf(pageID)}) != nil {
 				return
 			}
 		}
@@ -108,7 +109,7 @@ func (s *service) WatchPage(ctx context.Context, req *inabav1.WatchPageRequest, 
 	}
 	var sendErr error
 	wait := p.EachEvent(func(f *proto.PageScreencastFrame) bool {
-		frame := &inabav1.PageFrame{PageId: string(p.TargetID), Jpeg: f.Data, Control: in.controlNow()}
+		frame := &inabav1.PageFrame{PageId: string(p.TargetID), Jpeg: f.Data, Control: in.controlNow(), AgentCursor: in.cursorOf(string(p.TargetID))}
 		if m := f.Metadata; m != nil {
 			frame.ViewportWidth, frame.ViewportHeight = m.DeviceWidth, m.DeviceHeight
 		}
@@ -216,6 +217,10 @@ func (s *service) Input(ctx context.Context, req *inabav1.BrowserInputRequest) (
 			return nil, connect.NewError(connect.CodeInvalidArgument, "a mouse event is pressed, released, moved or wheel")
 		}
 		ev := proto.InputDispatchMouseEvent{Type: t, X: m.X, Y: m.Y, Modifiers: int(m.Modifiers), ClickCount: int(m.Clicks), DeltaX: m.DeltaX, DeltaY: m.DeltaY}
+		// Without the buttons held, a move is only hovering: the page sees no drag.
+		if m.Buttons != 0 {
+			ev.Buttons = ptr(int(m.Buttons))
+		}
 		if m.Button != "" {
 			ev.Button = proto.InputMouseButton(m.Button)
 		} else if t != proto.InputDispatchMouseEventTypeMouseWheel {
