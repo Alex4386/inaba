@@ -28,6 +28,11 @@ type Config struct {
 	// Bring the resumed session's conversation in as events: a thread taking up a session started
 	// elsewhere has none of it yet. Otherwise a resume adds nothing the thread does not have.
 	Replay bool
+	// CatchUp brings in only what the session holds past the first Held messages of the person's, the
+	// ones the thread already has: what was said in the agent's own CLI. A session the agent no longer has
+	// gives way to a new one, as without it.
+	CatchUp bool
+	Held    int
 }
 
 // NativeSession is a session an agent keeps itself, as one started outside inaba.
@@ -36,6 +41,11 @@ type NativeSession struct {
 	Title     string
 	Cwd       string
 	UpdatedAt time.Time
+}
+
+// TerminalEnv is a provider whose CLI runs with environment of its own, as its agent does.
+type TerminalEnv interface {
+	TerminalEnv() []string
 }
 
 // SessionLister is a provider whose agent lists the sessions it keeps, for a thread to take one up.

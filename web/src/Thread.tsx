@@ -446,6 +446,11 @@ export function ThreadView({
           for await (const event of link.threads.subscribe({ threadId, afterSeq: followedFrom.current }, { signal: abort.signal })) {
             followedFrom.current = event.seq;
             onEvents([event]);
+            // The terminal was started again, here or in another tab: the one shown has ended.
+            if (event.payload.case === "modeChanged" && event.payload.value.mode === ThreadMode.TERMINAL) {
+              setExited(false);
+              setTerminalRun((n) => n + 1);
+            }
           }
         } catch {
           // Retried below.
@@ -678,7 +683,7 @@ export function ThreadView({
                 </Button>
               );
             })}
-            {terminal && exited && (
+            {terminal && exited && !switching && (
               <Button size="sm" variant="outline" disabled={!driving || switching} onClick={() => void setMode(ThreadMode.TERMINAL)}>
                 <RotateCwIcon data-icon="inline-start" />
                 <span className="hidden @xl:inline">{t("thread.restart")}</span>
@@ -764,7 +769,10 @@ export function ThreadView({
             </Button>
           </div>
         )}
-        {terminal ? (
+        {terminal && switching ? (
+          // Its end, as the host closes it for the switch, is no exit to report.
+          <Spinner className="text-muted-foreground m-auto" />
+        ) : terminal ? (
           <TerminalView key={terminalRun} link={link} threadId={threadId} driving={driving} onExit={() => setExited(true)} />
         ) : (
           // A wrapper that is always there, so opening the side chat never remounts the conversation.

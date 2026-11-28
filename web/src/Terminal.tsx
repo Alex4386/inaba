@@ -204,8 +204,8 @@ export function TerminalView({ link, threadId = "", shell, io, driving = true, p
 
   // A watcher's terminal is the driver's size, which may not fit here; it scrolls instead.
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
-      <div className={cn("min-h-0 flex-1 bg-[#0b0b0d] p-2", !driving && "overflow-auto")} ref={el} title={driving ? undefined : t("drive.spectating")} />
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div className={cn("min-h-0 min-w-0 flex-1 bg-[#0b0b0d] p-2", driving ? "overflow-hidden" : "overflow-auto")} ref={el} title={driving ? undefined : t("drive.spectating")} />
       {!attached && <Spinner className="absolute inset-0 m-auto text-white/60" />}
     </div>
   );

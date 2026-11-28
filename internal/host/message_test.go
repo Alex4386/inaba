@@ -615,3 +615,73 @@ func TestResumeOrAnew(t *testing.T) {
 		t.Fatalf("quoting: %q", out)
 	}
 }
+
+// cliProvider is an agent whose CLI keeps the sessions listed, noting how each session opens.
+type cliProvider struct {
+	fakeProvider
+	sessions []provider.NativeSession
+	opened   chan provider.Config
+}
+
+func (p cliProvider) Open(ctx context.Context, cfg provider.Config, emit provider.Emit) (provider.Session, error) {
+	p.opened <- cfg
+	return p.fakeProvider.Open(ctx, cfg, emit)
+}
+
+func (p cliProvider) Sessions(context.Context, string) ([]provider.NativeSession, error) {
+	return p.sessions, nil
+}
+
+// Back from the agent's CLI, a thread brings in what was said there: past what it holds of a session the CLI
+// went on with, or the whole of one the CLI started anew.
+func TestBackFromTheTerminal(t *testing.T) {
+	later := time.Now().Add(time.Hour)
+	for _, c := range []struct {
+		name     string
+		said     bool
+		sessions []provider.NativeSession
+		want     string
+		held     int
+	}{
+		{"resumed", true, []provider.NativeSession{{ID: "native-1", UpdatedAt: later}}, "native-1", 1},
+		{"started anew", false, []provider.NativeSession{{ID: "cli-new", UpdatedAt: later}, {ID: "native-1", UpdatedAt: time.Now().Add(-time.Hour)}}, "cli-new", 0},
+		{"resume gave up", true, []provider.NativeSession{{ID: "cli-new", UpdatedAt: later}}, "cli-new", 0},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			p := cliProvider{sessions: c.sessions, opened: make(chan provider.Config, 8)}
+			h := New(p)
+			t.Cleanup(h.Close)
+			ctx := Trusted(context.Background())
+			th, err := h.CreateThread(ctx, &inabav1.CreateThreadRequest{Provider: "fake", Cwd: t.TempDir()})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c.said {
+				if _, err := h.StartTurn(ctx, &inabav1.StartTurnRequest{ThreadId: th.Id, Text: "hi"}); err != nil {
+					t.Fatal(err)
+				}
+				for i := 0; ; i++ {
+					if got, _ := h.GetThread(ctx, &inabav1.GetThreadRequest{ThreadId: th.Id}); got.Status == inabav1.ThreadStatus_THREAD_STATUS_IDLE {
+						break
+					} else if i == 300 {
+						t.Fatal("turn did not end")
+					}
+					time.Sleep(10 * time.Millisecond)
+				}
+			}
+			if _, err := h.SetMode(ctx, &inabav1.SetModeRequest{ThreadId: th.Id, Mode: inabav1.ThreadMode_THREAD_MODE_TERMINAL}); err != nil {
+				t.Fatal(err)
+			}
+			for len(p.opened) > 0 {
+				<-p.opened
+			}
+			if _, err := h.SetMode(ctx, &inabav1.SetModeRequest{ThreadId: th.Id, Mode: inabav1.ThreadMode_THREAD_MODE_STRUCTURED}); err != nil {
+				t.Fatal(err)
+			}
+			cfg := <-p.opened
+			if !cfg.CatchUp || cfg.Replay || cfg.NativeSessionID != c.want || cfg.Held != c.held {
+				t.Fatalf("opened %+v; want session %s holding %d", cfg, c.want, c.held)
+			}
+		})
+	}
+}

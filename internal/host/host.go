@@ -172,6 +172,12 @@ type thread struct {
 	// only then is its conversation brought in.
 	// shortcut: kept in memory, as CreateThread opens it at once; persist it if imports may start in the terminal.
 	importing bool
+	// catchUp is set as the thread comes back from its agent's CLI, until the session opens: what was said
+	// there, past the held messages the thread already has, is brought in.
+	catchUp bool
+	held    int
+	// termStarted is when the agent's CLI last started, to tell the session it went on with.
+	termStarted time.Time
 	// closed is set once the host has closed: what its agents still say after that is not
 	// saved, as the data may already be another host's, which a late save would set back.
 	closed bool
@@ -461,7 +467,7 @@ func (t *thread) openSession(ctx context.Context) error {
 	cfg := provider.Config{Cwd: meta.Cwd, NativeSessionID: meta.NativeSessionId, Language: meta.Language}
 	// A thread taking up a session from elsewhere has none of its conversation yet: it is brought in.
 	t.mu.Lock()
-	cfg.Replay = t.importing
+	cfg.Replay, cfg.CatchUp, cfg.Held = t.importing, t.catchUp, t.held
 	t.mu.Unlock()
 	if t.mcp != nil {
 		cfg.MCPServers = t.mcp(meta)
@@ -480,7 +486,7 @@ func (t *thread) openSession(ctx context.Context) error {
 	closing := t.closing
 	if !closing {
 		t.sess = sess
-		t.importing = false
+		t.importing, t.catchUp = false, false
 		t.meta.NativeSessionId = sess.NativeSessionID()
 		t.save.meta(t.meta)
 	}
@@ -1497,13 +1503,24 @@ func (h *Host) SetMode(ctx context.Context, req *inabav1.SetModeRequest) (*inaba
 			return nil, connect.NewError(connect.CodeFailedPrecondition, meta.Provider+" threads run only in the terminal")
 		}
 		t.closeTerminal()
+		if meta.Mode == inabav1.ThreadMode_THREAD_MODE_TERMINAL {
+			h.followTerminal(ctx, t)
+		}
 		if err := t.openSession(ctx); err != nil {
+			// Left as a host restart leaves it, so the view shows a terminal that ended rather than none.
+			t.mu.Lock()
+			t.catchUp = false
+			if t.meta.Mode == inabav1.ThreadMode_THREAD_MODE_TERMINAL {
+				t.term = ptyterm.Exited()
+			}
+			t.mu.Unlock()
 			return nil, err
 		}
 	default:
 		return nil, connect.NewError(connect.CodeInvalidArgument, "mode must be structured or terminal")
 	}
-	if meta.Mode != req.Mode {
+	// A terminal started again is news too, for the others watching the one that ended.
+	if meta.Mode != req.Mode || req.Mode == inabav1.ThreadMode_THREAD_MODE_TERMINAL {
 		t.emit(&inabav1.Event{Payload: &inabav1.Event_ModeChanged{ModeChanged: &inabav1.ModeChanged{Mode: req.Mode}}})
 	}
 	return t.snapshot(), nil

@@ -902,7 +902,7 @@ export const zhHant: Record<MessageKey, string> = {
   "chat.workflowAgentStopped": "已停止",
   "chat.turnEnded": "輪次結束：{reason}",
   "chat.restarted": "inaba 已重新啟動。正在重新啟動對話…",
-  "chat.toTerminal": "已切換到終端機。在那裡發生的事不會顯示在這裡。",
+  "chat.toTerminal": "已切換到終端機。回到聊天時，終端機中的對話會帶到這裡。",
   "chat.fromTerminal": "已從終端機返回。",
   "chat.asks": "代理程式請求：{title}",
   "chat.answered": "已回覆：{answer}",

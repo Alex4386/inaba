@@ -91,6 +91,9 @@ func (a *fakeAgentImpl) LoadSession(_ context.Context, req sdk.LoadSessionReques
 	a.update(sdk.UpdateUserMessageText("old "))
 	a.update(sdk.UpdateUserMessageText("question"))
 	a.update(sdk.UpdateAgentMessageText("old history"))
+	// And what followed in the agent's own CLI.
+	a.update(sdk.UpdateUserMessageText("later question"))
+	a.update(sdk.UpdateAgentMessageText("later answer"))
 	return sdk.LoadSessionResponse{}, nil
 }
 

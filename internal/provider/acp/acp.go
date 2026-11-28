@@ -50,6 +50,8 @@ type Provider struct {
 
 func (p *Provider) ID() string { return p.Name }
 
+func (p *Provider) TerminalEnv() []string { return p.Env }
+
 func (p *Provider) TerminalCommand(nativeSessionID string) []string {
 	if nativeSessionID == "" || len(p.TerminalResume) == 0 {
 		return p.Terminal
@@ -75,6 +77,11 @@ type session struct {
 	// Loading one a thread takes up from elsewhere keeps its history, the person's messages
 	// included, gathered here until what follows them.
 	importing bool
+	// skip is how many of the person's messages an import still passes over, with what follows each,
+	// as the thread has them; skipping is set from the start of one of those until the next.
+	skip      int
+	skipping  bool
+	inSaid    bool
 	said      strings.Builder
 	pending   map[string]chan string
 	// modes is set for an agent that offers session modes but no config options.
@@ -185,11 +192,12 @@ func (s *session) start(ctx context.Context, cfg provider.Config) error {
 	}
 	if cfg.NativeSessionID != "" && init.AgentCapabilities.LoadSession {
 		s.mu.Lock()
-		s.replaying, s.importing = !cfg.Replay, cfg.Replay
+		bring := cfg.Replay || cfg.CatchUp
+		s.replaying, s.importing, s.skip = !bring, bring, cfg.Held
 		s.mu.Unlock()
 		loaded, err := s.conn.LoadSession(ctx, sdk.LoadSessionRequest{SessionId: sdk.SessionId(cfg.NativeSessionID), Cwd: cfg.Cwd, McpServers: servers, SystemPrompt: instructions})
 		s.mu.Lock()
-		s.replaying, s.importing = false, false
+		s.replaying, s.importing, s.skip, s.skipping, s.inSaid = false, false, 0, false, false
 		s.mu.Unlock()
 		s.flushSaid()
 		if err == nil {
@@ -446,11 +454,22 @@ func (s *session) onUpdate(u sdk.SessionUpdate) {
 	s.mu.Lock()
 	replaying, importing := s.replaying, s.importing
 	if importing && u.UserMessageChunk != nil {
-		if c := u.UserMessageChunk.Content; c.Text != nil {
+		if !s.inSaid {
+			s.inSaid = true
+			s.skipping = s.skip > 0
+			if s.skipping {
+				s.skip--
+			}
+		}
+		if c := u.UserMessageChunk.Content; c.Text != nil && !s.skipping {
 			s.said.WriteString(c.Text.Text)
 		}
 		s.mu.Unlock()
 		return
+	}
+	if importing {
+		s.inSaid = false
+		replaying = replaying || s.skipping
 	}
 	s.mu.Unlock()
 	// A replay repeats the conversation the event log already holds; what the session

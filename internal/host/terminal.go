@@ -4,6 +4,7 @@ import (
 	"context"
 	"runtime"
 	"strings"
+	"time"
 
 	"connectrpc.com/connect/v2"
 
@@ -79,17 +80,84 @@ func (t *thread) startTerminal() error {
 	if err != nil {
 		return err
 	}
+	// The CLI keeps its sessions where the agent does, under the provider's own settings.
+	var env []string
+	if te, ok := t.prov.(provider.TerminalEnv); ok {
+		env = te.TerminalEnv()
+	}
 	// The agent's CLI starts before anyone looks at it; a viewer's Attach gives it their size.
-	term, err := ptyterm.Start(argv, t.snapshot().Cwd, 0, 0)
+	started := time.Now()
+	term, err := ptyterm.Start(argv, t.snapshot().Cwd, 0, 0, env...)
 	if err != nil {
 		return connect.NewError(connect.CodeUnavailable, "could not start "+argv[0]+": "+err.Error())
 	}
 	t.mu.Lock()
 	t.term = term
+	t.termStarted = started
 	t.meta.Mode = inabav1.ThreadMode_THREAD_MODE_TERMINAL
 	t.save.meta(t.meta)
 	t.mu.Unlock()
 	return nil
+}
+
+// followTerminal readies a thread coming back from its agent's CLI to bring in what was said there. The CLI
+// went on with the thread's session if it resumed it; one that started anew made a session of its own, which
+// the thread takes: the newest written since, that no other thread has.
+// shortcut: a session the CLI changed to after resuming (as by /clear) is not followed; nor, when two CLIs
+// start anew in one folder at once, is it told which is whose.
+func (h *Host) followTerminal(ctx context.Context, t *thread) {
+	meta := t.snapshot()
+	t.mu.Lock()
+	since := t.termStarted
+	t.mu.Unlock()
+	id := meta.NativeSessionId
+	if lister, ok := t.prov.(provider.SessionLister); ok && !since.IsZero() {
+		if list, err := lister.Sessions(ctx, meta.Cwd); err == nil {
+			ours := false
+			var fresh string
+			for _, s := range list {
+				if s.UpdatedAt.Before(since) {
+					continue
+				}
+				if s.ID == id {
+					ours = true
+				} else if fresh == "" && h.threadOf(meta.Provider, s.ID) == "" {
+					fresh = s.ID
+				}
+			}
+			if !ours && fresh != "" {
+				id = fresh
+			}
+		}
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.catchUp = id != ""
+	t.held = 0
+	if id == t.meta.NativeSessionId {
+		t.held = heldMessages(t.events)
+	}
+	if id != t.meta.NativeSessionId {
+		t.meta.NativeSessionId = id
+		t.save.meta(t.meta)
+	}
+}
+
+// heldMessages is how many of the person's messages the thread's current agent session has had: those since
+// it last began anew, as a rewind or another provider makes it.
+// shortcut: counts what the log shows, so a message the agent never got, or a CLI that compacted its
+// history, puts the count off and a message of the CLI's may come in twice or not at all.
+func heldMessages(events []*inabav1.Event) int {
+	n := 0
+	for _, e := range events {
+		switch e.Payload.(type) {
+		case *inabav1.Event_UserMessage:
+			n++
+		case *inabav1.Event_Rewound, *inabav1.Event_ProviderChanged:
+			n = 0
+		}
+	}
+	return n
 }
 
 func (h *Host) terminal(threadID string) (*ptyterm.Terminal, error) {

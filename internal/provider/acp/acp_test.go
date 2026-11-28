@@ -372,7 +372,37 @@ func TestImportingASession(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer sess.Close()
-	rec.waitFor(t, func(e *inabav1.Event) bool { return e.GetTextDelta().GetText() == "old history" })
+	if said := conversation(t, rec); said != "user:old question|agent:old history|user:later question|agent:later answer" {
+		t.Fatalf("imported history: %v", said)
+	}
+}
+
+// A thread back from the agent's CLI brings in what was said there: what follows the messages it holds.
+func TestCatchingUpOnASession(t *testing.T) {
+	for _, c := range []struct {
+		held int
+		want string
+	}{
+		{1, "user:later question|agent:later answer"},
+		{0, "user:old question|agent:old history|user:later question|agent:later answer"},
+	} {
+		rec := &recorder{notify: make(chan struct{}, 1)}
+		cfg := providerConfig(t, "s-old")
+		cfg.CatchUp, cfg.Held = true, c.held
+		sess, err := fakeProvider(t).Open(context.Background(), cfg, rec.emit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if said := conversation(t, rec); said != c.want {
+			t.Errorf("holding %d: brought in %v", c.held, said)
+		}
+		sess.Close()
+	}
+}
+
+// conversation is what a session brought in, once its last answer has come.
+func conversation(t *testing.T, rec *recorder) string {
+	rec.waitFor(t, func(e *inabav1.Event) bool { return e.GetTextDelta().GetText() == "later answer" })
 	rec.mu.Lock()
 	defer rec.mu.Unlock()
 	var said []string
@@ -383,7 +413,5 @@ func TestImportingASession(t *testing.T) {
 			said = append(said, "agent:"+d.Text)
 		}
 	}
-	if strings.Join(said, "|") != "user:old question|agent:old history" {
-		t.Fatalf("imported history: %v", said)
-	}
+	return strings.Join(said, "|")
 }

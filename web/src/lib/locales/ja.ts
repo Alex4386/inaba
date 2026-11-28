@@ -902,7 +902,7 @@ export const ja: Record<MessageKey, string> = {
   "chat.workflowAgentStopped": "停止",
   "chat.turnEnded": "ターン終了：{reason}",
   "chat.restarted": "inaba が再起動しました。スレッドを再開しています…",
-  "chat.toTerminal": "ターミナルに切り替えました。ターミナルでの出来事はここには表示されません。",
+  "chat.toTerminal": "ターミナルに切り替えました。ターミナルでのやり取りは、チャットに戻るときにここへ取り込まれます。",
   "chat.fromTerminal": "ターミナルから戻りました。",
   "chat.asks": "エージェントからの依頼：{title}",
   "chat.answered": "回答：{answer}",

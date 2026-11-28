@@ -47,11 +47,12 @@ type Terminal struct {
 
 // Start runs argv in dir on a new PTY.
 // Start runs argv in dir on a terminal of cols by rows; zero for either means 80 by 24.
-func Start(argv []string, dir string, cols, rows uint16) (*Terminal, error) {
+// env is added to this process's own, as a program's settings.
+func Start(argv []string, dir string, cols, rows uint16, env ...string) (*Terminal, error) {
 	if cols == 0 || rows == 0 {
 		cols, rows = 80, 24
 	}
-	p, err := startPTY(argv, dir, append(os.Environ(), "TERM=xterm-256color"), cols, rows)
+	p, err := startPTY(argv, dir, append(append(os.Environ(), env...), "TERM=xterm-256color"), cols, rows)
 	if err != nil {
 		return nil, err
 	}
